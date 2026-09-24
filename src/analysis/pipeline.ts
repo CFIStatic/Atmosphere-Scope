@@ -5,7 +5,7 @@ import { createEstimateVersion } from "@/domain/review";
 import { buildScope } from "@/domain/scope";
 import type { Finding, FrameObservation, Job, MediaAsset, PriceBook, ProcessingStage, ProcessingState, Room, TranscriptSegment } from "@/domain/types";
 import { SKETCH_DISCLAIMER } from "@/domain/types";
-import { applyEvaluation, emptySnapshot } from "@/domain/geometry";
+import { applyEvaluation, boundsOf, emptySnapshot } from "@/domain/geometry";
 import { analyzeEvidence, materializeFindings } from "./analyze";
 import { layoutFromMentions, mentionRooms } from "./layout";
 import { screenText } from "./guard";
@@ -121,14 +121,7 @@ export function runPipeline(job: Job, input: PipelineInput): Job {
       return { ...next, floors, rooms, findings, coverageNotes: draft.coverageNotes };
     }, "Findings drafted. Human corrections kept.");
     if (input.failStage === "analyze") throw new Error("Analysis failed.");
-    next = stage(next, "layout", () => {
-      if (humanLockedSketch(next) && next.sketch.geometry.rooms.length) {
-        return { ...next, audit: [...next.audit, audit("layout_preserved", "Existing human-corrected sketch was kept.")] };
-      }
-      const mentions = mentionRooms(next.transcripts, next.frames);
-      const sketch = layoutFromMentions(next.rooms, mentions, next.frames);
-      return { ...next, sketch };
-    }, "Schematic layout proposed. Narrated sizes are not locked measurements.");
+    next = stage(next, "layout", () => layoutStage(next), "Schematic layout proposed. Narrated sizes are not locked measurements.");
     if (input.failStage === "layout") throw new Error("Layout interrupted.");
     const book = input.usePriceBook ? input.priceBook ?? DEMO_PRICE_BOOK : emptyPriceBook();
     next = stage(next, "scope", () => {
@@ -175,7 +168,10 @@ export function runPipeline(job: Job, input: PipelineInput): Job {
     return next;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown processing error";
-    next.processing = { ...next.processing, status: "failed", lastError: message };
+    const stages = input.failStage
+      ? { ...next.processing.stages, [input.failStage]: { status: "failed" as const, completedAt: null, message } }
+      : next.processing.stages;
+    next.processing = { ...next.processing, status: "failed", lastError: message, stages };
     next.audit = [...next.audit, audit("pipeline_failed", message)];
     next.updatedAt = nowIso();
     return next;
@@ -239,8 +235,37 @@ function mergeQuestions(existing: Job["questions"], incoming: Job["questions"]):
   return [...answered, ...incoming.filter((question) => !prompts.has(question.prompt))];
 }
 
-function humanLockedSketch(job: Job): boolean {
-  return job.sketch.geometry.dimensions.some((dimension) => dimension.locked) || job.sketch.geometry.rooms.some((room) => room.provenance === "user_corrected" || room.provenance === "confirmed");
+function layoutStage(job: Job): Job {
+  const mentions = mentionRooms(job.transcripts, job.frames);
+  if (!anchoredSketch(job)) return { ...job, sketch: layoutFromMentions(job.rooms, mentions, job.frames) };
+  const present = new Set(job.sketch.geometry.rooms.map((room) => room.roomId));
+  const missing = job.rooms.filter((room) => !present.has(room.id));
+  if (missing.length === 0) {
+    return { ...job, audit: [...job.audit, audit("layout_preserved", "Existing human-corrected sketch was kept.")] };
+  }
+  const generated = layoutFromMentions(missing, mentions, job.frames);
+  const shiftX = boundsOf(job.sketch.geometry.rooms).maxX + 1.5;
+  const sketch = applyEvaluation({
+    ...job.sketch,
+    ceilingHeights: { ...job.sketch.ceilingHeights, ...generated.ceilingHeights },
+    geometry: {
+      rooms: [
+        ...job.sketch.geometry.rooms,
+        ...generated.geometry.rooms.map((room) => ({ ...room, polygon: room.polygon.map((point) => ({ x: point.x + shiftX, y: point.y })) })),
+      ],
+      openings: [...job.sketch.geometry.openings, ...generated.geometry.openings],
+      fixtures: [...job.sketch.geometry.fixtures, ...generated.geometry.fixtures],
+      annotations: [...job.sketch.geometry.annotations, ...generated.geometry.annotations],
+      dimensions: [...job.sketch.geometry.dimensions, ...generated.geometry.dimensions],
+    },
+  });
+  return { ...job, sketch, audit: [...job.audit, audit("layout_preserved", "Existing imported or human-corrected geometry was kept. New rooms were added beside it.")] };
+}
+
+function anchoredSketch(job: Job): boolean {
+  if (!job.sketch.geometry.rooms.length) return false;
+  return job.sketch.geometry.dimensions.some((dimension) => dimension.locked)
+    || job.sketch.geometry.rooms.some((room) => room.provenance === "imported" || room.provenance === "user_corrected" || room.provenance === "confirmed");
 }
 
 function audit(action: string, detail: string) {

@@ -64,7 +64,7 @@ export function Workspace({ initialJob }: { initialJob: Job }) {
         <span className="badge">{job.processing.status}</span>
       </div>
 
-      {tab === "capture" && <Capture job={job} onProcess={(transcript, usePriceBook) => act({ type: "process", transcript, usePriceBook })} onRetry={() => act({ type: "retry" })} />}
+      {tab === "capture" && <Capture job={job} onProcess={(transcript, usePriceBook) => act({ type: "process", transcript, usePriceBook })} onRetry={() => act({ type: "retry" })} onUploaded={setJob} />}
       {tab === "evidence" && <Evidence job={job} findings={findings} findingId={findingId} onSelect={(id) => { setFindingId(id); const finding = job.findings.find((item) => item.id === id); if (finding?.roomId) setRoomId(finding.roomId); }} />}
       {tab === "sketch" && <SketchEditor job={job} onOp={(op: SketchOp) => act({ type: "sketch", op })} onUndo={() => act({ type: "undo" })} onRedo={() => act({ type: "redo" })} onAddRoom={(name) => act({ type: "add_named_room", name })} />}
       {tab === "map" && (
@@ -122,7 +122,7 @@ export function Workspace({ initialJob }: { initialJob: Job }) {
   );
 }
 
-function Capture({ job, onProcess, onRetry }: { job: Job; onProcess: (transcript: string, usePriceBook: boolean) => void; onRetry: () => void }) {
+function Capture({ job, onProcess, onRetry, onUploaded }: { job: Job; onProcess: (transcript: string, usePriceBook: boolean) => void; onRetry: () => void; onUploaded: (job: Job) => void }) {
   const [transcript, setTranscript] = useState("");
   return (
     <section className="split">
@@ -147,12 +147,12 @@ function Capture({ job, onProcess, onRetry }: { job: Job; onProcess: (transcript
         {job.processing.lastError && <p className="error">{job.processing.lastError}</p>}
         <ul>{Object.entries(job.processing.stages).map(([name, stage]) => <li key={name}>{name}: {stage.status}{stage.message ? ` — ${stage.message}` : ""}</li>)}</ul>
       </div>
-      <Upload jobId={job.id} notes={job.coverageNotes} media={job.media} />
+      <Upload jobId={job.id} notes={job.coverageNotes} media={job.media} onUploaded={onUploaded} />
     </section>
   );
 }
 
-function Upload({ jobId, notes, media }: { jobId: string; notes: string[]; media: Job["media"] }) {
+function Upload({ jobId, notes, media, onUploaded }: { jobId: string; notes: string[]; media: Job["media"]; onUploaded: (job: Job) => void }) {
   const [message, setMessage] = useState<string | null>(null);
   return (
     <div className="panel grid">
@@ -161,7 +161,13 @@ function Upload({ jobId, notes, media }: { jobId: string; notes: string[]; media
         event.preventDefault();
         const form = new FormData(event.currentTarget);
         const response = await fetch(`/api/jobs/${jobId}/media`, { method: "POST", body: form });
-        setMessage(response.ok ? "File stored privately on this server." : "Upload failed.");
+        const payload = await response.json();
+        if (!response.ok || !payload.job) {
+          setMessage(payload.error ?? "Upload failed.");
+          return;
+        }
+        onUploaded(payload.job);
+        setMessage("File stored privately on this server.");
       }}>
         <input name="file" type="file" accept="video/*,image/*,.json,.ply" required />
         <button className="btn" type="submit">Upload</button>

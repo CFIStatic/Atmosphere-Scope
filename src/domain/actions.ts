@@ -31,8 +31,9 @@ export function applyJobAction(job: Job, action: JobAction): Job {
   const actor = (name: string, role: Actor["role"]): Actor => ({ name, role });
   if (action.type === "sketch") {
     const sketch = applySketchOp(job.sketch, action.op);
-    const pending = previewQuantityChanges({ ...job, sketch });
-    return audit({ ...job, sketch, pendingQuantityChanges: pending }, "sketch_edit", "Sketch edited. Quantity changes are previewed, not applied.");
+    const rooms = roomsAfterSketch(job, action.op, sketch);
+    const pending = previewQuantityChanges({ ...job, rooms, sketch });
+    return audit({ ...job, rooms, sketch, pendingQuantityChanges: pending }, "sketch_edit", "Sketch edited. Quantity changes are previewed, not applied.");
   }
   if (action.type === "undo") return { ...job, sketch: undoSketch(job.sketch), pendingQuantityChanges: previewQuantityChanges({ ...job, sketch: undoSketch(job.sketch) }) };
   if (action.type === "redo") return { ...job, sketch: redoSketch(job.sketch) };
@@ -173,6 +174,16 @@ function replaceVersion(job: Job, version: Job["estimates"][number], detail: str
     estimates: job.estimates.map((item) => (item.id === version.id ? version : item)),
     activeEstimateId: version.id,
   }, version.status, detail);
+}
+
+function roomsAfterSketch(job: Job, op: SketchOp, sketch: Job["sketch"]): Job["rooms"] {
+  if (op.type !== "split_room") return job.rooms;
+  if (job.rooms.some((room) => room.id === op.newRoomId)) return job.rooms;
+  if (!sketch.geometry.rooms.some((room) => room.roomId === op.newRoomId)) return job.rooms;
+  const source = job.rooms.find((room) => room.id === op.roomId);
+  const floorId = source?.floorId ?? job.floors[0]?.id;
+  if (!floorId) return job.rooms;
+  return [...job.rooms, { id: op.newRoomId, floorId, name: source ? `${source.name} split` : "Split room", nameStatus: "confirmed", humanNamed: true, notes: "" }];
 }
 
 function addNamedRoom(job: Job, name: string): Job {
