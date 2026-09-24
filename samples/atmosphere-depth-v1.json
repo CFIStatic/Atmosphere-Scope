@@ -1,0 +1,16 @@
+{
+  "format": "atmosphere-depth-v1",
+  "rooms": [
+    {
+      "name": "Laundry",
+      "floor": "Main floor",
+      "heightFt": 8,
+      "polygonFt": [
+        { "x": 0, "y": 0 },
+        { "x": 6.5, "y": 0 },
+        { "x": 6.5, "y": 7.25 },
+        { "x": 0, "y": 7.25 }
+      ]
+    }
+  ]
+}
