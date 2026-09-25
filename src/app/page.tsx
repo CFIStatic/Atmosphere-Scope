@@ -30,7 +30,7 @@ export default async function HomePage() {
               concern: jobType(job.concern),
               updatedAt: job.updatedAt,
               status: version?.status ?? null,
-              unpriced: version?.pricedLines.filter((line) => line.unitPrice == null || line.unpricedReason).length ?? 0,
+              unpriced: version?.pricedLines.filter((line) => line.unpricedReason !== "Excluded from price." && (line.unitPrice == null || line.unpricedReason)).length ?? 0,
               total: version?.totals.supportedTotal ?? null,
             };
           })}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WalkthroughSnapshot } from "@/capture/snapshot";
-import { ASSIST_PARAMETERS, buildReview, confirmProposal, diffProposal, interpretUtterance, notesFromNarration, parseProposal } from "@/domain/assist";
+import { ASSIST_PARAMETERS, buildReview, confirmProposal, diffProposal, draftLinesWithAssist, interpretUtterance, jobCardSentence, notesFromNarration, parseProposal, sourcesWithAssist } from "@/domain/assist";
+import { STARTER_CATALOG, draftScope } from "@/domain/catalog";
 import { proposeCommand } from "@/analysis/openai/command";
 
 const snapshot: WalkthroughSnapshot = {
@@ -89,6 +90,78 @@ describe("assist schema", () => {
       { target: "Sofa", note: "salvageable" },
       { target: "Flooring", note: "LVP" },
     ]);
+  });
+
+  it("keeps an added item once when a later edit is confirmed", () => {
+    const actor = { by: "Ada", prompt: "add two dining chairs", now: "2026-09-25T00:00:00.000Z" };
+    const added = confirmProposal(snapshot, interpretUtterance("add two dining chairs", snapshot).proposal, actor);
+    const again = confirmProposal(added.snapshot, interpretUtterance("add one lamp", added.snapshot).proposal, { ...actor, prompt: "add one lamp" });
+    const names = buildReview(again.snapshot).items.map((item) => item.name);
+    expect(names.filter((name) => name === "dining chairs")).toEqual(["dining chairs"]);
+    expect(again.snapshot.objects.map((item) => item.name)).not.toContain("dining chairs");
+    const counted = confirmProposal(added.snapshot, {
+      intent: "edit",
+      answer: null,
+      unknown: null,
+      changes: [{ op: "set_quantity", target: "dining chairs", value: 4, reason: "You counted again." }],
+    }, { ...actor, prompt: "set quantity" });
+    const chairs = buildReview(counted.snapshot).items.filter((item) => item.name === "dining chairs");
+    expect(chairs).toHaveLength(1);
+    expect(chairs[0]?.quantity).toBe(4);
+  });
+
+  it("replaces a flooring rename with the next material", () => {
+    const actor = { by: "Ada", prompt: "change the flooring to LVP", now: "2026-09-25T00:00:00.000Z" };
+    const first = confirmProposal(snapshot, interpretUtterance("change the flooring to LVP", snapshot).proposal, actor);
+    const next = interpretUtterance("change the flooring to hardwood", first.snapshot);
+    expect(diffProposal(first.snapshot, next.proposal)[0]?.blocked).toBe(false);
+    const second = confirmProposal(first.snapshot, next.proposal, { ...actor, prompt: "change the flooring to hardwood" });
+    const names = buildReview(second.snapshot).items.map((item) => item.name);
+    expect(names).toContain("hardwood");
+    expect(names).not.toContain("LVP");
+    expect(names).not.toContain("Flooring");
+  });
+
+  it("shows a confirmed note on the review item", () => {
+    const confirmed = confirmProposal(snapshot, {
+      intent: "edit",
+      answer: null,
+      unknown: null,
+      changes: [{ op: "set_note", target: "Sofa", value: "scratch on the arm", reason: "You said so." }],
+    }, { by: "Ada", prompt: "note the sofa", now: "2026-09-25T00:00:00.000Z" });
+    expect(buildReview(confirmed.snapshot).items.find((item) => item.name === "Sofa")?.note).toBe("scratch on the arm");
+  });
+
+  it("feeds confirmed adds and renames into the estimate", () => {
+    const actor = { by: "Ada", prompt: "edit", now: "2026-09-25T00:00:00.000Z" };
+    const added = confirmProposal(snapshot, interpretUtterance("add two dining chairs", snapshot).proposal, actor);
+    expect(sourcesWithAssist(added.snapshot).objects.find((item) => item.name === "dining chairs")?.quantity).toBe(2);
+    const renamed = confirmProposal(snapshot, interpretUtterance("change the flooring to LVP", snapshot).proposal, actor);
+    const lines = draftLinesWithAssist(renamed.snapshot, draftScope({
+      plan: renamed.snapshot.plan,
+      objects: sourcesWithAssist(renamed.snapshot).objects,
+      catalog: STARTER_CATALOG,
+      loss: "none",
+    }));
+    expect(lines.find((line) => line.materialQuery === "LVP")?.description).toMatch(/LVP/);
+    expect(sourcesWithAssist(renamed.snapshot).offers.some((offer) => offer.query === "Flooring")).toBe(false);
+    expect(renamed.snapshot.offers.find((offer) => offer.query === "Flooring")?.price).toBe(2);
+  });
+
+  it("keeps estimator drafts off a customer's attention list", () => {
+    expect(jobCardSentence({ customer: "Pat", concern: "Leak", status: "ai_draft", unpriced: 0, viewerIsCustomer: true })).toEqual({
+      needsAttention: false,
+      sentence: "Leak",
+    });
+    expect(jobCardSentence({ customer: "Pat", concern: "Leak", status: "estimator_reviewed", unpriced: 2, viewerIsCustomer: true }).needsAttention).toBe(false);
+    expect(jobCardSentence({ customer: "Pat", concern: "Leak", status: "estimator_approved", unpriced: 0, viewerIsCustomer: true })).toEqual({
+      needsAttention: true,
+      sentence: "Waiting for a signature.",
+    });
+    expect(jobCardSentence({ customer: "Pat", concern: "Leak", status: "ai_draft", unpriced: 0 })).toMatchObject({
+      needsAttention: true,
+      sentence: "Waiting for approval.",
+    });
   });
 });
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, Fragment, type Dispatch, type SetStateAction } from "react";
 import { saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
+import { draftLinesWithAssist, sourcesWithAssist } from "@/domain/assist";
 import { draftScope, type CatalogComponent, type CatalogItem, type CatalogTrigger, type CatalogVersion, type LossType } from "@/domain/catalog";
 import { finalizeReport, priceDraft, type EquipmentRate, type EstimateReport, type LaborRate, type MaterialPrice, type RateBook } from "@/domain/estimate-engine";
 import type { ResultOffer } from "@/domain/results";
@@ -49,11 +50,13 @@ export function DraftEstimate({ snapshot, onSnapshot }: { snapshot: WalkthroughS
     };
   }, []);
 
-  const materials = useMemo(() => materialsFromOffers(snapshot.offers), [snapshot.offers]);
+  const sources = useMemo(() => sourcesWithAssist(snapshot), [snapshot]);
+  const materials = useMemo(() => materialsFromOffers(sources.offers), [sources.offers]);
   const live = useMemo(() => {
     if (!catalog || !rates) return null;
-    return priceDraft(draftScope({ plan: snapshot.plan, objects: snapshot.objects, catalog, loss }), catalog, rates, materials);
-  }, [catalog, rates, snapshot.plan, snapshot.objects, loss, materials]);
+    const lines = draftLinesWithAssist(snapshot, draftScope({ plan: snapshot.plan, objects: sources.objects, catalog, loss }));
+    return priceDraft(lines, catalog, rates, materials);
+  }, [catalog, rates, snapshot, loss, materials, sources.objects]);
 
   async function saveRates() {
     if (!rateDraft) return;

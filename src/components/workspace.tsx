@@ -11,7 +11,6 @@ import type { Job } from "@/domain/types";
 import type { SketchOp } from "@/domain/sketch-ops";
 import { SketchEditor } from "./sketch-editor";
 import { AppFrame } from "@/components/app-frame";
-import { CommandBar } from "@/components/command-bar";
 import { buildSpaceModel } from "@/spatial/model";
 
 const SpaceMap = dynamic(() => import("./space-map").then((mod) => mod.SpaceMap), { ssr: false, loading: () => <p>Loading 3D view…</p> });
@@ -43,7 +42,7 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
 
   const area = job.sketch.geometry.rooms.reduce((sum, room) => sum + polygonArea(room.polygon), 0);
   const pricedLines = version?.pricedLines ?? [];
-  const unpriced = pricedLines.filter((line) => line.unitPrice == null || line.unpricedReason).length;
+  const unpriced = pricedLines.filter((line) => line.unpricedReason !== "Excluded from price." && (line.unitPrice == null || line.unpricedReason)).length;
   const pricedPct = pricedLines.length ? ((pricedLines.length - unpriced) / pricedLines.length) * 100 : null;
   const needs = unpriced + job.questions.filter((question) => question.status === "open").length;
 
@@ -70,7 +69,6 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
         <Link className="btn secondary" href="/review">Review</Link>
         <Link className="btn secondary" href="/estimate">Estimate</Link>
       </div>
-      <CommandBar snapshot={null} />
       {error && <p className="error">{error}</p>}
       <details className="quiet">
       <summary>Job file</summary>

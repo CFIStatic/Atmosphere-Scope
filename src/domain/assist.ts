@@ -201,7 +201,8 @@ export function interpretUtterance(prompt: string, snapshot: WalkthroughSnapshot
   }
   const flooring = text.match(/^(?:please\s+)?change the flooring to\s+(.+)$/i);
   if (flooring) {
-    return { matched: true, proposal: { intent: "edit", answer: null, unknown: null, changes: [{ op: "rename_item", target: "Flooring", value: cleanName(flooring[1]), reason: "You asked to change the flooring." }] } };
+    const target = displayedName(snapshot.assist ?? emptyAssist(), "Flooring");
+    return { matched: true, proposal: { intent: "edit", answer: null, unknown: null, changes: [{ op: "rename_item", target, value: cleanName(flooring[1]), reason: "You asked to change the flooring." }] } };
   }
   const mark = text.match(/^(?:please\s+)?mark the\s+(.+?)\s+as\s+(.+)$/i);
   if (mark) {
@@ -228,17 +229,18 @@ export function interpretUtterance(prompt: string, snapshot: WalkthroughSnapshot
 
 export function diffProposal(snapshot: WalkthroughSnapshot, proposal: AssistProposal): AssistDiff[] {
   const review = buildReview(snapshot);
-  return proposal.changes.map((change) => diffChange(review, change, proposal));
+  const assist = snapshot.assist ?? emptyAssist();
+  return proposal.changes.map((change) => diffChange(review, assist, change, proposal));
 }
 
 export function confirmProposal(snapshot: WalkthroughSnapshot, proposal: AssistProposal, actor: { by: string; prompt: string; now: string }): { snapshot: WalkthroughSnapshot; diffs: AssistDiff[] } {
   const diffs = diffProposal(snapshot, proposal);
   const assist = snapshot.assist ?? emptyAssist();
-  let objects = objectsWithAssist(snapshot);
-  const added = [...assist.added];
+  let objects = snapshot.objects;
+  let added = assist.added.map((item) => ({ ...item }));
   const renames = [...assist.renames];
-  const conditions = [...assist.conditions];
-  const notes = [...assist.notes];
+  let conditions = [...assist.conditions];
+  let notes = [...assist.notes];
   const log = [...assist.log];
   proposal.changes.forEach((change, index) => {
     const diff = diffs[index];
@@ -250,12 +252,21 @@ export function confirmProposal(snapshot: WalkthroughSnapshot, proposal: AssistP
       const quantity = typeof change.value === "number" ? change.value : null;
       added.push({ name: change.target, room: roomName(snapshot), quantity });
     } else if (change.op === "set_quantity" && typeof change.value === "number") {
-      objects = objects.map((object) => object.name.toLowerCase() === change.target.toLowerCase() ? { ...object, quantity: change.value as number } : object);
+      const quantity = change.value;
+      const target = change.target.toLowerCase();
+      objects = objects.map((object) => object.name.toLowerCase() === target ? { ...object, quantity } : object);
+      added = added.map((item) => item.name.toLowerCase() === target ? { ...item, quantity } : item);
     } else if (change.op === "rename_item" && typeof change.value === "string") {
       renames.push({ from: change.target, to: change.value });
     } else if (change.op === "set_condition" && typeof change.value === "string") {
+      const target = change.target.toLowerCase();
+      notes = notes.filter((item) => item.target.toLowerCase() !== target);
+      conditions = conditions.filter((item) => item.target.toLowerCase() !== target);
       conditions.push({ target: change.target, value: change.value });
     } else if (change.op === "set_note" && typeof change.value === "string") {
+      const target = change.target.toLowerCase();
+      conditions = conditions.filter((item) => item.target.toLowerCase() !== target);
+      notes = notes.filter((item) => item.target.toLowerCase() !== target);
       notes.push({ target: change.target, value: change.value });
     }
     log.push({ at: actor.now, by: actor.by, prompt: actor.prompt, summary: diff.summary, before: diff.before, after: diff.after });
@@ -288,13 +299,33 @@ export function notesFromNarration(transcript: string | null, names: string[]): 
   return notes;
 }
 
-export function jobCardSentence(input: { customer: string; concern: string; status: EstimateStatus | null; unpriced: number }): { needsAttention: boolean; sentence: string } {
+export function jobCardSentence(input: { customer: string; concern: string; status: EstimateStatus | null; unpriced: number; viewerIsCustomer?: boolean }): { needsAttention: boolean; sentence: string } {
+  if (input.viewerIsCustomer) {
+    if (input.status === "estimator_approved") return { needsAttention: true, sentence: "Waiting for a signature." };
+    return { needsAttention: false, sentence: input.concern.trim() || input.customer };
+  }
   if (input.unpriced > 0) {
     return { needsAttention: true, sentence: input.unpriced === 1 ? "1 line needs a price." : `${input.unpriced} lines need a price.` };
   }
   if (input.status === "estimator_approved") return { needsAttention: true, sentence: "Waiting for a signature." };
   if (!input.status || input.status === "ai_draft" || input.status === "estimator_reviewed") return { needsAttention: true, sentence: "Waiting for approval." };
   return { needsAttention: false, sentence: input.concern.trim() || input.customer };
+}
+
+export function sourcesWithAssist(snapshot: WalkthroughSnapshot): { objects: IdentifiedObject[]; offers: ResultOffer[] } {
+  return { objects: objectsWithAssist(snapshot), offers: offersWithAssist(snapshot) };
+}
+
+export function draftLinesWithAssist<T extends { description: string; materialQuery: string | null }>(snapshot: WalkthroughSnapshot, lines: T[]): T[] {
+  const assist = snapshot.assist ?? emptyAssist();
+  if (assist.renames.length === 0) return lines;
+  return lines.map((line) => {
+    if (!line.materialQuery) return line;
+    const next = displayedName(assist, line.materialQuery);
+    if (next.toLowerCase() === line.materialQuery.toLowerCase()) return line;
+    const pattern = new RegExp(line.materialQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig");
+    return { ...line, materialQuery: next, description: line.description.replace(pattern, next) };
+  });
 }
 
 function parseChange(raw: unknown): ProposedChange | null {
@@ -310,11 +341,11 @@ function parseChange(raw: unknown): ProposedChange | null {
   return { op: record.op as AssistOp, target: record.target.trim(), value: typeof record.value === "string" ? record.value.trim() : record.value, reason: record.reason.trim() };
 }
 
-function diffChange(review: ReturnType<typeof buildReview>, change: ProposedChange, proposal: AssistProposal): AssistDiff {
+function diffChange(review: ReturnType<typeof buildReview>, assist: AssistState, change: ProposedChange, proposal: AssistProposal): AssistDiff {
   if (change.op === "explain") {
     return { summary: "Measurement stays as solved", before: "Locked", after: "Not changed", blocked: true };
   }
-  const item = review.items.find((line) => line.name.toLowerCase() === change.target.toLowerCase());
+  const item = itemForChange(review, assist, change.target);
   if (change.op === "add_item") {
     const quantity = typeof change.value === "number" ? change.value : null;
     return { summary: `Add ${change.target}`, before: "Not on the list", after: quantity == null ? `${change.target}, needs price` : `${quantity} ${change.target}, needs price`, blocked: false };
@@ -342,8 +373,9 @@ function toReviewItem(line: ResultLine, snapshot: WalkthroughSnapshot, assist: A
   const object = snapshot.objects.find((item) => item.name.toLowerCase() === line.item.toLowerCase());
   const quantityStatus = snapshot.plan.quantities.find((item) => item.roomName === line.room && surfaceName(item.kind) === line.item)?.status;
   const confidence = object ? confidenceFromModel(object.confidence) : confidenceFromDimension(quantityStatus ?? "estimated", line.quantity);
-  const condition = assist.conditions.find((item) => item.target.toLowerCase() === line.item.toLowerCase());
-  const note = condition ? condition.value : line.note;
+  const condition = latestValue(assist.conditions, line.item);
+  const noted = latestValue(assist.notes, line.item);
+  const note = condition ?? noted ?? line.note;
   const needsYou = confidence !== "High" || priceStatus !== "verified" || line.quantity == null;
   return { id: line.id, room: line.room, name: line.item, quantity: line.quantity, unit: line.unit, confidence, priceStatus, price: choice?.unitPrice ?? null, needsYou, note };
 }
@@ -367,15 +399,49 @@ function offersWithAssist(snapshot: WalkthroughSnapshot): ResultOffer[] {
 }
 
 function applyRename(line: ResultLine, assist: AssistState): ResultLine {
-  const rename = assist.renames.find((item) => item.from.toLowerCase() === line.item.toLowerCase());
-  if (!rename) return line;
+  const next = displayedName(assist, line.item);
+  if (next.toLowerCase() === line.item.toLowerCase()) return line;
   return {
     ...line,
-    item: rename.to,
+    item: next,
     replacements: [{ title: null, retailer: null, unitPrice: null, currency: null, url: null, status: "unpriced", note: "No source price for this material." }],
     selected: 0,
     lineTotal: null,
   };
+}
+
+function displayedName(assist: AssistState, name: string): string {
+  let current = name;
+  const used = new Set<number>();
+  for (let guard = 0; guard <= assist.renames.length; guard += 1) {
+    let found = -1;
+    for (let index = assist.renames.length - 1; index >= 0; index -= 1) {
+      if (used.has(index)) continue;
+      if (assist.renames[index].from.toLowerCase() === current.toLowerCase()) {
+        found = index;
+        break;
+      }
+    }
+    if (found < 0) return current;
+    used.add(found);
+    current = assist.renames[found].to;
+  }
+  return current;
+}
+
+function itemForChange(review: ReturnType<typeof buildReview>, assist: AssistState, target: string): ReviewItem | undefined {
+  const named = review.items.find((line) => line.name.toLowerCase() === target.toLowerCase());
+  if (named) return named;
+  const current = displayedName(assist, target);
+  if (current.toLowerCase() === target.toLowerCase()) return undefined;
+  return review.items.find((line) => line.name.toLowerCase() === current.toLowerCase());
+}
+
+function latestValue(entries: { target: string; value: string }[], name: string): string | null {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    if (entries[index].target.toLowerCase() === name.toLowerCase()) return entries[index].value;
+  }
+  return null;
 }
 
 function dimensionRows(plan: FloorPlan): { label: string; value: string; confidence: ConfidenceChip }[] {

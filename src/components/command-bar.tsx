@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { loadWalkthrough, saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
+import { saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
 import type { AssistDiff, AssistProposal } from "@/domain/assist";
 
 export function CommandBar({ snapshot, onSnapshot }: { snapshot: WalkthroughSnapshot | null; onSnapshot?: (next: WalkthroughSnapshot) => void }) {
@@ -21,14 +21,13 @@ export function CommandBar({ snapshot, onSnapshot }: { snapshot: WalkthroughSnap
   }, []);
 
   async function ask(text: string) {
-    const current = snapshot ?? loadWalkthrough();
-    if (!current || !text.trim()) return;
+    if (!snapshot || !text.trim()) return;
     setPending(true);
     setNotice(null);
     const response = await fetch("/api/assist", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ prompt: text, snapshot: current }),
+      body: JSON.stringify({ prompt: text, snapshot }),
     });
     const body = await response.json();
     setPending(false);
@@ -38,13 +37,12 @@ export function CommandBar({ snapshot, onSnapshot }: { snapshot: WalkthroughSnap
   }
 
   async function apply() {
-    const current = snapshot ?? loadWalkthrough();
-    if (!current || !proposal) return;
+    if (!snapshot || !proposal) return;
     setPending(true);
     const response = await fetch("/api/assist", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ confirm: true, prompt, proposal, snapshot: current }),
+      body: JSON.stringify({ confirm: true, prompt, proposal, snapshot }),
     });
     const body = await response.json();
     setPending(false);
@@ -57,8 +55,7 @@ export function CommandBar({ snapshot, onSnapshot }: { snapshot: WalkthroughSnap
   }
 
   async function listen() {
-    const current = snapshot ?? loadWalkthrough();
-    if (!current || listening) return;
+    if (!snapshot || listening) return;
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
     if (!stream) return;
     setListening(true);

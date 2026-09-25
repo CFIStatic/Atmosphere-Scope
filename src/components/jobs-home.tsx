@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { loadWalkthrough } from "@/capture/snapshot";
-import { buildReview } from "@/domain/assist";
+import { buildReview, jobCardSentence } from "@/domain/assist";
 import { formatDate, formatMoney } from "@/domain/format";
 import { jobStatusChip } from "@/domain/labels";
 import type { EstimateStatus } from "@/domain/types";
@@ -41,8 +41,9 @@ export function JobsHome({ jobs, customer }: { jobs: JobRow[]; customer: boolean
     });
   }, []);
 
-  const attention = jobs.filter((job) => job.unpriced > 0 || !job.status || job.status === "ai_draft" || job.status === "estimator_reviewed" || job.status === "estimator_approved");
-  const recent = jobs.filter((job) => !attention.includes(job)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const ranked = jobs.map((job) => ({ ...job, needsAttention: jobCardSentence({ customer: job.customer, concern: job.concern, status: job.status, unpriced: job.unpriced, viewerIsCustomer: customer }).needsAttention }));
+  const attention = ranked.filter((job) => job.needsAttention);
+  const recent = ranked.filter((job) => !job.needsAttention).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const empty = !walk && jobs.length === 0;
 
   if (empty) {
