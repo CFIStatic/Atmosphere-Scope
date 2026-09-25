@@ -249,7 +249,20 @@ label.btn input { display: none; }
   .record-shell { min-height: 0; padding: 0 0 calc(76px + env(safe-area-inset-bottom)); }
   .record-shell .capture-stage { margin-inline: 0; }
   .record-shell .capture-video { border-radius: 0; height: auto; }
-  .record-shell .capture-video video { height: calc(100dvh - 188px); min-height: 220px; }
+  .record-shell .capture-stage { position: relative; flex: 1; }
+  .record-shell .capture-video { flex: 1; }
+  .record-shell .capture-video video { height: calc(100dvh - 156px); min-height: 420px; }
+  .record-shell .action-bar {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 12px;
+    background: transparent;
+    border: 0;
+    padding: 0;
+  }
+  .record-shell .action-bar .record-btn,
+  .record-shell .action-bar .stop-btn { min-height: 64px; }
   .record-shell .permission-line, .record-shell .error { padding: 8px 12px 0; }
 }
 @media (orientation: landscape) and (max-height: 500px) {
