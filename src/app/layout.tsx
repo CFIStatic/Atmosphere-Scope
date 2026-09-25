@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 
@@ -9,7 +9,13 @@ const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variabl
 export const metadata: Metadata = {
   title: "Atmosphere Scope",
   description: "Narrated walkthroughs into a reviewable job sketch, assessment, and draft estimate.",
+  manifest: "/manifest.webmanifest",
+  applicationName: "Atmosphere Scope",
+  appleWebApp: { capable: true, title: "Scope" },
+  icons: { icon: "/icon-192.png", apple: "/icon-192.png" },
 };
+
+export const viewport: Viewport = { themeColor: "#161616" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

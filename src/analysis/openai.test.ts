@@ -5,11 +5,17 @@ import { assertStorageReady, selectMeasurementBackend, selectPricingProvider, se
 import { extractResponseText, parseOfferJson, priceWithOpenAI } from "@/analysis/openai/pricing";
 import { dedupeObjects, parseVisionObjects } from "@/analysis/openai/vision";
 import { providerStatus } from "@/analysis/provider-status";
-import { fetchPublicPage, isPublicHttpUrl, judgeOffer, priceAppearsOnPage } from "@/analysis/pricing-check";
+import { createOfferCache, normalizeItemKey } from "@/analysis/offer-cache";
+import { createIntervalQueue, fetchPublicPage, isBlockedAddress, isPublicHttpUrl, judgeOffer, priceAppearsOnPage, type AddressLookup } from "@/analysis/pricing-check";
 import { enrichMeasuredWalkthrough } from "@/analysis/walkthrough";
 import { listSupabaseJobs } from "@/storage/supabase-store";
 
 const NOW = new Date("2026-09-25T00:00:00.000Z");
+const publicLookup: AddressLookup = async () => [{ address: "93.184.216.34", family: 4 }];
+
+function testPage(fetchImpl: typeof fetch) {
+  return { fetchImpl, lookup: publicLookup, queue: createIntervalQueue(0), timeoutMs: 1000, maxBytes: 500_000 };
+}
 
 function jsonResponse(body: unknown, status = 200, headers?: Record<string, string>): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
@@ -111,9 +117,118 @@ describe("price verification", () => {
       calls += 1;
       return new Response("", { status: 302, headers: { location: "http://169.254.169.254/latest" } });
     }) as typeof fetch;
-    const page = await fetchPublicPage("https://shop.example/item", fetchImpl);
+    const page = await fetchPublicPage("https://shop.example/item", testPage(fetchImpl));
     expect(page.ok).toBe(false);
     expect(calls).toBe(1);
+    expect(isBlockedAddress("8.8.8.8")).toBe(false);
+    expect(isBlockedAddress("100.64.1.1")).toBe(true);
+    expect(isBlockedAddress("fe80::1")).toBe(true);
+    expect(isBlockedAddress("2606:4700:4700::1111")).toBe(false);
+  });
+
+  it("refuses a host that resolves to a private address and does not follow that redirect", async () => {
+    let calls = 0;
+    const lookup: AddressLookup = async (hostname) => {
+      if (hostname === "evil.test") return [{ address: "10.1.1.1", family: 4 }];
+      return [{ address: "93.184.216.34", family: 4 }];
+    };
+    const blocked = await fetchPublicPage("https://evil.test/secret", {
+      fetchImpl: (async () => {
+        calls += 1;
+        return new Response("no", { status: 200 });
+      }) as typeof fetch,
+      lookup,
+      queue: createIntervalQueue(0),
+    });
+    expect(blocked.ok).toBe(false);
+    expect(calls).toBe(0);
+    const redirected = await fetchPublicPage("https://shop.example/item", {
+      fetchImpl: (async () => new Response("", { status: 302, headers: { location: "https://evil.test/metadata" } })) as typeof fetch,
+      lookup,
+      queue: createIntervalQueue(0),
+    });
+    expect(redirected.ok).toBe(false);
+    if (!redirected.ok) expect(redirected.reason).toMatch(/blocked address/);
+    let mixedCalls = 0;
+    const mixed = await fetchPublicPage("https://shop.example/mixed", {
+      fetchImpl: (async () => {
+        mixedCalls += 1;
+        return new Response("no", { status: 200 });
+      }) as typeof fetch,
+      lookup: async () => [{ address: "93.184.216.34", family: 4 }, { address: "10.0.0.1", family: 4 }],
+      queue: createIntervalQueue(0),
+    });
+    expect(mixed.ok).toBe(false);
+    expect(mixedCalls).toBe(0);
+    expect(isBlockedAddress("::ffff:127.0.0.1")).toBe(true);
+    expect(isBlockedAddress("::ffff:7f00:1")).toBe(true);
+    expect(isPublicHttpUrl("http://metadata.google.internal/")).toBe(false);
+    expect(isPublicHttpUrl("http://foo.internal/latest")).toBe(false);
+  });
+
+  it("marks a blocked or empty retailer page unverified and does not read a price from it", async () => {
+    const blocked = await fetchPublicPage("https://shop.example/item", {
+      fetchImpl: (async () => new Response("Guess $10.00", { status: 403 })) as typeof fetch,
+      lookup: publicLookup,
+      queue: createIntervalQueue(0),
+    });
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) expect(blocked.reason).toMatch(/blocked/);
+    const offer = judgeOffer({
+      query: "chair",
+      title: "Chair",
+      retailer: "Example",
+      price: 10,
+      currency: "USD",
+      url: "https://shop.example/item",
+      retrievedAt: NOW.toISOString(),
+      page: blocked,
+    });
+    expect(offer.status).toBe("unverified");
+    expect(offer.price).toBe(10);
+    expect(offer.note).not.toMatch(/Guess/);
+    const empty = await fetchPublicPage("https://shop.example/item", {
+      fetchImpl: (async () => new Response("", { status: 200 })) as typeof fetch,
+      lookup: publicLookup,
+      queue: createIntervalQueue(0),
+    });
+    expect(empty.ok).toBe(false);
+    if (!empty.ok) expect(empty.reason).toMatch(/empty/);
+  });
+
+  it("spaces product-page fetches and keeps only the size limit", async () => {
+    const sleeps: number[] = [];
+    let now = 0;
+    let agent = "";
+    const queue = createIntervalQueue(1000);
+    const page = await fetchPublicPage("https://shop.example/a", {
+      fetchImpl: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        agent = new Headers(init?.headers).get("user-agent") ?? "";
+        return new Response("x".repeat(50), { status: 200 });
+      }) as typeof fetch,
+      lookup: publicLookup,
+      queue,
+      maxBytes: 8,
+      now: () => now,
+      sleep: async (ms) => {
+        sleeps.push(ms);
+        now += ms;
+      },
+    });
+    await fetchPublicPage("https://shop.example/b", {
+      fetchImpl: (async () => new Response("ok", { status: 200 })) as typeof fetch,
+      lookup: publicLookup,
+      queue,
+      now: () => now,
+      sleep: async (ms) => {
+        sleeps.push(ms);
+        now += ms;
+      },
+    });
+    expect(page.ok).toBe(true);
+    if (page.ok) expect(page.body).toHaveLength(8);
+    expect(sleeps).toEqual([1000]);
+    expect(agent).toMatch(/AtmosphereScope\/1.0/);
   });
 
   it("reads Responses API text from output_text or output content", () => {
@@ -173,6 +288,8 @@ describe("walkthrough enrichment", () => {
     const result = await enrichMeasuredWalkthrough({
       env: { OPENAI_API_KEY: "sk-test", SERPAPI_API_KEY: "serp" },
       fetchImpl,
+      page: testPage(fetchImpl),
+      cache: createOfferCache(0),
       now: NOW,
       video,
       frames: [frame],
@@ -188,16 +305,18 @@ describe("walkthrough enrichment", () => {
   });
 
   it("keeps an unverified price when the page does not contain it, and drops invalid model JSON", async () => {
+    const lampFetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v1/responses")) {
+        return jsonResponse({ output: [{ content: [{ text: JSON.stringify({ title: "Lamp", retailer: "Example", price: 40, currency: "USD", url: "https://shop.example/lamp" }) }] }] });
+      }
+      return new Response("<html>no price here</html>", { status: 200 });
+    }) as typeof fetch;
     const unverified = await priceWithOpenAI("lamp", {
       apiKey: "sk-test",
       now: NOW,
-      fetchImpl: (async (input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url.includes("/v1/responses")) {
-          return jsonResponse({ output: [{ content: [{ text: JSON.stringify({ title: "Lamp", retailer: "Example", price: 40, currency: "USD", url: "https://shop.example/lamp" }) }] }] });
-        }
-        return new Response("<html>no price here</html>", { status: 200 });
-      }) as typeof fetch,
+      fetchImpl: lampFetch,
+      page: testPage(lampFetch),
     });
     expect(unverified.status).toBe("unverified");
     expect(unverified.price).toBe(40);
@@ -227,12 +346,14 @@ describe("walkthrough enrichment", () => {
       }
       return new Response("Price $55.00 today", { status: 200 });
     }) as typeof fetch;
-    const offer = await priceWithSerpApi("chair", { apiKey: "serp", fetchImpl, now: NOW });
+    const offer = await priceWithSerpApi("chair", { apiKey: "serp", fetchImpl, now: NOW, page: testPage(fetchImpl) });
     expect(offer.status).toBe("verified");
     expect(offer.retrievedAt).toBe(NOW.toISOString());
     const result = await enrichMeasuredWalkthrough({
       env: { PRICING_PROVIDER: "serpapi", SERPAPI_API_KEY: "serp", OPENAI_API_KEY: "sk-test" },
       fetchImpl,
+      page: testPage(fetchImpl),
+      cache: createOfferCache(0),
       now: NOW,
       video,
       frames: [frame],
@@ -240,6 +361,72 @@ describe("walkthrough enrichment", () => {
     expect(result.pricing.id).toBe("serpapi");
     expect(calls.some((url) => url.includes("api.openai.com/v1/responses"))).toBe(false);
     expect(calls.some((url) => url.includes("serpapi.com"))).toBe(true);
+  });
+
+  it("fetches only the offer URL and ignores another address in the title", async () => {
+    const calls: string[] = [];
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes("/v1/responses")) {
+        return jsonResponse({ output_text: JSON.stringify({ title: "See http://169.254.169.254/latest", retailer: "Example", price: 20, currency: "USD", url: "https://shop.example/chair" }) });
+      }
+      if (url === "https://shop.example/chair") return new Response("<html>$20.00</html>", { status: 200 });
+      throw new Error(url);
+    }) as typeof fetch;
+    const offer = await priceWithOpenAI("chair", { apiKey: "sk-test", fetchImpl, now: NOW, page: testPage(fetchImpl) });
+    expect(offer.status).toBe("verified");
+    expect(calls).toContain("https://shop.example/chair");
+    expect(calls.some((url) => url.includes("169.254"))).toBe(false);
+  });
+
+  it("caches a lookup by normalized item until the TTL passes", async () => {
+    expect(normalizeItemKey("Oak   Chair!")).toBe(normalizeItemKey("oak chair"));
+    let searches = 0;
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/audio/transcriptions")) return jsonResponse({ text: "hello" });
+      if (url.includes("/chat/completions")) {
+        return jsonResponse({ choices: [{ message: { content: JSON.stringify({ objects: [{ name: "Oak Chair", room: null, evidence: "Visible.", confidence: "low" }] }) } }] });
+      }
+      if (url.includes("/v1/responses")) {
+        searches += 1;
+        return jsonResponse({ output_text: JSON.stringify({ title: "Chair", retailer: "Example", price: 20, currency: "USD", url: "https://shop.example/chair" }) });
+      }
+      return new Response("<html>$20.00</html>", { status: 200 });
+    }) as typeof fetch;
+    const cache = createOfferCache(60_000);
+    const first = await enrichMeasuredWalkthrough({
+      env: { OPENAI_API_KEY: "sk-test" },
+      fetchImpl,
+      page: testPage(fetchImpl),
+      cache,
+      now: new Date(0),
+      video,
+      frames: [frame],
+    });
+    const second = await enrichMeasuredWalkthrough({
+      env: { OPENAI_API_KEY: "sk-test" },
+      fetchImpl,
+      page: testPage(fetchImpl),
+      cache,
+      now: new Date(1_000),
+      video,
+      frames: [frame],
+    });
+    const third = await enrichMeasuredWalkthrough({
+      env: { OPENAI_API_KEY: "sk-test" },
+      fetchImpl,
+      page: testPage(fetchImpl),
+      cache,
+      now: new Date(60_000),
+      video,
+      frames: [frame],
+    });
+    expect(first.offers[0]?.status).toBe("verified");
+    expect(second.offers[0]?.note).toMatch(/Cached lookup/);
+    expect(searches).toBe(2);
+    expect(third.offers[0]?.status).toBe("verified");
   });
 });
 

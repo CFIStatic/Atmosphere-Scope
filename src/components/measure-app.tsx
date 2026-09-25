@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { chunkCount, getCapture, listPendingCaptures, putCapture, saveChunk } from "@/capture/db";
+import { captureStatusLabel } from "@/capture/plan";
+import { resumeCapture } from "@/capture/resume-client";
 import { fuseDimension, type FusedDimension, type Reading, type ScaleSource } from "@/domain/fusion";
 
 type SolverDimension = {
@@ -82,6 +85,13 @@ function blurScore(data: ImageData): number {
   return sumSq / Math.max(count, 1) - mean * mean;
 }
 
+function sliceBlob(blob: Blob, size = 256 * 1024): Blob[] {
+  if (blob.size === 0) return [blob];
+  const parts: Blob[] = [];
+  for (let offset = 0; offset < blob.size; offset += size) parts.push(blob.slice(offset, offset + size, blob.type));
+  return parts;
+}
+
 export function MeasureApp({ setup }: { setup: { measurement: string; vision: string; pricing: string } }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [sensors, setSensors] = useState<SensorState>({ webxr: "checking", bluetooth: "checking", laser: null });
@@ -92,9 +102,47 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
   const [result, setResult] = useState<SolverResult | null>(null);
   const [tapeLabel, setTapeLabel] = useState("span_a");
   const [tapeValue, setTapeValue] = useState("");
+  const [online, setOnline] = useState(true);
+  const [uploadStatus, setUploadStatus] = useState("Capture stays on this phone if the signal drops. Measurement runs on the server.");
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
+  const captureId = useRef<string | null>(null);
+  const saveChain = useRef(Promise.resolve());
   const previous = useRef<ImageData | null>(null);
+
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    const markOnline = () => {
+      setOnline(true);
+      void flushPending();
+    };
+    const markOffline = () => {
+      setOnline(false);
+      setUploadStatus(captureStatusLabel({ online: false, phase: "saved", sent: 0, total: 0 }));
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void flushPending();
+    };
+    window.addEventListener("online", markOnline);
+    window.addEventListener("offline", markOffline);
+    document.addEventListener("visibilitychange", onVisible);
+    if ("serviceWorker" in navigator) {
+      void navigator.serviceWorker.register("/sw.js").then((registration) => {
+        const sync = (registration as ServiceWorkerRegistration & { sync?: { register: (tag: string) => Promise<void> } }).sync;
+        return sync?.register("upload-captures");
+      }).catch(() => undefined);
+      navigator.serviceWorker.addEventListener("message", (event) => {
+        if (event.data?.type === "resume-uploads") void flushPending();
+      });
+    }
+    void navigator.storage?.persist?.();
+    void flushPending();
+    return () => {
+      window.removeEventListener("online", markOnline);
+      window.removeEventListener("offline", markOffline);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,16 +192,21 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
       const notes = ["Hold the phone upright.", "Keep the sheet at the bottom of the frame.", "Sweep slowly from floor to ceiling and overlap each wall."];
       if (blur < 40) notes.unshift("Frame looks soft. Pause and let the sheet sharpen.");
       if (motion > 28) notes.unshift("Moving too fast. Slow the pan.");
+      if (navigator.onLine === false) {
+        notes.unshift("No signal. Still recording. The sheet check waits.");
+        setCoach(notes[0]);
+        return;
+      }
       try {
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.7));
         if (blob) {
-          const response = await fetch("/api/measure/target", { method: "POST", body: blob });
+          const response = await fetch("/api/measure/target", { method: "POST", body: blob, signal: AbortSignal.timeout(1500) });
           const payload = await response.json();
           if (!payload.readable) notes.unshift(payload.note ?? "The sheet is not readable in this frame.");
           else notes.unshift("Sheet is readable. Keep it in view while you show the next wall.");
         }
       } catch {
-        notes.unshift("Live sheet check did not return. Keep the sheet large in frame.");
+        notes.unshift("Live sheet check did not return. Recording continues on this phone.");
       }
       setCoach(notes[0]);
     }, 900);
@@ -168,13 +221,29 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
       await videoRef.current.play();
     }
     chunks.current = [];
+    const id = crypto.randomUUID();
+    captureId.current = id;
+    saveChain.current = putCapture({
+      id,
+      filename: "walkthrough.webm",
+      mime: "video/webm",
+      createdAt: new Date().toISOString(),
+      status: "recording",
+      totalChunks: 0,
+      uploadId: null,
+      error: null,
+    });
     const media = new MediaRecorder(stream);
     recorder.current = media;
     media.ondataavailable = (event) => {
-      if (event.data.size > 0) chunks.current.push(event.data);
+      if (event.data.size === 0) return;
+      const index = chunks.current.length;
+      chunks.current.push(event.data);
+      saveChain.current = saveChain.current.then(() => saveChunk(id, index, event.data));
     };
-    media.start(500);
+    media.start(1000);
     setRecording(true);
+    setUploadStatus(captureStatusLabel({ online: navigator.onLine, phase: "recording", sent: 0, total: 0 }));
     setCoach("Slow pan. Show every corner. Sweep floor to ceiling. Keep the sheet in the lower frame.");
   }
 
@@ -187,26 +256,76 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
     });
     videoRef.current?.srcObject && (videoRef.current.srcObject as MediaStream).getTracks().forEach((track) => track.stop());
     setRecording(false);
+    const id = captureId.current;
+    await saveChain.current;
+    if (id) {
+      const existing = await getCapture(id);
+      if (existing) await putCapture({ ...existing, status: "saved", totalChunks: chunks.current.length, mime: blob.type || existing.mime });
+      await uploadCapture(id);
+      return;
+    }
     await submitVideo(blob, "walkthrough.webm");
+  }
+
+  async function uploadCapture(id: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const record = await getCapture(id);
+      if (!record || record.totalChunks < 1) throw new Error("The recording was not saved on this phone.");
+      const body = await resumeCapture(record, { online: navigator.onLine, onStatus: setUploadStatus });
+      if (body && typeof body === "object") setResult(body as SolverResult);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Upload failed.";
+      setUploadStatus(captureStatusLabel({ online: navigator.onLine, phase: "error", sent: 0, total: 0 }));
+      setError(message);
+      const record = await getCapture(id);
+      if (record) await putCapture({ ...record, status: "error", error: message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function flushPending() {
+    try {
+      const pending = await listPendingCaptures();
+      for (const record of pending) {
+        const count = await chunkCount(record.id);
+        if (count < 1) continue;
+        if (!navigator.onLine) {
+          setUploadStatus(captureStatusLabel({ online: false, phase: "saved", sent: 0, total: count }));
+          return;
+        }
+        if (record.totalChunks !== count || record.status === "recording") {
+          await putCapture({ ...record, totalChunks: count, status: "saved" });
+        }
+        await uploadCapture(record.id);
+      }
+    } catch {
+      setUploadStatus("Saved recordings could not be read on this phone.");
+    }
   }
 
   async function submitVideo(blob: Blob, filename: string) {
     setBusy(true);
     setError(null);
     try {
-      const body = new FormData();
-      body.set("video", blob, filename);
-      const response = await fetch("/api/measure", { method: "POST", body });
-      const payload = (await response.json()) as SolverResult;
-      if (!response.ok) {
-        setError(payload.error ?? "Measurement failed.");
-        setResult(null);
-        return;
-      }
-      setResult(payload);
+      const id = crypto.randomUUID();
+      const parts = sliceBlob(blob);
+      await putCapture({
+        id,
+        filename,
+        mime: blob.type || "video/mp4",
+        createdAt: new Date().toISOString(),
+        status: "saved",
+        totalChunks: parts.length,
+        uploadId: null,
+        error: null,
+      });
+      for (let index = 0; index < parts.length; index += 1) await saveChunk(id, index, parts[index]);
+      await uploadCapture(id);
     } catch {
-      setError("Measurement request failed.");
-    } finally {
+      setError("The video could not be saved on this phone.");
       setBusy(false);
     }
   }
@@ -289,7 +408,8 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
               />
             </label>
           </div>
-          {busy && <p className="meta">Measuring keyframes…</p>}
+          <p className="meta" role="status">{uploadStatus}{online ? "" : " Offline."}</p>
+          {busy && <p className="meta">Measurement runs on the server after the upload.</p>}
           {error && <p className="error">{error}</p>}
         </div>
         <div className="panel">

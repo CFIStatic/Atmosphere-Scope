@@ -71,6 +71,29 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). Jobs are stored as JSON in `data/` (gitignored). Uploaded media stays in `data/media` and is served only through the job route. To use Supabase instead, set `STORAGE=supabase` plus the project URL and secret key, and run the SQL in `docs/STORAGE.md`. Missing Supabase settings are an error. The app does not silently keep writing to disk.
 
+The capture page is a web app. It records with a weak or missing signal, stores chunks in IndexedDB, and uploads them when the browser is online again. The upload status is on the page. Measurement, vision, and price checks stay on the server. Price checks fetch only the product URL from the search result, refuse private and metadata addresses after DNS, and cache a lookup by item name for `PRICE_CACHE_TTL_SECONDS` (default 6 hours). A blocked or unreadable page stays unverified.
+
+## Railway
+
+Deploy this Dockerfile. A default Railpack image does not include Python, OpenCV, or ffmpeg, and the room solver needs all three. `railway.toml` selects the Dockerfile and checks `GET /`.
+
+Set variables on the Railway service. Do not use `NEXT_PUBLIC_` for any key, and do not bake keys into the image.
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | for transcription, objects, and prices | Server only. Measurement still runs without it. |
+| `DATA_DIR` | yes, when using a volume | Set to `/data`. |
+| `PRICE_CACHE_TTL_SECONDS` | no | Default `21600`. |
+| `PRICE_FETCH_MIN_INTERVAL_MS` | no | Default `1000`. |
+| `PRICE_FETCH_TIMEOUT_MS` | no | Default `8000`. |
+| `PRICE_FETCH_MAX_BYTES` | no | Default `500000`. |
+| `PRICING_PROVIDER`, `SERPAPI_API_KEY` | no | SerpAPI only when both are set. |
+| `STORAGE`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | no | See below. |
+
+Add a volume mounted at `/data`. That directory holds job JSON, job media, and in-progress capture chunks. Railway's container disk is ephemeral, so a redeploy without the volume drops those files. The phone still has its copy of a capture in IndexedDB and can upload again.
+
+To keep finished job media in Supabase instead, set `STORAGE=supabase`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`) and run the SQL in `docs/STORAGE.md`. The bucket stays private. Chunks for a capture that is still uploading remain under `DATA_DIR/uploads` until the server finishes them, so the volume is still the right place for that scratch space. The service role key stays a service variable. It is not sent to the browser.
+
 ## What is implemented
 
 - Job file with property, customer, concern, floors, rooms, media, findings, sketch, questions, scope, and estimate versions.

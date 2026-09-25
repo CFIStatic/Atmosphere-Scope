@@ -1,5 +1,5 @@
 import { pricingModel, redact, webSearchTool, type Env } from "@/analysis/config";
-import { blankOffer, fetchPublicPage, judgeOffer, type ReplacementOffer } from "@/analysis/pricing-check";
+import { blankOffer, fetchPublicPage, judgeOffer, type FetchPageOptions, type ReplacementOffer } from "@/analysis/pricing-check";
 
 const OFFER_SCHEMA = {
   type: "object",
@@ -57,7 +57,7 @@ export function parseOfferJson(text: string): { title: string | null; retailer: 
 
 export async function priceWithOpenAI(
   query: string,
-  options: { apiKey: string; fetchImpl: typeof fetch; now: Date; env?: Env },
+  options: { apiKey: string; fetchImpl: typeof fetch; now: Date; env?: Env; page?: FetchPageOptions },
 ): Promise<ReplacementOffer> {
   const env = options.env ?? process.env;
   const retrievedAt = options.now.toISOString();
@@ -89,7 +89,7 @@ export async function priceWithOpenAI(
     if (!parsed) {
       return blankOffer(query, "The pricing model did not return a usable offer. No price was kept.");
     }
-    const page = parsed.url ? await fetchPublicPage(parsed.url, options.fetchImpl) : null;
+    const page = parsed.url ? await fetchPublicPage(parsed.url, options.page) : null;
     return judgeOffer({ ...parsed, query, retrievedAt, page });
   } catch (error) {
     return blankOffer(query, `${redact(error instanceof Error ? error.message : "Pricing request failed.")} No price was invented.`);

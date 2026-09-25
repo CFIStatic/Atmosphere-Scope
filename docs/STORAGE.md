@@ -1,6 +1,6 @@
 # Storage
 
-Local development does not need a database key. Jobs are JSON files in `data/jobs`. Media bytes are files in `data/media`. Both directories are gitignored. That is the default when `STORAGE` is unset or `local`.
+Local development does not need a database key. Jobs are JSON files in `data/jobs`. Media bytes are files in `data/media`. In-progress capture uploads are `data/uploads`. Set `DATA_DIR` to move that tree. This is the default when `STORAGE` is unset or `local`. `data/` is gitignored.
 
 ## Switch to Supabase
 

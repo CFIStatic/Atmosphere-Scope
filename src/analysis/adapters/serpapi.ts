@@ -1,4 +1,4 @@
-import { blankOffer, fetchPublicPage, judgeOffer, type ReplacementOffer } from "@/analysis/pricing-check";
+import { blankOffer, fetchPublicPage, judgeOffer, type FetchPageOptions, type ReplacementOffer } from "@/analysis/pricing-check";
 import { redact } from "@/analysis/config";
 
 type ShoppingHit = {
@@ -10,7 +10,7 @@ type ShoppingHit = {
 
 export async function priceWithSerpApi(
   query: string,
-  options: { apiKey: string; fetchImpl: typeof fetch; now: Date },
+  options: { apiKey: string; fetchImpl: typeof fetch; now: Date; page?: FetchPageOptions },
 ): Promise<ReplacementOffer> {
   const retrievedAt = options.now.toISOString();
   try {
@@ -30,7 +30,7 @@ export async function priceWithSerpApi(
     const link = typeof first.link === "string" ? first.link : null;
     const title = typeof first.title === "string" ? first.title : null;
     const retailer = typeof first.source === "string" ? first.source : null;
-    const page = link ? await fetchPublicPage(link, options.fetchImpl) : null;
+    const page = link ? await fetchPublicPage(link, options.page) : null;
     return judgeOffer({ query, title, retailer, price, currency: null, url: link, retrievedAt, page });
   } catch (error) {
     return blankOffer(query, `${redact(error instanceof Error ? error.message : "SerpAPI failed.")} No price was invented.`);

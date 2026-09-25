@@ -14,7 +14,9 @@ A walkthrough video sent to `POST /api/measure` uses OpenAI when `OPENAI_API_KEY
 
 Narration is never an instruction channel. `screenText` flags phrases such as “ignore previous instructions” and the pipeline stores them as reported speech.
 
-Replacement prices are checked by fetching the product page on the server. A price the page does not contain stays unverified. A missing price or a non-public URL is dropped. SerpAPI is used only when `PRICING_PROVIDER=serpapi`. Replicate and Modal are optional notes in `src/analysis/adapters/gpu.ts`; this build does not call them. Storage is local disk unless `STORAGE=supabase`. See `docs/STORAGE.md`.
+Replacement prices are checked by fetching the product page on the server. Only the http(s) URL from the pricing result is fetched, after DNS resolution, and private, loopback, link-local, and metadata addresses are refused, including redirects. A retailer block, an empty page, or a price the page does not contain stays unverified. A missing price or a non-public URL is dropped. Nothing is guessed. SerpAPI is used only when `PRICING_PROVIDER=serpapi`. Replicate and Modal are optional notes in `src/analysis/adapters/gpu.ts`; this build does not call them. Storage is local disk unless `STORAGE=supabase`. See `docs/STORAGE.md`.
+
+The measure page keeps recording when the phone is offline. Chunks stay in IndexedDB and a service worker caches the capture shell. The browser uploads those chunks when a connection returns. Measurement still runs on the server, from `POST /api/measure/uploads/:id/finish`.
 
 ## Layout and the 3D map
 

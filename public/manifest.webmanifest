@@ -1,0 +1,13 @@
+{
+  "name": "Atmosphere Scope",
+  "short_name": "Scope",
+  "start_url": "/measure",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f1eb",
+  "theme_color": "#161616",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
