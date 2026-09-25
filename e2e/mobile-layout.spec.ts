@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { chromium, expect, test } from "@playwright/test";
 
 const viewports = [
   { name: "iphone", width: 390, height: 844 },
@@ -55,4 +55,37 @@ test("old routes redirect into the job flow", async ({ page, context }) => {
   await expect(page).toHaveURL(/\/estimate$/);
   await page.goto("/underwriting");
   await expect(page).toHaveURL(/\/estimate\?report=underwriting$/);
+});
+
+test("record is the shutter only and the sheet is on account", async ({ page }) => {
+  await page.goto("/record");
+  await expect(page.getByText("Allow camera access, or open this page on a phone.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Upload" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Help" })).toHaveCount(0);
+  await expect(page.getByText("Attach to existing job")).toHaveCount(0);
+  await expect(page.locator(".frame-guide")).toHaveCount(0);
+
+  await page.goto("/account");
+  await expect(page.getByRole("heading", { name: "Calibration sheet" })).toBeVisible();
+  await expect(page.getByText("Place the sheet flat on the floor, in view of the camera, then record.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Download sheet PDF" })).toHaveAttribute("href", "/api/calibration-target");
+
+  const browser = await chromium.launch({
+    args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"],
+  });
+  const context = await browser.newContext({
+    baseURL: "http://127.0.0.1:3099",
+    permissions: ["camera", "microphone"],
+    viewport: { width: 390, height: 844 },
+  });
+  const live = await context.newPage();
+  await live.goto("/record");
+  await expect(live.getByRole("button", { name: "Record" })).toBeVisible();
+  await expect(live.getByText("Place the calibration sheet on the floor, then record.")).toBeVisible();
+  await expect(live.locator(".camera-controls button")).toHaveCount(1);
+  await expect(live.getByRole("button", { name: "Upload" })).toHaveCount(0);
+  await expect(live.getByRole("button", { name: "Help" })).toHaveCount(0);
+  await expect(live.locator(".frame-guide")).toHaveCount(0);
+  await context.close();
+  await browser.close();
 });

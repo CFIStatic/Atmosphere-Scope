@@ -76,6 +76,8 @@ input[hidden] { display: none; }
 .badge.contradiction, .badge.conflicting, .badge.failed { background: color-mix(in srgb, var(--danger) 24%, var(--bg)); color: var(--danger); }
 .badge.confirmed { background: color-mix(in srgb, var(--good) 24%, var(--bg)); color: var(--good); }
 .meta { color: var(--muted); font-size: 14px; }
+.account-sheet { display: grid; gap: 6px; }
+.account-sheet a { text-decoration: underline; text-underline-offset: 3px; }
 .sketch-wrap { background: var(--paper-light); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; min-height: 280px; height: 420px; color: var(--bg); touch-action: none; }
 .sketch-transform { width: 100%; height: 100%; transform-origin: center center; }
 .sketch-wrap svg { width: 100%; height: 100%; display: block; touch-action: none; }
@@ -191,12 +193,6 @@ label.btn input { display: none; }
 .camera-scrim { position: absolute; left: 0; right: 0; height: 128px; pointer-events: none; z-index: 1; }
 .camera-scrim-top { top: 0; background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0)); }
 .camera-scrim-bottom { bottom: 0; height: 168px; background: linear-gradient(to top, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0)); }
-.frame-guide { position: absolute; inset: 72px 28px 132px; pointer-events: none; z-index: 1; }
-.frame-guide span { position: absolute; width: 16px; height: 16px; border: 0 solid rgba(246, 245, 241, 0.72); }
-.frame-guide span:nth-child(1) { top: 0; left: 0; border-top-width: 1px; border-left-width: 1px; }
-.frame-guide span:nth-child(2) { top: 0; right: 0; border-top-width: 1px; border-right-width: 1px; }
-.frame-guide span:nth-child(3) { bottom: 0; left: 0; border-bottom-width: 1px; border-left-width: 1px; }
-.frame-guide span:nth-child(4) { bottom: 0; right: 0; border-bottom-width: 1px; border-right-width: 1px; }
 .camera-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: calc(12px + env(safe-area-inset-top)) 16px 0; }
 .camera-mark { width: 18px; height: auto; display: block; }
 .camera-title { margin: 0; font-size: 13px; font-weight: 500; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -207,12 +203,7 @@ label.btn input { display: none; }
 .camera-app .mic-meter { width: 56px; height: 2px; background: rgba(246, 245, 241, 0.28); border: 0; border-radius: 0; overflow: hidden; }
 .camera-app .mic-meter span { display: block; height: 100%; background: var(--ink); }
 .camera-hint { position: absolute; left: 36px; right: 36px; bottom: calc(118px + env(safe-area-inset-bottom)); margin: 0; text-align: center; font-size: 13px; line-height: 1.35; z-index: 2; }
-.camera-controls { position: absolute; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: 1fr 76px 1fr; align-items: center; padding: 0 28px; z-index: 3; }
-.camera-controls .cam-tool:first-of-type { justify-self: start; }
-.camera-controls .cam-tool:last-of-type { justify-self: end; }
-.cam-tool { width: 64px; height: 64px; border: 0; background: transparent; color: var(--ink); font-size: 11px; letter-spacing: 0.02em; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0; }
-.cam-tool input { display: none; }
-.cam-tool-prominent { width: auto; height: auto; min-height: 44px; flex-direction: row; gap: 8px; padding: 0 16px; border: 1px solid rgba(246, 245, 241, 0.28); border-radius: 4px; font-size: 14px; letter-spacing: 0; background: rgba(24, 25, 27, 0.55); }
+.camera-controls { position: absolute; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom)); display: flex; justify-content: center; align-items: center; z-index: 3; }
 .shutter { width: 76px; height: 76px; border: 0; border-radius: 50%; background: transparent; padding: 0; display: grid; place-items: center; }
 .shutter-ring { width: 76px; height: 76px; border-radius: 50%; border: 3px solid var(--accent); display: grid; place-items: center; background: transparent; }
 .shutter-disc { width: 58px; height: 58px; border-radius: 50%; background: var(--accent); transition: width 80ms linear, height 80ms linear, border-radius 80ms linear; }
@@ -223,14 +214,10 @@ label.btn input { display: none; }
 .camera-fallback .camera-mark { width: 36px; }
 .camera-fallback p { margin: 0; max-width: 240px; font-size: 15px; line-height: 1.4; }
 .camera-status { position: absolute; left: 16px; right: 16px; top: calc(52px + env(safe-area-inset-top)); margin: 0; font-size: 13px; color: var(--muted); text-align: center; z-index: 2; }
-.camera-status button, .camera-sheet button { border: 0; background: transparent; color: var(--ink); min-height: 44px; padding: 0 8px; }
+.camera-status button { border: 0; background: transparent; color: var(--ink); min-height: 44px; padding: 0 8px; }
 .process-line { position: absolute; left: 24px; right: 24px; bottom: 32%; margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; text-align: center; z-index: 2; }
 .process-line li { color: var(--muted); font-size: 14px; }
 .process-line li[data-current="true"] { color: var(--ink); }
-.camera-sheet-backdrop { position: absolute; inset: 0; z-index: 6; background: rgba(0, 0, 0, 0.62); display: flex; align-items: flex-end; }
-.camera-sheet { width: 100%; max-height: 72%; overflow: auto; background: var(--bg); color: var(--ink); border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); display: grid; gap: 12px; }
-.camera-sheet p { margin: 0; }
-.camera-sheet a { color: var(--ink); }
 .record-btn, .stop-btn { min-height: 56px; flex: 1; }
 .stop-btn { background: var(--danger); border-color: var(--danger); color: #18191b; }
 .upload-queue progress { width: 100%; height: 12px; accent-color: var(--accent); }
