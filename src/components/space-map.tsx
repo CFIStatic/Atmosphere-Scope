@@ -23,7 +23,7 @@ export function SpaceMap({ model }: { model: SpaceModel }) {
       element.appendChild(renderer.domElement);
 
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color("#f4f0e6");
+      scene.background = new THREE.Color("#f0efeb");
       const camera = new THREE.PerspectiveCamera(42, element.clientWidth / 520, 0.1, 500);
       camera.position.set(18, 16, 22);
       const controls = new OrbitControls(camera, renderer.domElement);

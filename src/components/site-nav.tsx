@@ -10,7 +10,7 @@ const LINKS = [
 
 export function SiteNav({ current }: { current?: string }) {
   return (
-    <nav className="tabs" aria-label="Primary">
+    <nav className="tabs side-nav" aria-label="Primary">
       {LINKS.map(([href, label]) => (
         <Link key={href} href={href} aria-current={current === href ? "page" : undefined}>{label}</Link>
       ))}

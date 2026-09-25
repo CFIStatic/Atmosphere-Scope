@@ -23,14 +23,14 @@ export function PlanView({ plan, onChange }: { plan: FloorPlan; onChange: (plan:
         <p className="legend meta"><i /> measured, estimated · <i className="solid-blue" /> confirmed · <i className="dashed" /> unmeasured</p>
         <div className="sketch-wrap">
           <svg viewBox={view} role="img" aria-label="Floor plan from the measurement">
-            <rect x={box.minX - pad} y={box.minY - pad} width={width} height={height} fill="#f7f5f0" />
+            <rect x={box.minX - pad} y={box.minY - pad} width={width} height={height} fill="#f0efeb" />
             {plan.rooms.map((room) => {
               const name = plan.names[room.roomId] ?? "Room";
               const cx = room.polygon.reduce((sum, point) => sum + point.x, 0) / room.polygon.length;
               const cy = room.polygon.reduce((sum, point) => sum + point.y, 0) / room.polygon.length;
               return (
                 <g key={room.id} onClick={() => setRoomId(room.roomId)}>
-                  <polygon points={room.polygon.map((point) => `${point.x},${point.y}`).join(" ")} fill={room.roomId === roomId ? "#e7eeff" : "#f3f1eb"} stroke="none" />
+                  <polygon points={room.polygon.map((point) => `${point.x},${point.y}`).join(" ")} fill={room.roomId === roomId ? "#f5c518" : "#f0efeb"} fillOpacity={room.roomId === roomId ? 0.45 : 1} stroke="none" />
                   <text x={cx} y={cy} fontSize={0.42} textAnchor="middle" fill="#161616">{name}</text>
                 </g>
               );

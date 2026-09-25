@@ -1,5 +1,5 @@
-const SHELL = ["/", "/measure", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
-const CACHE = "scope-shell-v1";
+const SHELL = ["/", "/measure", "/manifest.webmanifest", "/favicon.ico", "/apple-touch-icon.png", "/icon-192.png", "/icon-512.png"];
+const CACHE = "scope-shell-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));

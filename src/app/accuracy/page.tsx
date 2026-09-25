@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { readFile } from "fs/promises";
 import path from "path";
+import { AppFrame } from "@/components/app-frame";
+import { BrandLockup } from "@/components/brand-lockup";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +24,12 @@ export default async function AccuracyPage() {
     results: { case: string; method: string; kind: string; rows: Row[] }[];
   };
   return (
+    <AppFrame>
     <main className="shell">
       <header className="topbar">
         <div>
-          <p className="brand"><span>Accuracy</span>Harness</p>
+          <BrandLockup />
+          <h1 className="page-title">Accuracy harness</h1>
           <p className="meta">{report.safe ? "No claimed pass exceeded the truth by more than 5%, and every claimed pass sat inside its error bar." : "The harness found an unsafe claim."}</p>
         </div>
         <Link className="btn secondary" href="/">Home</Link>
@@ -59,5 +63,6 @@ export default async function AccuracyPage() {
         {report.methodsNotRun.map((note) => <p key={note}>{note}</p>)}
       </section>
     </main>
+    </AppFrame>
   );
 }

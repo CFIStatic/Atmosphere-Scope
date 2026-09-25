@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { readFile } from "fs/promises";
 import path from "path";
+import { AppFrame } from "@/components/app-frame";
+import { BrandLockup } from "@/components/brand-lockup";
 import { ClaimsFlow } from "@/components/claims-flow";
-import { SiteNav } from "@/components/site-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -23,16 +24,18 @@ export default async function ClaimsPage() {
   const walls = (sample?.rows ?? []).filter((row) => row.kind === "wall_length");
   const height = (sample?.rows ?? []).find((row) => row.kind === "ceiling_height") ?? null;
   return (
+    <AppFrame current="/claims">
     <main className="shell">
       <header className="topbar">
         <div>
-          <p className="brand"><span>Atmosphere Scope</span>Claims review</p>
+          <BrandLockup />
+          <h1 className="page-title">Claims review</h1>
           <p className="meta">Capture, gaps, and the draft scope and estimate read the walkthrough saved in this browser.</p>
         </div>
         <Link className="btn secondary" href="/contents">Contents</Link>
       </header>
-      <SiteNav current="/claims" />
       <ClaimsFlow walls={walls} height={height} />
     </main>
+    </AppFrame>
   );
 }

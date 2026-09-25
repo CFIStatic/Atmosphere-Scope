@@ -2,6 +2,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { bannerFor } from "@/domain/review";
 import type { Job, SketchRoom } from "@/domain/types";
 import { boundsOf, edgeLength } from "@/domain/geometry";
+import { paintLightLockup } from "@/export/brand-pdf";
 
 export function estimateCsv(job: Job): string {
   const version = job.estimates.find((item) => item.id === job.activeEstimateId) ?? job.estimates.at(-1);
@@ -91,53 +92,53 @@ export async function jobPdf(job: Job): Promise<Uint8Array> {
   const version = job.estimates.find((item) => item.id === job.activeEstimateId) ?? job.estimates.at(-1) ?? null;
   const pageSize: [number, number] = [612, 792];
   let page = pdf.addPage(pageSize);
-  let y = 750;
-  const draw = (text: string, size = 10, useBold = false) => {
+  let y = await paintLightLockup(pdf, page);
+  const draw = async (text: string, size = 10, useBold = false) => {
     const chunks = wrap(text, 90);
     for (const chunk of chunks) {
       if (y < 48) {
         page = pdf.addPage(pageSize);
-        y = 750;
+        y = await paintLightLockup(pdf, page);
       }
-      page.drawText(chunk, { x: 40, y, size, font: useBold ? bold : font, color: rgb(0.11, 0.1, 0.08) });
+      page.drawText(chunk, { x: 40, y, size, font: useBold ? bold : font, color: rgb(0.09, 0.1, 0.11) });
       y -= size + 4;
     }
   };
-  draw("Atmosphere Scope", 18, true);
-  draw(bannerFor(version), 12, true);
-  draw(`${job.property.address}, ${job.property.city} ${job.property.region} ${job.property.postalCode}`);
-  draw(`Customer: ${job.customer.name} · Estimate v${version?.number ?? "—"} · ${version?.status ?? "none"} · Sketch ${job.sketch.state} · ${job.sketch.scaleClaim === "to_scale" ? "To scale" : "Not to scale"}`);
-  draw(job.sketch.disclaimer);
-  draw(`Concern: ${job.concern}`);
+  await draw("Atmosphere Scope", 18, true);
+  await draw(bannerFor(version), 12, true);
+  await draw(`${job.property.address}, ${job.property.city} ${job.property.region} ${job.property.postalCode}`);
+  await draw(`Customer: ${job.customer.name} · Estimate v${version?.number ?? "—"} · ${version?.status ?? "none"} · Sketch ${job.sketch.state} · ${job.sketch.scaleClaim === "to_scale" ? "To scale" : "Not to scale"}`);
+  await draw(job.sketch.disclaimer);
+  await draw(`Concern: ${job.concern}`);
   y -= 8;
-  draw("Assessment", 14, true);
+  await draw("Assessment", 14, true);
   for (const finding of job.findings) {
     const room = job.rooms.find((item) => item.id === finding.roomId)?.name ?? "Unassigned";
-    draw(`${room} — ${finding.title} [${finding.evidenceClass}]`, 11, true);
-    if (finding.observableCondition) draw(`Observed: ${finding.observableCondition}`);
-    if (finding.narratorReport) draw(`Reported: ${finding.narratorReport}`);
-    if (finding.interpretation) draw(`Interpretation: ${finding.interpretation}`);
+    await draw(`${room} — ${finding.title} [${finding.evidenceClass}]`, 11, true);
+    if (finding.observableCondition) await draw(`Observed: ${finding.observableCondition}`);
+    if (finding.narratorReport) await draw(`Reported: ${finding.narratorReport}`);
+    if (finding.interpretation) await draw(`Interpretation: ${finding.interpretation}`);
   }
   y -= 8;
-  draw("Scope and estimate", 14, true);
-  draw(`Price book: ${version?.priceBookLabel ?? "none"}`);
+  await draw("Scope and estimate", 14, true);
+  await draw(`Price book: ${version?.priceBookLabel ?? "none"}`);
   for (const item of job.scopeItems) {
     const priced = version?.pricedLines.find((line) => line.scopeItemId === item.id);
-    draw(`${item.phase} / ${item.scopeClass} · ${item.location} · ${item.description}`, 10, true);
-    draw(`Qty ${item.quantity.value ?? "—"} ${item.quantity.unit} (${item.quantity.status}). ${item.quantity.formula ?? item.quantity.sourceNote}`);
-    draw(`Amount ${priced?.extendedPrice ?? "unpriced"} ${priced?.unpricedReason ?? ""}`.trim());
-    draw(item.reason);
+    await draw(`${item.phase} / ${item.scopeClass} · ${item.location} · ${item.description}`, 10, true);
+    await draw(`Qty ${item.quantity.value ?? "—"} ${item.quantity.unit} (${item.quantity.status}). ${item.quantity.formula ?? item.quantity.sourceNote}`);
+    await draw(`Amount ${priced?.extendedPrice ?? "unpriced"} ${priced?.unpricedReason ?? ""}`.trim());
+    await draw(item.reason);
   }
   if (version) {
     y -= 6;
-    draw(`Mitigation ${money(version.totals.mitigationSubtotal)} · Rebuild ${money(version.totals.rebuildSubtotal)} · Tax ${money(version.totals.tax)}`, 11, true);
-    draw(`Supported total ${money(version.totals.supportedTotal)} (${version.totals.label}). Conditional ${money(version.totals.conditionalAllowance)}. Optional ${money(version.totals.optionalAllowance)}.`);
-    draw("Assumptions", 12, true);
-    version.assumptions.forEach((item) => draw(`• ${item}`));
-    draw("Exclusions", 12, true);
-    version.exclusions.forEach((item) => draw(`• ${item}`));
+    await draw(`Mitigation ${money(version.totals.mitigationSubtotal)} · Rebuild ${money(version.totals.rebuildSubtotal)} · Tax ${money(version.totals.tax)}`, 11, true);
+    await draw(`Supported total ${money(version.totals.supportedTotal)} (${version.totals.label}). Conditional ${money(version.totals.conditionalAllowance)}. Optional ${money(version.totals.optionalAllowance)}.`);
+    await draw("Assumptions", 12, true);
+    for (const item of version.assumptions) await draw(`• ${item}`);
+    await draw("Exclusions", 12, true);
+    for (const item of version.exclusions) await draw(`• ${item}`);
   }
-  draw("AI output does not authorize work. Customer authorization applies only to the named estimate version.");
+  await draw("AI output does not authorize work. Customer authorization applies only to the named estimate version.");
   return pdf.save();
 }
 

@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
+import { AppFrame } from "@/components/app-frame";
+import { BrandLockup } from "@/components/brand-lockup";
 
 export default function NewJobPage() {
   const router = useRouter();
@@ -10,8 +12,12 @@ export default function NewJobPage() {
   const [pending, setPending] = useState(false);
 
   return (
+    <AppFrame>
     <main className="shell">
-      <p className="brand"><span>Atmosphere</span>New job</p>
+      <header className="topbar">
+        <BrandLockup />
+        <h1 className="page-title">New job</h1>
+      </header>
       <form
         className="panel grid"
         onSubmit={async (event) => {
@@ -46,5 +52,6 @@ export default function NewJobPage() {
         </div>
       </form>
     </main>
+    </AppFrame>
   );
 }

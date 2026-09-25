@@ -4,17 +4,19 @@ import { SCENARIOS } from "@/samples/scenarios";
 import { SampleLauncher } from "@/components/sample-launcher";
 import { bannerFor } from "@/domain/review";
 import { providerStatus } from "@/analysis/provider-status";
-import { SiteNav } from "@/components/site-nav";
+import { AppFrame } from "@/components/app-frame";
+import { BrandLockup } from "@/components/brand-lockup";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const jobs = await listJobs();
   return (
+    <AppFrame current="/">
     <main className="shell">
       <header className="topbar">
         <div>
-          <p className="brand"><span>Atmosphere</span>Scope</p>
+          <BrandLockup />
           <p className="meta">Atmosphere Scope writes its own estimate from the walkthrough. Contents stay evidence-linked. The sketch supplies quantities. Labor and equipment rates are entered here.</p>
         </div>
         <div className="row">
@@ -24,7 +26,6 @@ export default async function HomePage() {
           </div>
         </div>
       </header>
-      <SiteNav current="/" />
       <nav className="cards" style={{ marginBottom: 16 }}>
         <Link className="card" href="/contents"><strong>Contents</strong><span className="meta">Sketch beside the priced list. Evidence and unverified prices stay visible.</span></Link>
         <Link className="card" href="/measure"><strong>Measure</strong><span className="meta">Supporting capture. The sheet sets scale. It is not the landing screen.</span></Link>
@@ -80,5 +81,6 @@ export default async function HomePage() {
         </div>
       </section>
     </main>
+    </AppFrame>
   );
 }

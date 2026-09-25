@@ -7,6 +7,8 @@ import { bannerFor } from "@/domain/review";
 import type { Job } from "@/domain/types";
 import type { SketchOp } from "@/domain/sketch-ops";
 import { SketchEditor } from "./sketch-editor";
+import { AppFrame } from "@/components/app-frame";
+import { BrandLockup } from "@/components/brand-lockup";
 import { buildSpaceModel } from "@/spatial/model";
 
 const SpaceMap = dynamic(() => import("./space-map").then((mod) => mod.SpaceMap), { ssr: false, loading: () => <p>Loading 3D view…</p> });
@@ -37,11 +39,13 @@ export function Workspace({ initialJob }: { initialJob: Job }) {
   }
 
   return (
+    <AppFrame>
     <main className="shell">
       <header className="topbar">
         <div>
+          <BrandLockup />
           <Link href="/" className="meta">All jobs</Link>
-          <h1 className="brand" style={{ fontSize: 32 }}>{job.property.address}</h1>
+          <h1 className="page-title">{job.property.address}</h1>
           <p className="meta">{job.customer.name} · {job.property.city}, {job.property.region} · {job.concern}</p>
         </div>
       </header>
@@ -121,6 +125,7 @@ export function Workspace({ initialJob }: { initialJob: Job }) {
         </section>
       )}
     </main>
+    </AppFrame>
   );
 }
 
