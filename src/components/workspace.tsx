@@ -2,18 +2,20 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { bannerFor } from "@/domain/review";
 import type { Job } from "@/domain/types";
 import type { SketchOp } from "@/domain/sketch-ops";
 import { SketchEditor } from "./sketch-editor";
+import { AppFrame } from "@/components/app-frame";
+import { BrandLockup } from "@/components/brand-lockup";
 import { buildSpaceModel } from "@/spatial/model";
 
 const SpaceMap = dynamic(() => import("./space-map").then((mod) => mod.SpaceMap), { ssr: false, loading: () => <p>Loading 3D view…</p> });
 
 const TABS = ["capture", "evidence", "sketch", "map", "assessment", "questions", "estimate", "review", "export"] as const;
 
-export function Workspace({ initialJob }: { initialJob: Job }) {
+export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: ReactNode }) {
   const [job, setJob] = useState(initialJob);
   const [tab, setTab] = useState<(typeof TABS)[number]>("map");
   const [roomId, setRoomId] = useState<string | null>(initialJob.rooms[0]?.id ?? null);
@@ -37,14 +39,17 @@ export function Workspace({ initialJob }: { initialJob: Job }) {
   }
 
   return (
+    <AppFrame>
     <main className="shell">
       <header className="topbar">
         <div>
+          <BrandLockup />
           <Link href="/" className="meta">All jobs</Link>
-          <h1 className="brand" style={{ fontSize: 32 }}>{job.property.address}</h1>
+          <h1 className="page-title">{job.property.address}</h1>
           <p className="meta">{job.customer.name} · {job.property.city}, {job.property.region} · {job.concern}</p>
         </div>
       </header>
+      {extra}
       <p className={version?.status === "customer_authorized" ? "banner ok" : "banner"}>{bannerFor(version)}</p>
       {error && <p className="error">{error}</p>}
       <div className="tabs" role="tablist">
@@ -94,6 +99,7 @@ export function Workspace({ initialJob }: { initialJob: Job }) {
           });
         }}>
           <p className="kicker">Price settings — markup or margin, not both</p>
+          <p className="meta">Sample jobs can still show illustrative arithmetic. The estimate you finalize is on Claims, from the catalog and rate book.</p>
           <label className="field">Mode<select name="mode" defaultValue={version.settings.mode}><option value="markup">Markup on cost</option><option value="margin">Target margin</option></select></label>
           <label className="field">Markup %<input name="markup" type="number" step="0.1" defaultValue={version.settings.markupPercent * 100} /></label>
           <label className="field">Margin %<input name="margin" type="number" step="0.1" defaultValue={version.settings.marginPercent * 100} /></label>
@@ -109,16 +115,18 @@ export function Workspace({ initialJob }: { initialJob: Job }) {
       {tab === "review" && <Review job={job} onAct={act} />}
       {tab === "export" && (
         <section className="panel grid">
-          <p>Exports include draft status, sketch measurement state, and assumptions.</p>
+          <p>Send this job’s report from Atmosphere Scope. The files are the sketch, the scope, and the assumptions on this job. The catalog estimate is finalized on Claims.</p>
           <div className="row">
-            <a className="btn" href={`/api/jobs/${job.id}/export/pdf`}>PDF package</a>
-            <a className="btn-secondary" href={`/api/jobs/${job.id}/export/csv`}>Estimate CSV</a>
+            <a className="btn" href={`/api/jobs/${job.id}/export/pdf`}>Send report (PDF)</a>
+            <a className="btn-secondary" href={`/api/jobs/${job.id}/export/csv`}>Send report (CSV)</a>
             <a className="btn-secondary" href={`/api/jobs/${job.id}/export/svg`}>Sketch SVG</a>
-            <a className="btn-secondary" href={`/api/jobs/${job.id}/export/json`}>JSON package</a>
+            <a className="btn-secondary" href={`/api/jobs/${job.id}/export/json`}>Send report (JSON)</a>
+            <a className="btn-secondary" href="/claims">Finalize estimate</a>
           </div>
         </section>
       )}
     </main>
+    </AppFrame>
   );
 }
 
@@ -140,8 +148,7 @@ function Capture({ job, onProcess, onRetry, onUploaded }: { job: Job; onProcess:
           <textarea rows={6} value={transcript} onChange={(event) => setTranscript(event.target.value)} placeholder="This is the kitchen. The ceiling stain is dry. The wall is 12 ft." />
         </label>
         <div className="row">
-          <button className="btn" type="button" onClick={() => onProcess(transcript, true)}>Analyze with demo price book</button>
-          <button className="btn-secondary" type="button" onClick={() => onProcess(transcript, false)}>Analyze unpriced</button>
+          <button className="btn" type="button" onClick={() => onProcess(transcript, false)}>Build draft scope</button>
           {job.processing.status === "failed" && <button className="btn-secondary" type="button" onClick={onRetry}>Retry failed stage</button>}
         </div>
         {job.processing.lastError && <p className="error">{job.processing.lastError}</p>}
@@ -337,20 +344,20 @@ function Estimate({ job, phase, setPhase, lines, version, onAffected, onApply, o
         <input name="sqft" type="number" step="0.1" min="0" placeholder="Affected sqft for filtered room" aria-label="Affected area" />
         <button className="btn-secondary" type="submit">Set affected area</button>
       </form>
-      <table>
+      <table className="stack">
         <thead><tr><th>Class</th><th>Line</th><th>Qty</th><th>Amount</th></tr></thead>
         <tbody>
           {lines.map((item) => {
             const priced = version?.pricedLines.find((line) => line.scopeItemId === item.id);
             return (
               <tr key={item.id}>
-                <td><span className="badge">{item.scopeClass}</span></td>
-                <td>
+                <td data-label="Class"><span className="badge">{item.scopeClass}</span></td>
+                <td data-label="Line">
                   <button type="button" className="btn-secondary" onClick={() => item.roomId && onSelectRoom(item.roomId)}>{item.location}</button>
                   <div>{item.description}</div>
                   <div className="meta">{item.reason}</div>
                 </td>
-                <td>
+                <td data-label="Qty">
                   {item.quantity.value ?? "—"} {item.quantity.unit} · {item.quantity.status}
                   <form onSubmit={(event) => {
                     event.preventDefault();
@@ -359,7 +366,7 @@ function Estimate({ job, phase, setPhase, lines, version, onAffected, onApply, o
                     <input name="qty" type="number" step="0.1" aria-label={`Quantity for ${item.description}`} placeholder="edit qty" />
                   </form>
                 </td>
-                <td>{priced?.extendedPrice ?? "unpriced"}{priced?.unpricedReason ? ` · ${priced.unpricedReason}` : ""}</td>
+                <td data-label="Amount">{priced?.extendedPrice ?? "unpriced"}{priced?.unpricedReason ? ` · ${priced.unpricedReason}` : ""}</td>
               </tr>
             );
           })}
@@ -374,6 +381,8 @@ function Review({ job, onAct }: { job: Job; onAct: (body: unknown) => void }) {
     <section className="grid">
       <div className="panel grid">
         <p className="kicker">Estimator</p>
+        <p className="meta">Sign in as an estimator on Account. A customer sign-in cannot approve this version.</p>
+        <a className="btn secondary" href="/account">Account</a>
         <form className="row" onSubmit={(event) => { event.preventDefault(); onAct({ type: "mark_reviewed", actorName: String(new FormData(event.currentTarget).get("name")) }); }}>
           <input name="name" placeholder="Estimator name" required aria-label="Estimator name" />
           <button className="btn" type="submit">Mark reviewed</button>
@@ -385,7 +394,7 @@ function Review({ job, onAct }: { job: Job; onAct: (body: unknown) => void }) {
       </div>
       <div className="panel grid">
         <p className="kicker">Customer authorization</p>
-        <p className="meta">Separate from estimator approval. It names the exact version.</p>
+        <p className="meta">Sign in as the customer. This step does not approve the estimate. It names the exact version.</p>
         <form className="grid" onSubmit={(event) => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);

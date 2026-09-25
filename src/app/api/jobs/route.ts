@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { createEmptyJob } from "@/analysis/pipeline";
 import { saveJob } from "@/storage/job-store";
+import { assertJobWriter } from "@/storage/visible-jobs";
 
 export async function POST(request: Request) {
+  const writer = await assertJobWriter();
+  if ("error" in writer) return NextResponse.json({ error: writer.error }, { status: writer.status });
   const body = await request.json();
   const required = ["address", "city", "region", "postalCode", "customerName", "concern"] as const;
   for (const key of required) {

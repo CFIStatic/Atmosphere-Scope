@@ -1,17 +1,12 @@
 import { openaiKey, redact, visionModel, type Env } from "@/analysis/config";
+import { frameTimeMs, selectKeyframes, type EvidenceLink, type IdentifiedObject } from "@/analysis/frames";
 import { screenText } from "@/analysis/guard";
 
-export const MAX_VISION_FRAMES = 4;
+export { frameTimeMs, selectKeyframes, type EvidenceLink, type IdentifiedObject } from "@/analysis/frames";
+export { MAX_VISION_FRAMES } from "@/analysis/frames";
+
 export const MAX_OBJECTS = 24;
 export const MAX_PRICED_OBJECTS = 8;
-
-export type IdentifiedObject = {
-  name: string;
-  room: string | null;
-  evidence: string;
-  confidence: "low" | "medium" | "high";
-  frames: string[];
-};
 
 export function dedupeObjects(items: IdentifiedObject[]): IdentifiedObject[] {
   const rank = { low: 0, medium: 1, high: 2 } as const;
@@ -27,8 +22,10 @@ export function dedupeObjects(items: IdentifiedObject[]): IdentifiedObject[] {
     map.set(key, {
       ...existing,
       frames: [...new Set([...existing.frames, ...item.frames])],
+      links: mergeLinks(existing.links, item.links),
       confidence: rank[item.confidence] > rank[existing.confidence] ? item.confidence : existing.confidence,
       room: existing.room ?? item.room,
+      evidence: existing.evidence || item.evidence,
     });
   }
   return [...map.values()].slice(0, MAX_OBJECTS);
@@ -47,9 +44,19 @@ export function parseVisionObjects(raw: unknown, frameNames: string[]): Identifi
     if (blocked) continue;
     const confidence = record.confidence === "high" || record.confidence === "medium" || record.confidence === "low" ? record.confidence : "low";
     const room = typeof record.room === "string" && record.room.trim() ? record.room.trim() : null;
-    parsed.push({ name, room, evidence, confidence, frames: frameNames });
+    parsed.push({ name, room, evidence, confidence, frames: frameNames, links: linksFromFrames(frameNames) });
   }
   return dedupeObjects(parsed);
+}
+
+export function mergeLinks(left: EvidenceLink[] | undefined, right: EvidenceLink[] | undefined): EvidenceLink[] {
+  const map = new Map<string, EvidenceLink>();
+  for (const link of [...(left ?? []), ...(right ?? [])]) map.set(`${link.frame}:${link.timeMs ?? ""}`, link);
+  return [...map.values()];
+}
+
+function linksFromFrames(frames: string[]): EvidenceLink[] {
+  return frames.map((frame) => ({ frame, timeMs: frameTimeMs(frame) }));
 }
 
 export function extractChatContent(body: unknown): string | null {
@@ -67,7 +74,7 @@ export async function identifyObjects(
   const env = options.env ?? process.env;
   const key = openaiKey(env);
   if (!key) return { objects: [], note: "OPENAI_API_KEY is not set. Objects were not invented." };
-  const chosen = frames.slice(0, MAX_VISION_FRAMES).filter((frame) => frame.bytes.byteLength > 0);
+  const chosen = selectKeyframes(frames.filter((frame) => frame.bytes.byteLength > 0));
   if (!chosen.length) return { objects: [], note: "No keyframes were available, so no objects were identified." };
   const fetchImpl = options.fetchImpl ?? fetch;
   try {

@@ -1,10 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { chunkCount, getCapture, listPendingCaptures, putCapture, saveChunk } from "@/capture/db";
 import { captureStatusLabel } from "@/capture/plan";
 import { resumeCapture } from "@/capture/resume-client";
 import { fuseDimension, type FusedDimension, type Reading, type ScaleSource } from "@/domain/fusion";
+import { loadWalkthrough, saveWalkthrough } from "@/capture/snapshot";
+import { floorPlanFromMeasurement, recordedSyntheticRoom, type FloorPlan, type MeasuredRoomInput } from "@/domain/plan-from-measurement";
+import type { IdentifiedObject } from "@/analysis/frames";
+import type { ResultOffer } from "@/domain/results";
+import { FieldPair } from "@/components/field-pair";
+import { PlanView } from "@/components/plan-view";
+import { ResultsView } from "@/components/results-view";
 
 type SolverDimension = {
   id: string;
@@ -39,11 +47,14 @@ type SolverResult = {
   extractMs?: number;
   solveMs?: number;
   notes?: string[];
+  polygonFt?: { x: number; y: number }[];
+  rooms?: MeasuredRoomInput[];
   dimensions: SolverDimension[];
   error?: string;
+  videoKey?: string | null;
   ai?: {
     transcription: { status: string; text: string | null; note: string };
-    objects: { name: string; room: string | null; evidence: string; confidence: string; frames: string[] }[];
+    objects: { name: string; room: string | null; evidence: string; confidence: string; frames: string[]; links?: { frame: string; timeMs: number | null }[] }[];
     objectNote: string;
     offers: Offer[];
     pricing: { reason: string };
@@ -56,6 +67,13 @@ type SensorState = {
   bluetooth: "checking" | "supported" | "unsupported";
   laser: string | null;
 };
+
+function readSignal(): "online" | "weak" | "offline" {
+  if (typeof navigator === "undefined" || navigator.onLine === false) return "offline";
+  const connection = (navigator as Navigator & { connection?: { effectiveType?: string; rtt?: number } }).connection;
+  if (connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g" || (connection?.rtt != null && connection.rtt >= 800)) return "weak";
+  return "online";
+}
 
 function sourceForMethod(method: string): ScaleSource {
   if (method === "charuco_multiview") return "charuco";
@@ -85,6 +103,39 @@ function blurScore(data: ImageData): number {
   return sumSq / Math.max(count, 1) - mean * mean;
 }
 
+const recordedObjects: IdentifiedObject[] = [{
+  name: "AA alkaline batteries",
+  room: "Recorded fixture",
+  evidence: "Recorded model response. Not a photo from this phone.",
+  confidence: "low",
+  frames: ["frame_02.jpg"],
+  links: [{ frame: "frame_02.jpg", timeMs: 1000 }],
+}];
+
+const recordedOffers: ResultOffer[] = [
+  { query: "AA alkaline batteries", title: "AA alkaline batteries", retailer: "Example", price: 12.99, currency: "USD", url: "https://shop.example/batteries", status: "unverified", note: "Recorded model response. The retailer page was not fetched." },
+  { query: "AA alkaline batteries", title: "Other pack", retailer: "Example", price: 9.5, currency: "USD", url: "https://shop.example/other", status: "unverified", note: "Second recorded candidate. The retailer page was not fetched." },
+];
+
+function planFromResult(result: SolverResult): FloorPlan {
+  if (result.rooms?.length) return floorPlanFromMeasurement(result.rooms);
+  return floorPlanFromMeasurement([{
+    id: "room",
+    name: "Room",
+    polygonFt: result.polygonFt,
+    dimensions: result.dimensions.map((dimension) => ({
+      kind: dimension.kind,
+      label: dimension.label,
+      valueFt: dimension.valueFt,
+      errorPercent: dimension.errorPercent,
+      meetsAccuracyTarget: dimension.meetsAccuracyTarget,
+      confirmed: dimension.confirmed,
+      sources: dimension.sources,
+      note: dimension.note,
+    })),
+  }]);
+}
+
 function sliceBlob(blob: Blob, size = 256 * 1024): Blob[] {
   if (blob.size === 0) return [blob];
   const parts: Blob[] = [];
@@ -93,6 +144,7 @@ function sliceBlob(blob: Blob, size = 256 * 1024): Blob[] {
 }
 
 export function MeasureApp({ setup }: { setup: { measurement: string; vision: string; pricing: string } }) {
+  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [sensors, setSensors] = useState<SensorState>({ webxr: "checking", bluetooth: "checking", laser: null });
   const [coach, setCoach] = useState("Print the sheet, put it on the floor, and start the camera.");
@@ -100,10 +152,52 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SolverResult | null>(null);
+  const [plan, setPlan] = useState<FloorPlan | null>(null);
+  const [previewObjects, setPreviewObjects] = useState<IdentifiedObject[]>([]);
+  const [previewOffers, setPreviewOffers] = useState<ResultOffer[]>([]);
+  const edits = useRef<{ offers: ResultOffer[]; objects: IdentifiedObject[] } | null>(null);
+  useEffect(() => {
+    edits.current = null;
+  }, [result]);
+  useEffect(() => {
+    if (!plan) return;
+    const objects: IdentifiedObject[] = edits.current?.objects ?? (result?.ai?.objects ?? previewObjects).map((object) => {
+      const confidence: IdentifiedObject["confidence"] = object.confidence === "high" || object.confidence === "medium" ? object.confidence : "low";
+      return { ...object, confidence };
+    });
+    const offers = edits.current?.offers ?? (result?.ai?.offers ?? previewOffers).map((offer) => ({
+      query: offer.query,
+      title: offer.title,
+      retailer: offer.retailer,
+      price: offer.price,
+      currency: offer.currency,
+      url: offer.url,
+      status: offer.status,
+      note: offer.note,
+    }));
+    saveWalkthrough({
+      savedAt: new Date().toISOString(),
+      source: result ? "measurement" : "recorded-preview",
+      transcript: result?.ai?.transcription.text ?? null,
+      transcriptNote: result?.ai?.transcription.note ?? "Recorded preview. Not a customer recording.",
+      plan,
+      videoPlan: result ? plan : null,
+      objects,
+      offers,
+      videoKey: result?.videoKey ?? null,
+    });
+  }, [plan, result, previewObjects, previewOffers]);
   const [tapeLabel, setTapeLabel] = useState("span_a");
   const [tapeValue, setTapeValue] = useState("");
   const [online, setOnline] = useState(true);
+  const [signal, setSignal] = useState<"online" | "weak" | "offline">("online");
+  const [queue, setQueue] = useState<{ id: string; filename: string; status: string; totalChunks: number; error: string | null }[]>([]);
+  const [progress, setProgress] = useState<{ sent: number; total: number } | null>(null);
+  const [micLevel, setMicLevel] = useState(0);
+  const [micNote, setMicNote] = useState("Mic level appears once recording starts.");
   const [uploadStatus, setUploadStatus] = useState("Capture stays on this phone if the signal drops. Measurement runs on the server.");
+  const audioContext = useRef<AudioContext | null>(null);
+  const meterFrame = useRef<number | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const captureId = useRef<string | null>(null);
@@ -112,12 +206,15 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
 
   useEffect(() => {
     setOnline(navigator.onLine);
+    setSignal(readSignal());
     const markOnline = () => {
       setOnline(true);
+      setSignal(readSignal());
       void flushPending();
     };
     const markOffline = () => {
       setOnline(false);
+      setSignal("offline");
       setUploadStatus(captureStatusLabel({ online: false, phase: "saved", sent: 0, total: 0 }));
     };
     const onVisible = () => {
@@ -189,7 +286,7 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
         motion = total / Math.max(count, 1);
       }
       previous.current = frame;
-      const notes = ["Hold the phone upright.", "Keep the sheet at the bottom of the frame.", "Sweep slowly from floor to ceiling and overlap each wall."];
+      const notes = [window.matchMedia("(orientation: portrait)").matches ? "Hold the phone upright." : "Landscape is fine. Keep the sheet in the frame.", "Keep the sheet at the bottom of the frame.", "Sweep slowly from floor to ceiling and overlap each wall."];
       if (blur < 40) notes.unshift("Frame looks soft. Pause and let the sheet sharpen.");
       if (motion > 28) notes.unshift("Moving too fast. Slow the pan.");
       if (navigator.onLine === false) {
@@ -213,13 +310,64 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
     return () => window.clearInterval(timer);
   }, [recording]);
 
+  function stopMeter() {
+    if (meterFrame.current != null) cancelAnimationFrame(meterFrame.current);
+    meterFrame.current = null;
+    void audioContext.current?.close();
+    audioContext.current = null;
+    setMicLevel(0);
+  }
+
+  function watchMic(stream: MediaStream) {
+    const track = stream.getAudioTracks()[0];
+    if (!track) {
+      setMicNote("Mic is off. Video still records. The level stays empty.");
+      return;
+    }
+    const context = new AudioContext();
+    audioContext.current = context;
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 256;
+    context.createMediaStreamSource(new MediaStream([track])).connect(analyser);
+    const samples = new Uint8Array(analyser.fftSize);
+    const tick = () => {
+      analyser.getByteTimeDomainData(samples);
+      let sum = 0;
+      for (const value of samples) {
+        const sample = (value - 128) / 128;
+        sum += sample * sample;
+      }
+      setMicLevel(Math.min(1, Math.sqrt(sum / samples.length) * 4));
+      meterFrame.current = requestAnimationFrame(tick);
+    };
+    setMicNote("Mic is live.");
+    tick();
+  }
+
   async function startCamera() {
     setError(null);
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("This browser has no camera. Upload a video instead. Nothing was recorded.");
+      return;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: true });
+    } catch {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+        setMicNote("Mic is off. Video still records. The level stays empty.");
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "The camera did not start.");
+        return;
+      }
+    }
     if (videoRef.current) {
       videoRef.current.srcObject = stream;
+      videoRef.current.muted = true;
       await videoRef.current.play();
     }
+    watchMic(stream);
     chunks.current = [];
     const id = crypto.randomUUID();
     captureId.current = id;
@@ -254,6 +402,7 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
       media.onstop = () => resolve(new Blob(chunks.current, { type: media.mimeType || "video/webm" }));
       media.stop();
     });
+    stopMeter();
     videoRef.current?.srcObject && (videoRef.current.srcObject as MediaStream).getTracks().forEach((track) => track.stop());
     setRecording(false);
     const id = captureId.current;
@@ -273,8 +422,32 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
     try {
       const record = await getCapture(id);
       if (!record || record.totalChunks < 1) throw new Error("The recording was not saved on this phone.");
-      const body = await resumeCapture(record, { online: navigator.onLine, onStatus: setUploadStatus });
-      if (body && typeof body === "object") setResult(body as SolverResult);
+      const body = await resumeCapture(record, { online: navigator.onLine, onStatus: (label) => {
+        setUploadStatus(label);
+        const match = label.match(/Uploading (\d+) of (\d+)/);
+        setProgress(match ? { sent: Number(match[1]), total: Number(match[2]) } : null);
+        setSignal(readSignal());
+      } });
+      if (body && typeof body === "object") {
+        const measured = body as SolverResult;
+        const plan = planFromResult(measured);
+        setResult(measured);
+        setPlan(plan);
+        if (!measured.error && measured.dimensions) {
+          saveWalkthrough({
+            savedAt: new Date().toISOString(),
+            source: "measurement",
+            transcript: measured.ai?.transcription.text ?? null,
+            transcriptNote: measured.ai?.transcription.note ?? "No narration text was returned.",
+            plan,
+            videoPlan: plan,
+            objects: (measured.ai?.objects ?? []).map((object) => ({ ...object, confidence: object.confidence === "high" || object.confidence === "medium" || object.confidence === "low" ? object.confidence : "low" })),
+            offers: (measured.ai?.offers ?? []).map((offer) => ({ query: offer.query, title: offer.title, retailer: offer.retailer, price: offer.price, currency: offer.currency, url: offer.url, status: offer.status, note: offer.note })),
+            videoKey: measured.videoKey ?? null,
+          });
+          router.push("/contents");
+        }
+      }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Upload failed.";
       setUploadStatus(captureStatusLabel({ online: navigator.onLine, phase: "error", sent: 0, total: 0 }));
@@ -283,12 +456,30 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
       if (record) await putCapture({ ...record, status: "error", error: message });
     } finally {
       setBusy(false);
+      setQueue(await listPendingCaptures().catch(() => []));
     }
+  }
+
+  async function retryUploads() {
+    const pending = await listPendingCaptures();
+    setQueue(pending);
+    if (!navigator.onLine) {
+      setSignal("offline");
+      setUploadStatus(captureStatusLabel({ online: false, phase: "saved", sent: 0, total: pending[0]?.totalChunks ?? 0 }));
+      return;
+    }
+    if (readSignal() === "weak") setSignal("weak");
+    if (pending.length === 0) {
+      setUploadStatus("Nothing is waiting on this phone.");
+      return;
+    }
+    await flushPending();
   }
 
   async function flushPending() {
     try {
       const pending = await listPendingCaptures();
+      setQueue(pending);
       for (const record of pending) {
         const count = await chunkCount(record.id);
         if (count < 1) continue;
@@ -368,8 +559,68 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
     return { raw: dimension, fused: fuseDimension(readings) };
   });
 
+  const signalLabel = signal === "offline" ? "Offline" : signal === "weak" ? "Weak signal" : "Online";
+
   return (
     <div className="flow">
+      <section className={`capture-stage ${recording ? "is-recording" : ""}`}>
+        <div className="capture-video">
+          <video ref={videoRef} playsInline muted />
+          <div className="capture-overlay">
+            <p className="rec-indicator" role="status">
+              <span className="rec-dot" aria-hidden="true" />
+              {recording ? "Recording" : "Ready"}
+            </p>
+            <div className="capture-overlay-copy">
+              <p className="sheet-reminder">Put the calibration sheet on the floor before you walk the room. The 30 mm square is the only absolute scale this solver trusts.</p>
+              <a className="btn secondary" href="/api/calibration-target">Calibration sheet PDF</a>
+              <div className="mic-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(micLevel * 100)} aria-label="Microphone level">
+                <span style={{ width: `${Math.round(micLevel * 100)}%` }} />
+              </div>
+              <p className="coach">{micNote}</p>
+              <p className="coach">{coach}</p>
+            </div>
+          </div>
+        </div>
+        <div className="action-bar">
+          {!recording ? (
+            <button className="btn record-btn" type="button" onClick={() => void startCamera()}>Record</button>
+          ) : (
+            <button className="btn stop-btn" type="button" onClick={() => void finishRecording()}>Stop</button>
+          )}
+          <label className="btn secondary">
+            Upload video
+            <input
+              type="file"
+              accept="video/*"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void submitVideo(file, file.name);
+              }}
+            />
+          </label>
+        </div>
+      </section>
+      <section className="panel upload-queue" aria-live="polite">
+        <p className="kicker">Upload queue · {signalLabel}</p>
+        {signal === "weak" && <p className="banner">Weak signal. The video stays on this phone and the upload retries.</p>}
+        {signal === "offline" && <p className="banner">Offline. Recording and the queue stay on this phone.</p>}
+        <p role="status">{uploadStatus}{online ? "" : " Offline."}</p>
+        {progress && <progress max={progress.total} value={progress.sent}>{progress.sent} of {progress.total}</progress>}
+        {busy && !progress && <p className="meta">Measurement runs on the server after the upload.</p>}
+        {queue.length === 0 && <p className="meta">No capture is waiting.</p>}
+        <ul className="list">
+          {queue.map((item) => (
+            <li key={item.id} className="item">
+              <strong>{item.filename}</strong>
+              <span className="meta"> {item.status} · {item.totalChunks} chunks{item.error ? ` · ${item.error}` : ""}</span>
+            </li>
+          ))}
+        </ul>
+        <button className="btn" type="button" onClick={() => void retryUploads()} disabled={busy || recording}>Retry upload</button>
+        {error && <p className="error">{error}</p>}
+      </section>
       <section className="panel">
         <p className="kicker">This server</p>
         <p className="meta">{setup.measurement}</p>
@@ -377,48 +628,11 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
         <p className="meta">{setup.pricing}</p>
       </section>
       <section className="panel">
-        <p className="kicker">Calibration sheet</p>
-        <p>Print the letter sheet at 100% scale and lay it on the floor before you walk the room. The 30 mm square is the only absolute scale this solver trusts.</p>
-        <a className="btn" href="/api/calibration-target">Download letter PDF</a>
-      </section>
-      <section className="split">
-        <div className="phone">
-          <div className="phone-top">
-            <span>{recording ? "REC" : "READY"}</span>
-            <span>ROOM</span>
-          </div>
-          <video ref={videoRef} playsInline muted />
-          <p className="coach">{coach}</p>
-          <div className="row">
-            {!recording ? (
-              <button className="btn" type="button" onClick={() => void startCamera()}>Open camera</button>
-            ) : (
-              <button className="btn" type="button" onClick={() => void finishRecording()}>Stop and measure</button>
-            )}
-            <label className="btn secondary">
-              Upload video
-              <input
-                type="file"
-                accept="video/*"
-                hidden
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void submitVideo(file, file.name);
-                }}
-              />
-            </label>
-          </div>
-          <p className="meta" role="status">{uploadStatus}{online ? "" : " Offline."}</p>
-          {busy && <p className="meta">Measurement runs on the server after the upload.</p>}
-          {error && <p className="error">{error}</p>}
-        </div>
-        <div className="panel">
-          <p className="kicker">Device sensors</p>
-          <p><span className="chip">WebXR</span> {sensors.webxr === "supported" ? "Hit-test is available. A hit is still estimated until a tape or laser locks it, and this build has no accuracy result for WebXR, so it cannot meet ±5%." : "Not available in this browser. iOS Safari does not expose WebXR depth. Measurement continues from the sheet, or stays unresolved."}</p>
-          <p><span className="chip">Bluetooth laser</span> {sensors.bluetooth === "supported" ? "Web Bluetooth is present. A spot check can lock a dimension only after a numeric reading arrives." : "Not available in this browser. iOS Safari has no Web Bluetooth. Enter a tape reading instead."}</p>
-          {sensors.bluetooth === "supported" && <button className="btn secondary" type="button" onClick={() => void connectLaser()}>Connect laser</button>}
-          {sensors.laser && <p className="meta">{sensors.laser}</p>}
-        </div>
+        <p className="kicker">Device sensors</p>
+        <p><span className="chip">WebXR</span> {sensors.webxr === "supported" ? "Hit-test is available. A hit is still estimated until a tape or laser locks it, and this build has no accuracy result for WebXR, so it cannot meet ±5%." : "Not available in this browser. iOS Safari does not expose WebXR depth. Measurement continues from the sheet, or stays unresolved."}</p>
+        <p><span className="chip">Bluetooth laser</span> {sensors.bluetooth === "supported" ? "Web Bluetooth is present. A spot check can lock a dimension only after a numeric reading arrives." : "Not available in this browser. iOS Safari has no Web Bluetooth. Enter a tape reading instead."}</p>
+        {sensors.bluetooth === "supported" && <button className="btn secondary" type="button" onClick={() => void connectLaser()}>Connect laser</button>}
+        {sensors.laser && <p className="meta">{sensors.laser}</p>}
       </section>
       <section className="panel">
         <p className="kicker">Lock one dimension with a tape</p>
@@ -437,22 +651,40 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
         <p className="meta">If the tape and the sheet disagree by more than 5%, the value is not confirmed.</p>
       </section>
       <section className="panel">
+        <p className="kicker">Floor plan</p>
+        <div className="row">
+          <button className="btn secondary" type="button" onClick={() => setPlan(floorPlanFromMeasurement([recordedSyntheticRoom], "Synthetic pinhole harness. Not a recording from this phone."))}>Preview recorded synthetic room</button>
+          <button className="btn secondary" type="button" onClick={() => { setPreviewObjects(recordedObjects); setPreviewOffers(recordedOffers); }}>Preview recorded price</button>
+        </div>
+        {plan ? (
+          <FieldPair
+            sketch={<PlanView plan={plan} onChange={setPlan} />}
+            items={<ResultsView plan={plan} objects={(result?.ai?.objects ?? previewObjects).map((object) => ({ ...object, confidence: object.confidence === "high" || object.confidence === "medium" ? object.confidence : "low" }))} offers={(result?.ai?.offers ?? previewOffers).map((offer) => ({ query: offer.query, title: offer.title, retailer: offer.retailer, price: offer.price, currency: offer.currency, url: offer.url, status: offer.status, note: offer.note }))} onChange={(next) => {
+              edits.current = next;
+              const existing = loadWalkthrough();
+              if (!existing) return;
+              saveWalkthrough({ ...existing, offers: next.offers, objects: next.objects });
+            }} />}
+          />
+        ) : <p className="meta">No outline yet. A measured wall is drawn only after the solver returns a length.</p>}
+      </section>
+      <section className="panel">
         <p className="kicker">Dimensions</p>
         {!result && <p className="meta">No measurement yet. A number is not shown as confirmed just because a video was uploaded.</p>}
         {result?.notes?.map((note) => <p key={note} className="meta">{note}</p>)}
         {fused.length > 0 && (
-          <table>
+          <table className="stack">
             <thead>
               <tr><th>Dimension</th><th>Value</th><th>Error bound</th><th>Target</th><th>Status</th></tr>
             </thead>
             <tbody>
               {fused.map(({ raw, fused: item }) => (
                 <tr key={raw.label}>
-                  <td>{raw.kind.replaceAll("_", " ")} · {raw.label}</td>
-                  <td>{item.valueFt == null ? "?" : `${item.valueFt} ${raw.kind === "floor_area" ? "sq ft" : "ft"}`}</td>
-                  <td>{item.errorPercent == null ? "?" : `±${item.errorPercent}%`}</td>
-                  <td>{item.meetsAccuracyTarget ? <span className="chip blue">Meets ±5%</span> : <span className="chip orange">Does not meet ±5%</span>}</td>
-                  <td>{item.confirmed ? <span className="chip blue">Confirmed</span> : <span className="chip">Not confirmed</span>}</td>
+                  <td data-label="Dimension">{raw.kind.replaceAll("_", " ")} · {raw.label}</td>
+                  <td data-label="Value">{item.valueFt == null ? "?" : `${item.valueFt} ${raw.kind === "floor_area" ? "sq ft" : "ft"}`}</td>
+                  <td data-label="Error bound">{item.errorPercent == null ? "?" : `±${item.errorPercent}%`}</td>
+                  <td data-label="Target">{item.meetsAccuracyTarget ? <span className="chip blue">Meets ±5%</span> : <span className="chip orange">Does not meet ±5%</span>}</td>
+                  <td data-label="Status">{item.confirmed ? <span className="chip blue">Confirmed</span> : <span className="chip">Not confirmed</span>}</td>
                 </tr>
               ))}
             </tbody>
@@ -475,15 +707,15 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
             <p className="kicker">Objects</p>
             <p className="meta">{result.ai.objectNote}</p>
             {result.ai.objects.length > 0 && (
-              <table>
+              <table className="stack">
                 <thead><tr><th>Name</th><th>Room</th><th>Confidence</th><th>Evidence</th></tr></thead>
                 <tbody>
                   {result.ai.objects.map((object) => (
                     <tr key={object.name}>
-                      <td>{object.name}</td>
-                      <td>{object.room ?? "?"}</td>
-                      <td>{object.confidence}</td>
-                      <td>{object.evidence || "—"} <span className="meta">{object.frames.join(", ")}</span></td>
+                      <td data-label="Name">{object.name}</td>
+                      <td data-label="Room">{object.room ?? "?"}</td>
+                      <td data-label="Confidence">{object.confidence}</td>
+                      <td data-label="Evidence">{object.evidence || "—"} <span className="meta">{(object.links?.length ? object.links : object.frames.map((frame) => ({ frame, timeMs: null }))).map((link) => `${link.frame}${link.timeMs == null ? "" : ` @ ${(link.timeMs / 1000).toFixed(1)}s`}`).join(", ")}</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -494,15 +726,15 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
             <p className="kicker">Replacement offers</p>
             <p className="meta">{result.ai.pricing.reason} Offers are candidates. They are not written into the estimate.</p>
             {result.ai.offers.length > 0 && (
-              <table>
+              <table className="stack">
                 <thead><tr><th>Item</th><th>Offer</th><th>Price</th><th>Check</th></tr></thead>
                 <tbody>
                   {result.ai.offers.map((offer) => (
                     <tr key={offer.query}>
-                      <td>{offer.query}</td>
-                      <td>{offer.title ?? "—"}{offer.retailer ? ` · ${offer.retailer}` : ""}{offer.url ? <> · <a href={offer.url}>{offer.url}</a></> : null}</td>
-                      <td>{offer.price == null ? "—" : `${offer.currency ? `${offer.currency} ` : ""}${offer.price}`}</td>
-                      <td>
+                      <td data-label="Item">{offer.query}</td>
+                      <td data-label="Offer">{offer.title ?? "—"}{offer.retailer ? ` · ${offer.retailer}` : ""}{offer.url ? <> · <a href={offer.url}>{offer.url}</a></> : null}</td>
+                      <td data-label="Price">{offer.price == null ? "—" : `${offer.currency ? `${offer.currency} ` : ""}${offer.price}`}</td>
+                      <td data-label="Check">
                         {offer.status === "verified" && <span className="chip blue">Verified</span>}
                         {offer.status === "unverified" && <span className="chip orange">Unverified</span>}
                         {offer.status === "unpriced" && <span className="chip">Unpriced</span>}

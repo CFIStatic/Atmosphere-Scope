@@ -1,48 +1,60 @@
 import Link from "next/link";
-import { listJobs } from "@/storage/job-store";
+import { getRequestSession } from "@/auth/request-session";
+import { listVisibleJobs } from "@/storage/visible-jobs";
 import { SCENARIOS } from "@/samples/scenarios";
 import { SampleLauncher } from "@/components/sample-launcher";
 import { bannerFor } from "@/domain/review";
 import { providerStatus } from "@/analysis/provider-status";
+import { AppFrame } from "@/components/app-frame";
+import { BrandLockup } from "@/components/brand-lockup";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const jobs = await listJobs();
+  const { session } = await getRequestSession();
+  const jobs = await listVisibleJobs();
+  const customer = session?.role === "customer";
   return (
+    <AppFrame current="/">
     <main className="shell">
       <header className="topbar">
         <div>
-          <p className="brand"><span>Atmosphere</span>Scope</p>
-          <p className="meta">Residential interior walkthroughs, evidence, sketch, and draft estimate. AI output stays a draft until an estimator approves it.</p>
+          <BrandLockup />
+          <p className="meta">Atmosphere Scope writes its own estimate from the walkthrough. Contents stay evidence-linked. The sketch supplies quantities. Labor and equipment rates are entered here.</p>
         </div>
-        <Link className="btn" href="/jobs/new">New job</Link>
+        <div className="row">
+          <div className="row">
+            <Link className="btn" href="/contents">Contents</Link>
+            {!customer && <Link className="btn secondary" href="/jobs/new">New job</Link>}
+          </div>
+        </div>
       </header>
-      <nav className="cards" style={{ marginBottom: 16 }}>
-        <Link className="card" href="/measure"><strong>Measure a room</strong><span className="meta">Calibration sheet, guided capture, error bounds.</span></Link>
-        <Link className="card" href="/claims"><strong>Claims review</strong><span className="meta">Gaps, sketch spans, and what is not confirmed.</span></Link>
-        <Link className="card" href="/underwriting"><strong>Underwriting</strong><span className="meta">Checklist through scenarios. Illustrative dollars stay labeled.</span></Link>
+      {!customer && <nav className="cards" style={{ marginBottom: 16 }}>
+        <Link className="card" href="/contents"><strong>Contents</strong><span className="meta">Sketch beside the priced list. Evidence and unverified prices stay visible.</span></Link>
+        <Link className="card" href="/measure"><strong>Measure</strong><span className="meta">Supporting capture. The sheet sets scale. It is not the landing screen.</span></Link>
+        <Link className="card" href="/claims"><strong>Claims review</strong><span className="meta">Draft scope and estimate from the catalog and rate book.</span></Link>
+        <Link className="card" href="/underwriting"><strong>Underwriting</strong><span className="meta">Checklist through the same contents list.</span></Link>
         <Link className="card" href="/accuracy"><strong>Accuracy harness</strong><span className="meta">Synthetic results by method. 95% is not claimed.</span></Link>
-      </nav>
-      <section className="panel" style={{ marginBottom: 16 }}>
+      </nav>}
+      {!customer && <section className="panel" style={{ marginBottom: 16 }}>
         <p className="kicker">Keys</p>
         <p className="meta">The walkthrough needs only OPENAI_API_KEY. Measurement and local storage run without it. SerpAPI, a GPU host, and Supabase stay optional.</p>
-        <table>
+        <table className="stack">
           <thead><tr><th>Stage</th><th>Env</th><th>Provider</th><th>Cost</th><th>Status</th></tr></thead>
           <tbody>
             {providerStatus().map((row) => (
               <tr key={row.stage}>
-                <td>{row.stage}</td>
-                <td>{row.env ?? "—"}</td>
-                <td>{row.provider}</td>
-                <td>{row.cost}</td>
-                <td>{row.ready ? "ready" : "missing"} · {row.note}</td>
+                <td data-label="Stage">{row.stage}</td>
+                <td data-label="Env">{row.env ?? "—"}</td>
+                <td data-label="Provider">{row.provider}</td>
+                <td data-label="Cost">{row.cost}</td>
+                <td data-label="Status">{row.ready ? "ready" : "missing"} · {row.note}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </section>
-      <section className="panel" style={{ marginBottom: 16 }}>
+      </section>}
+      {!customer && <section className="panel" style={{ marginBottom: 16 }}>
         <p className="kicker">Sample walkthroughs</p>
         <div className="cards">
           {SCENARIOS.map((scenario) => (
@@ -53,7 +65,7 @@ export default async function HomePage() {
             </article>
           ))}
         </div>
-      </section>
+      </section>}
       <section>
         <p className="kicker">Jobs</p>
         <div className="cards">
@@ -72,5 +84,6 @@ export default async function HomePage() {
         </div>
       </section>
     </main>
+    </AppFrame>
   );
 }

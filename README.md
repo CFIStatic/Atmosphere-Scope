@@ -1,10 +1,14 @@
 # Atmosphere Scope
 
-Standalone prototype that turns a narrated residential walkthrough into an editable 2D sketch, a labeled 3D schematic, an evidence-backed assessment, and a draft mitigation / rebuild estimate.
+Atmosphere Scope is its own estimating system. After a walkthrough is processed, the app opens a priced, evidence-linked contents list with the sketch beside it. Video measurement and an imported floor plan supply quantities. They are supporting inputs, not the landing screen.
 
-AI output stays **Draft—requires estimator review** until a person marks it reviewed and then approves it. Customer authorization is a separate step and names the exact version.
+The estimate is produced here. The draft scope and estimate screen maps findings and sketch quantities onto a versioned line-item catalog, then prices each component from a recorded source. Materials use the replacement-price check. Labor uses an editable regional rate table. Equipment uses an editable rate table. Overhead, profit, tax, and region are settings on that rate book. A component without a source and a date stays blank. A line with any blank component has no line total. Finalize estimate locks the report to the catalog version and rate book it used. Send report downloads that report as a web view, PDF, CSV, or JSON (`atmosphere.estimate.v1`). See [docs/ESTIMATE.md](docs/ESTIMATE.md).
 
-Room measurement is a separate, local pipeline. It does **not** claim 95% accuracy. The numbers below are what `npm run eval:accuracy` last recorded on synthetic rooms. See [Accuracy](/accuracy) in the running app, or `eval/report.json`.
+Each contents line keeps its evidence. A material price stays unverified until the product page is checked. The report stays a draft until it is finalized. Estimator approval and customer authorization remain separate steps and name the exact version.
+
+Room measurement does **not** claim 95% accuracy. The numbers below are what `npm run eval:accuracy` last recorded on synthetic rooms. See [Accuracy](/accuracy) in the running app, or `eval/report.json`.
+
+Floor plans from tools restorers already use can be imported when the format is openly documented. See [docs/IMPORTS.md](docs/IMPORTS.md). Imported lengths are marked imported. They are not a tape confirmation. If a video measurement of the same room exists, the two are compared and neither value is replaced. A proprietary sketch file that does not publish an open schema is not imported.
 
 ## Measurement
 
@@ -71,6 +75,12 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). Jobs are stored as JSON in `data/` (gitignored). Uploaded media stays in `data/media` and is served only through the job route. To use Supabase instead, set `STORAGE=supabase` plus the project URL and secret key, and run the SQL in `docs/STORAGE.md`. Missing Supabase settings are an error. The app does not silently keep writing to disk.
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on push, pull request, and manual dispatch. It runs the unit tests and `python3 -m measure.eval_harness` on the synthetic cases in `eval/cases`, then uploads `eval/report.json` as the `accuracy-report` artifact and writes the same table to the job summary. That report is still synthetic. It is not a 95% claim.
+
+Real vision, transcription, and web-search pricing run only in the `providers` job. That job uses the GitHub environment `Atmosphere / production` and reads `secrets.OPENAI_API_KEY` from it. The workflow does not print the key. If the secret is missing, including on a fork pull request, that job skips the live calls and still succeeds. `npm run test:providers` is the same live suite. Without the key it skips. `OPENAI_PROVIDER_FIXTURES=1 npm run test:providers` replays the recorded responses in `fixtures/providers/` and does not call OpenAI.
+
 The capture page is a web app. It records with a weak or missing signal, stores chunks in IndexedDB, and uploads them when the browser is online again. The upload status is on the page. Measurement, vision, and price checks stay on the server. Price checks fetch only the product URL from the search result, refuse private and metadata addresses after DNS, and cache a lookup by item name for `PRICE_CACHE_TTL_SECONDS` (default 6 hours). A blocked or unreadable page stays unverified.
 
 ## Railway
@@ -88,23 +98,34 @@ Set variables on the Railway service. Do not use `NEXT_PUBLIC_` for any key, and
 | `PRICE_FETCH_TIMEOUT_MS` | no | Default `8000`. |
 | `PRICE_FETCH_MAX_BYTES` | no | Default `500000`. |
 | `PRICING_PROVIDER`, `SERPAPI_API_KEY` | no | SerpAPI only when both are set. |
-| `STORAGE`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | no | See below. |
+| `STORAGE`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | for hosted jobs, walkthroughs, catalog, and video | See below. `SUPABASE_SECRET_KEY` may replace the service role key. |
+| `SUPABASE_ANON_KEY`, `SITE_URL` | for Supabase sign-in | Server only. Required with `STORAGE=supabase`. See `docs/AUTH.md`. |
 
-Add a volume mounted at `/data`. That directory holds job JSON, job media, and in-progress capture chunks. Railway's container disk is ephemeral, so a redeploy without the volume drops those files. The phone still has its copy of a capture in IndexedDB and can upload again.
+Add a volume mounted at `/data` and set `DATA_DIR=/data`. Railway's container disk is ephemeral. The volume holds in-progress capture chunks. With local storage it also holds job JSON, media, walkthroughs, and the catalog. The phone still has its copy of a capture in IndexedDB and can upload again.
 
-To keep finished job media in Supabase instead, set `STORAGE=supabase`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`) and run the SQL in `docs/STORAGE.md`. The bucket stays private. Chunks for a capture that is still uploading remain under `DATA_DIR/uploads` until the server finishes them, so the volume is still the right place for that scratch space. The service role key stays a service variable. It is not sent to the browser.
+To keep finished jobs, walkthroughs, the catalog, and video in Supabase, set `STORAGE=supabase` plus the URL and secret key, and run the SQL in `docs/STORAGE.md`. The bucket stays private. Chunks for a capture that is still uploading remain under `DATA_DIR/uploads` until the server stores the finished video, so the volume is still the scratch space. The service role key stays a service variable. It is not sent to the browser.
+
+These are the variables to set on the Railway service before a hosted deploy. Values are not listed here.
+
+| Needed for | Variables |
+| --- | --- |
+| Measurement only | `DATA_DIR=/data`, and a volume at `/data` |
+| Transcription, objects, and prices | `OPENAI_API_KEY` |
+| Supabase database and private video | `STORAGE=supabase`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_SECRET_KEY` |
+| Supabase sign-in | `SUPABASE_ANON_KEY`, `SITE_URL`, redirect URLs, and custom SMTP. The first admin is `scripts/create-admin.mjs`. See `docs/AUTH.md`. |
 
 ## What is implemented
 
 - Job file with property, customer, concern, floors, rooms, media, findings, sketch, questions, scope, and estimate versions.
+- A saved walkthrough keeps its video, finalized report, and approval. Estimator approval locks the numbers. Customer authorization is a separate sign-in.
 - Sample walkthroughs: multi-room water loss, no visible damage, incomplete footage, and an interrupted pipeline you can retry.
 - Narration is screened for instruction-like language and stored as evidence. It cannot approve an estimate or set a price.
 - Findings keep observed, reported, suspected, contradicted, and insufficient evidence apart. Staining does not become mold or an active leak.
 - 2D sketch editor with undo/redo, locked dimensions, and measurement / damage / scope overlays. Scale is claimed only when every required dimension is locked and consistent.
 - **3D map** extruded from that sketch. See below.
-- Deterministic quantities and an illustrative price book labeled “Illustrative—not a customer quote.” Markup and margin are never applied together.
+- A versioned mitigation and rebuild catalog, and a regional labor and equipment rate book. Sample jobs still include illustrative arithmetic labeled “Illustrative—not a customer quote.” That arithmetic is not the estimate.
 - Geometry edits preview quantity changes. Approved versions are not overwritten; a draft revision is opened instead.
-- PDF, CSV, SVG, and JSON export.
+- The estimate report is a web view plus PDF, CSV, and JSON (`atmosphere.estimate.v1`). A job file can also send its own PDF, CSV, SVG, and JSON.
 
 ## 3D map
 
@@ -121,14 +142,14 @@ The 3D map still extrudes the sketch. Metric room spans come from `measure/`, wh
 ## Limitations
 
 - Speech-to-text, vision, and replacement search run only when `OPENAI_API_KEY` is set. Samples still ship transcripts and frame notes. A missing key or a failed call leaves narration, objects, and prices blank.
-- The demo price book is fictional. There is no Xactimate or regional price feed.
-- The app has no login. Media paths are unlisted, not a production access-control model.
+- Materials price only when a sourced offer exists. Labor and equipment stay unpriced until an admin enters a rate, with a source and a date. A finalized report does not recompute when those rates change. Sample jobs can still show illustrative arithmetic. That arithmetic is not the estimate.
+- With `STORAGE=supabase`, sign-in is email and password. Customers see only jobs shared with them. The passwordless dev sign-in is absent in that mode. Media paths are unlisted. See `docs/AUTH.md` and `docs/STORAGE.md`.
 - Depth files in `atmosphere-depth-v1` (see `samples/atmosphere-depth-v1.json`) import as inferred geometry. Other depth formats are stored only. See `docs/INTEGRATION.md` for the seams a later Atmosphere port would replace.
 - This is not a certified survey, moisture map, or structural opinion.
 
 ## Layout
 
-- `src/domain` — geometry, quantities, pricing, scope, review. No React.
+- `src/domain` — geometry, quantities, catalog, estimate engine, scope, review. No React.
 - `src/analysis` — evidence rules and the staged pipeline.
 - `src/spatial` — 3D schematic built from the sketch.
 - `src/app` — demo UI and HTTP routes.

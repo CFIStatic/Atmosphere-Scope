@@ -4,8 +4,8 @@
   "start_url": "/measure",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f3f1eb",
-  "theme_color": "#161616",
+  "background_color": "#18191b",
+  "theme_color": "#18191b",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }

@@ -29,7 +29,7 @@ export function SketchEditor({ job, onOp, onUndo, onRedo, onAddRoom }: { job: Jo
         </p>
         <div className="sketch-wrap">
           <svg viewBox={view} role="img" aria-label="Editable plan sketch, not a survey">
-            <rect x={box.minX - pad} y={box.minY - pad} width={Math.max(12, box.maxX - box.minX + pad * 2)} height={Math.max(10, box.maxY - box.minY + pad * 2)} fill="#fbfaf6" />
+            <rect x={box.minX - pad} y={box.minY - pad} width={Math.max(12, box.maxX - box.minX + pad * 2)} height={Math.max(10, box.maxY - box.minY + pad * 2)} fill="#f0efeb" />
             {job.sketch.geometry.rooms.map((item) => {
               const name = job.rooms.find((entry) => entry.id === item.roomId)?.name ?? "Room";
               const dash = item.provenance === "confirmed" ? undefined : item.incomplete ? "0.12 0.12" : "0.35 0.18";

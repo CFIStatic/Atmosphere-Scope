@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { createId, nowIso } from "@/domain/ids";
 import type { MediaKind } from "@/domain/types";
-import { getJob, saveJob, saveMediaFile } from "@/storage/job-store";
+import { saveJob, saveMediaFile } from "@/storage/job-store";
+import { assertJobWriter, loadVisibleJob } from "@/storage/visible-jobs";
 import { importDepthPayload, isDepthPayload } from "@/spatial/depth";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
-  const job = await getJob(id);
-  if (!job) return NextResponse.json({ error: "Job not found." }, { status: 404 });
+  const loaded = await loadVisibleJob(id);
+  if ("error" in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status });
+  const writer = await assertJobWriter();
+  if ("error" in writer) return NextResponse.json({ error: writer.error }, { status: writer.status });
+  const job = loaded.job;
   const form = await request.formData();
   const file = form.get("file");
   if (!(file instanceof File)) return NextResponse.json({ error: "Choose a file." }, { status: 400 });

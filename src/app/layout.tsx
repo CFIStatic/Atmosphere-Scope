@@ -8,14 +8,26 @@ const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variabl
 
 export const metadata: Metadata = {
   title: "Atmosphere Scope",
-  description: "Narrated walkthroughs into a reviewable job sketch, assessment, and draft estimate.",
+  description: "Atmosphere Scope writes its own residential estimate from a walkthrough, a line-item catalog, and recorded prices.",
   manifest: "/manifest.webmanifest",
   applicationName: "Atmosphere Scope",
-  appleWebApp: { capable: true, title: "Scope" },
-  icons: { icon: "/icon-192.png", apple: "/icon-192.png" },
+  appleWebApp: { capable: true, title: "Atmosphere Scope", statusBarStyle: "black-translucent" },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
-export const viewport: Viewport = { themeColor: "#161616" };
+export const viewport: Viewport = {
+  themeColor: "#18191b",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

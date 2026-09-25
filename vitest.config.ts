@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    exclude: ["**/node_modules/**", "**/dist/**", "src/**/*.live.test.ts"],
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },

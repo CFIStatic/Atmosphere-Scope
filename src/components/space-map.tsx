@@ -23,7 +23,7 @@ export function SpaceMap({ model }: { model: SpaceModel }) {
       element.appendChild(renderer.domElement);
 
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color("#f4f0e6");
+      scene.background = new THREE.Color("#f0efeb");
       const camera = new THREE.PerspectiveCamera(42, element.clientWidth / 520, 0.1, 500);
       camera.position.set(18, 16, 22);
       const controls = new OrbitControls(camera, renderer.domElement);
@@ -116,7 +116,7 @@ export function SpaceMap({ model }: { model: SpaceModel }) {
   return (
     <div>
       <p className="banner">{model.disclaimer}</p>
-      <p className="meta">{model.videoNote} Drag to orbit. Scroll to zoom.</p>
+      <p className="meta">{model.videoNote} Drag to orbit. Pinch or scroll to zoom.</p>
       <div ref={host} className="sketch-wrap" role="img" aria-label="Three-dimensional schematic of the property" />
       <ul className="list">
         {model.rooms.map((room) => (

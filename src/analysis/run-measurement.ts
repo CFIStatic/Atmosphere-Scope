@@ -6,7 +6,7 @@ import { gpuAdapterReport } from "@/analysis/adapters/gpu";
 import { selectPricingProvider } from "@/analysis/config";
 import { enrichMeasuredWalkthrough } from "@/analysis/walkthrough";
 
-const VISION_FRAMES = 4;
+const SOLVER_FRAMES = 16;
 
 export async function measureVideoFile(filePath: string, file: { name: string; type: string }): Promise<{ ok: true; body: unknown } | { ok: false; status: number; body: unknown }> {
   const framesDir = path.join(path.dirname(filePath), "frames");
@@ -38,9 +38,8 @@ export async function measureVideoBytes(bytes: Uint8Array, file: { name: string;
 
 async function safeEnrich(filePath: string, framesDir: string, file: { name: string; type: string }) {
   try {
-    const names = (await readdir(framesDir)).filter((name) => /\.jpe?g$/i.test(name)).sort();
-    const chosen = pickEvenly(names, VISION_FRAMES);
-    const frames = await Promise.all(chosen.map(async (name) => ({
+    const names = (await readdir(framesDir)).filter((name) => /\.jpe?g$/i.test(name)).sort().slice(0, SOLVER_FRAMES);
+    const frames = await Promise.all(names.map(async (name) => ({
       name,
       bytes: new Uint8Array(await readFile(path.join(framesDir, name))),
       mimeType: "image/jpeg",
@@ -60,15 +59,6 @@ async function safeEnrich(filePath: string, framesDir: string, file: { name: str
       measurement: gpuAdapterReport(),
     };
   }
-}
-
-function pickEvenly(names: string[], max: number): string[] {
-  if (names.length <= max) return names;
-  const picked: string[] = [];
-  for (let index = 0; index < max; index += 1) {
-    picked.push(names[Math.round((index * (names.length - 1)) / (max - 1))]);
-  }
-  return [...new Set(picked)];
 }
 
 function runSolver(filePath: string, framesDir: string) {

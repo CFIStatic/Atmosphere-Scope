@@ -1,0 +1,20 @@
+import { NextResponse } from "next/server";
+import { authMode } from "@/auth/access";
+import { RESET_SENT } from "@/auth/gate";
+import { callbackUrl, rateLimitMessage, siteOrigin } from "@/auth/http";
+import { createSupabaseServer } from "@/auth/supabase-server";
+
+export async function POST(request: Request) {
+  const body = (await request.json()) as { email?: string };
+  const email = body.email?.trim() ?? "";
+  if (!email) return NextResponse.json({ message: RESET_SENT });
+  if (authMode() !== "supabase") return NextResponse.json({ message: RESET_SENT });
+  const supabase = await createSupabaseServer();
+  if (!supabase) return NextResponse.json({ message: RESET_SENT });
+  const sent = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: callbackUrl(siteOrigin(request), "/auth/reset"),
+  });
+  const limited = rateLimitMessage(sent.error?.status ?? 200, sent.error?.message ?? "");
+  if (limited) return NextResponse.json({ error: limited }, { status: 429 });
+  return NextResponse.json({ message: RESET_SENT });
+}

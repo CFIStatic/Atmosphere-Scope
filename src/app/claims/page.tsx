@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { readFile } from "fs/promises";
 import path from "path";
+import { AppFrame } from "@/components/app-frame";
+import { BrandLockup } from "@/components/brand-lockup";
 import { ClaimsFlow } from "@/components/claims-flow";
 
 export const dynamic = "force-dynamic";
@@ -22,15 +24,18 @@ export default async function ClaimsPage() {
   const walls = (sample?.rows ?? []).filter((row) => row.kind === "wall_length");
   const height = (sample?.rows ?? []).find((row) => row.kind === "ceiling_height") ?? null;
   return (
+    <AppFrame current="/claims">
     <main className="shell">
       <header className="topbar">
         <div>
-          <p className="brand"><span>Atmosphere Scope</span>[Customer name] · Water loss</p>
-          <p className="meta">Floor 1 · measurement comes from the sheet solve, not from the mockup&apos;s placeholder quantities.</p>
+          <BrandLockup />
+          <h1 className="page-title">Claims review</h1>
+          <p className="meta">Capture, gaps, and the draft scope and estimate read the walkthrough saved in this browser.</p>
         </div>
-        <Link className="btn secondary" href="/">Home</Link>
+        <Link className="btn secondary" href="/contents">Contents</Link>
       </header>
       <ClaimsFlow walls={walls} height={height} />
     </main>
+    </AppFrame>
   );
 }

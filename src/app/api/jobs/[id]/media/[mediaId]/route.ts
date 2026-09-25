@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import { getJob, readMediaFile } from "@/storage/job-store";
+import { readMediaFile } from "@/storage/job-store";
+import { loadVisibleJob } from "@/storage/visible-jobs";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string; mediaId: string }> }) {
   const { id, mediaId } = await context.params;
-  const job = await getJob(id);
+  const loaded = await loadVisibleJob(id);
+  if ("error" in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status });
+  const job = loaded.job;
   const media = job?.media.find((item) => item.id === mediaId);
   if (!job || !media?.storageKey) return NextResponse.json({ error: "Media not found." }, { status: 404 });
   const bytes = await readMediaFile(media.storageKey);

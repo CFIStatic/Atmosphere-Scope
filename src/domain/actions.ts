@@ -1,5 +1,6 @@
 import { createId, nowIso } from "./ids";
 import { answerQuestion, buildQuestions } from "./questions";
+import { editBlocked } from "@/auth/access";
 import { activeEstimate, approveEstimate, authorizeEstimate, createEstimateVersion, markReviewed, proposalChangesRequireRevision } from "./review";
 import { applySketchOp, previewQuantityChanges, rectangleRoom, redoSketch, undoSketch, type SketchOp } from "./sketch-ops";
 import { boundsOf } from "./geometry";
@@ -28,6 +29,8 @@ export type JobAction =
   | { type: "add_named_room"; name: string };
 
 export function applyJobAction(job: Job, action: JobAction): Job {
+  const locked = editBlocked(action.type, activeEstimate(job)?.status ?? null);
+  if (locked) throw new Error(locked);
   const actor = (name: string, role: Actor["role"]): Actor => ({ name, role });
   if (action.type === "sketch") {
     const sketch = applySketchOp(job.sketch, action.op);

@@ -122,7 +122,7 @@ export function selectStorage(env: Env = process.env): StorageSelection {
         note: "STORAGE=supabase requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SECRET_KEY). Local disk is not used as a silent fallback.",
       };
     }
-    return { mode: "supabase", ready: true, note: "Jobs and media use Supabase. The secret key stays on the server." };
+    return { mode: "supabase", ready: true, note: "Jobs, walkthroughs, the catalog, and video use Supabase. The secret key stays on the server." };
   }
   if (requested !== "local") {
     return {

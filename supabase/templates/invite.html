@@ -1,0 +1,19 @@
+<!-- Supabase dashboard: Authentication → Email templates → Invite user -->
+<div style="margin:0;padding:32px 16px;background:#18191b;color:#f6f5f1;font-family:Inter,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;margin:0 auto;">
+    <tr>
+      <td style="padding:0 0 24px;">
+        <img src="{{ .SiteURL }}/brand/lockup-transparent-for-dark-bg.png" alt="Atmosphere Scope" width="220" style="display:block;width:220px;max-width:100%;height:auto;border:0;">
+      </td>
+    </tr>
+    <tr>
+      <td style="font-size:16px;line-height:1.5;">
+        <p style="margin:0 0 16px;">You are invited to Atmosphere Scope. Open the link and choose a password of at least 8 characters.</p>
+        <p style="margin:0 0 24px;">
+          <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=invite&amp;next=/auth/reset" style="display:inline-block;background:#f5c518;color:#18191b;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px;min-height:44px;">Accept invite</a>
+        </p>
+        <p style="margin:0;color:#a8a8a6;font-size:14px;">The invite sets your role. You do not pick it on the sign-in page.</p>
+      </td>
+    </tr>
+  </table>
+</div>
