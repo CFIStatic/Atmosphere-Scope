@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
-import { authMode, parseSessionCookie, publicSession, sessionFromSupabaseUser } from "@/auth/access";
+import { authMode, publicSession, sessionFromSupabaseUser } from "@/auth/access";
+import { parseSessionCookie } from "@/auth/signed-cookie";
 import { createSupabaseServer } from "@/auth/supabase-server";
 import type { PublicSession } from "@/auth/access";
 

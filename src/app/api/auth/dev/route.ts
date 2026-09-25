@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { authMode, localSession, publicSession, serializeSessionCookie } from "@/auth/access";
+import { authMode, localSession, publicSession } from "@/auth/access";
+import { serializeSessionCookie } from "@/auth/signed-cookie";
 import { devSignInAllowed } from "@/auth/gate";
 
 const COOKIE = "scope_session";

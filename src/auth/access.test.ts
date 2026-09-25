@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { actionAllowed, editBlocked, localSession, parseSessionCookie, publicSession, serializeSessionCookie, sessionFromSupabaseUser, signInWithSupabase } from "./access";
+import { actionAllowed, editBlocked, localSession, publicSession, sessionFromSupabaseUser, signInWithSupabase } from "./access";
+import { parseSessionCookie, serializeSessionCookie } from "./signed-cookie";
 
 describe("accounts", () => {
   it("keeps estimator approval and customer authorization on different roles", () => {
