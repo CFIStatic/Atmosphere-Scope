@@ -8,9 +8,13 @@ Uploaded files stay in private storage (`data/media` in this prototype) and are 
 
 ## Transcription and frames
 
-`TranscriptionProvider` and `FrameAnalysisProvider` in `src/analysis/providers.ts` are the seams. The prototype ships unavailable providers plus sample transcripts and frame notes. A model must return evidence. `acceptModelOutput` drops payloads that try to set prices, approvals, or instructions.
+`TranscriptionProvider` and `FrameAnalysisProvider` in `src/analysis/providers.ts` are the seams for the evidence pipeline. Sample jobs still pass transcripts and frame notes in. A model must return evidence. `acceptModelOutput` drops payloads that try to set prices, approvals, or instructions.
+
+A walkthrough video sent to `POST /api/measure` uses OpenAI when `OPENAI_API_KEY` is set: speech-to-text, vision on at most four keyframes, and the Responses API web search tool for replacement offers. The measurement itself is local OpenCV and does not use that key. If the key is missing, or a call fails, narration, objects, and prices stay empty. They are not invented. An AI failure does not fail the room measurement.
 
 Narration is never an instruction channel. `screenText` flags phrases such as “ignore previous instructions” and the pipeline stores them as reported speech.
+
+Replacement prices are checked by fetching the product page on the server. A price the page does not contain stays unverified. A missing price or a non-public URL is dropped. SerpAPI is used only when `PRICING_PROVIDER=serpapi`. Replicate and Modal are optional notes in `src/analysis/adapters/gpu.ts`; this build does not call them. Storage is local disk unless `STORAGE=supabase`. See `docs/STORAGE.md`.
 
 ## Layout and the 3D map
 
@@ -18,7 +22,7 @@ Room polygons and heights live on the sketch document. `buildSpaceModel` only ex
 
 `atmosphere-depth-v1` JSON can seed polygons. Imported edges stay inferred until someone locks them. Other depth formats are stored and not reconstructed.
 
-Photogrammetry, SLAM, and proprietary estimating databases are not connected.
+The metric solver is `measure/`: a printed ChArUco sheet, CPU calibration, and plane fitting. It is not a photogrammetric mesh of the whole video, and it does not call a hosted GPU. COLMAP and learned multi-view models were not run. Proprietary estimating databases are not connected.
 
 ## Scope and price
 

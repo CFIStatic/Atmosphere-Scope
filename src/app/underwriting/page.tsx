@@ -5,7 +5,7 @@ import { UnderwritingFlow } from "@/components/underwriting-flow";
 export const dynamic = "force-dynamic";
 
 export default function UnderwritingPage() {
-  const shopping = providerStatus().find((row) => row.env === "SERPAPI_API_KEY");
+  const pricing = providerStatus().find((row) => row.stage === "Replacement prices");
   return (
     <main className="shell">
       <header className="topbar">
@@ -15,7 +15,7 @@ export default function UnderwritingPage() {
         </div>
         <Link className="btn secondary" href="/">Home</Link>
       </header>
-      <UnderwritingFlow shoppingReady={Boolean(shopping?.ready)} />
+      <UnderwritingFlow pricingReady={Boolean(pricing?.ready)} pricingNote={pricing?.note ?? "OPENAI_API_KEY is not set. Prices stay blank. Nothing was invented."} />
     </main>
   );
 }

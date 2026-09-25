@@ -26,6 +26,7 @@ export default async function HomePage() {
       </nav>
       <section className="panel" style={{ marginBottom: 16 }}>
         <p className="kicker">Keys</p>
+        <p className="meta">The walkthrough needs only OPENAI_API_KEY. Measurement and local storage run without it. SerpAPI, a GPU host, and Supabase stay optional.</p>
         <table>
           <thead><tr><th>Stage</th><th>Env</th><th>Provider</th><th>Cost</th><th>Status</th></tr></thead>
           <tbody>

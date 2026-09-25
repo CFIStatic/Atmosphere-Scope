@@ -28,14 +28,38 @@ WebXR, Bluetooth lasers, COLMAP, and learned multi-view models (DUSt3R / MASt3R 
 
 ### Keys and cost
 
+The minimum setup for the full walkthrough is one key: `OPENAI_API_KEY`. Copy `.env.example`. Measurement and local storage run with no key at all. SerpAPI, Replicate, Modal, and Supabase are optional adapters. A key for one of those does not turn it on by itself.
+
 | Stage | Variable | Provider | Approx cost |
 | --- | --- | --- | --- |
 | Measurement, calibration PDF, plane fit | none | Local OpenCV (`measure/requirements.txt`) and ffmpeg | $0 |
-| Transcription | `OPENAI_API_KEY` | Whisper | about $0.006 per minute |
-| Object identification | `OPENAI_API_KEY` | gpt-4o-mini vision | about $0.01 per keyframe |
-| Replacement price | `SERPAPI_API_KEY` | SerpAPI Google Shopping | about $0.01–$0.02 per item |
+| Transcription | `OPENAI_API_KEY` | `gpt-4o-mini-transcribe` (override with `OPENAI_TRANSCRIBE_MODEL`; `whisper-1` is about $0.006/min) | a few tenths of a cent per minute |
+| Object identification | `OPENAI_API_KEY` | `gpt-4o-mini` vision, at most 4 keyframes | typically under about $0.01 per keyframe |
+| Replacement price | `OPENAI_API_KEY` | Responses API `web_search`, then a server fetch of the product page | billed per search, often cents per item plus tokens |
+| Storage | none | JSON and files in `data/` | $0 |
 
-A two-minute video with 15 keyframes and 8 priced items is on the order of **$0.30** if those keys are set. Measurement itself stays $0. Missing keys leave narration, objects, and prices blank. They are not invented. Copy `.env.example`.
+There is no fixed per-video dollar total. Web search is slower and usually more expensive than a shopping API, and many retailer pages block the server fetch, so a lot of prices stay **unverified**. An unverified price is not a quote. If search returns no price, the price stays blank. Nothing is invented.
+
+Optional later: `PRICING_PROVIDER=serpapi` plus `SERPAPI_API_KEY` (about $0.01–$0.02 per item). `MEASUREMENT_BACKEND=replicate` or `modal` is recorded as a request only. This build still measures with local OpenCV and does not call a GPU host. `STORAGE=supabase` is documented in `docs/STORAGE.md`.
+
+### CPU time
+
+Measured on this host (Linux x86_64, OpenCV 5.0.0, no GPU). See `eval/cpu-timing.json`.
+
+| Run | Time |
+| --- | --- |
+| `from_video` on each synthetic walkthrough clip (8 frames after 2 fps sampling) | **0.73–0.85 s** wall clock, of which about 0.59–0.63 s is the solve |
+| Solver on the 16-frame JPEG set for the 12×14 room (the frame cap) | **1.1 s** |
+
+A longer video does not get a longer solve. Sampling is `fps=2` and stops after 16 frames, which is about the first 8 seconds. That keeps CPU time near a second on this machine and also means the solver never sees the rest of a long walk. A GPU multi-view model could be faster or more complete on a long clip. Those models were not run, and this configuration does not require one.
+
+### OpenAI-only tradeoffs
+
+- The sheet solve is the measurement. Vision can mis-name objects. Speech-to-text can mis-hear. Neither one measures the room, and neither one confirms a dimension.
+- Web search can return a stale or wrong offer. The server keeps a price as verified only when that price text is on the product page. Failed fetches and mismatched pages stay unverified. Bot walls are common.
+- The ±5% target is not met for floor area on the synthetic rooms, because the error bound is the sum of the wall bounds and landed at 5.2–5.3%. The 9 ft ceiling stayed unresolved. The 2.6% wall-error floor was tuned on these same synthetic cases. No tape-measured house is in the set, so this is not a 95% claim.
+- Door-prior scale and WebXR do not meet ±5% here. WebXR has no harness result. Relative monocular depth is not used as metric.
+- Local CPU is cheap and needs no GPU key. It is also limited to a close, readable ChArUco sheet and a short frame cap. It is slower and less complete than a hosted multi-view model would be, and that comparison was not measured.
 
 ## Setup
 
@@ -45,7 +69,7 @@ npm test
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Jobs are stored as JSON in `data/` (gitignored). Uploaded media stays in `data/media` and is served only through the job route.
+Open [http://localhost:3000](http://localhost:3000). Jobs are stored as JSON in `data/` (gitignored). Uploaded media stays in `data/media` and is served only through the job route. To use Supabase instead, set `STORAGE=supabase` plus the project URL and secret key, and run the SQL in `docs/STORAGE.md`. Missing Supabase settings are an error. The app does not silently keep writing to disk.
 
 ## What is implemented
 
@@ -73,7 +97,7 @@ The 3D map still extrudes the sketch. Metric room spans come from `measure/`, wh
 
 ## Limitations
 
-- No live speech-to-text or vision API is connected. Samples ship transcripts and frame notes. Your own clips can be uploaded and paired with pasted narration; frames are not invented.
+- Speech-to-text, vision, and replacement search run only when `OPENAI_API_KEY` is set. Samples still ship transcripts and frame notes. A missing key or a failed call leaves narration, objects, and prices blank.
 - The demo price book is fictional. There is no Xactimate or regional price feed.
 - The app has no login. Media paths are unlisted, not a production access-control model.
 - Depth files in `atmosphere-depth-v1` (see `samples/atmosphere-depth-v1.json`) import as inferred geometry. Other depth formats are stored only. See `docs/INTEGRATION.md` for the seams a later Atmosphere port would replace.

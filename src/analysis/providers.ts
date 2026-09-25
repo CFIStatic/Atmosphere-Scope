@@ -2,8 +2,8 @@ import { z } from "zod";
 import type { FrameObservation, MediaAsset, TranscriptSegment } from "@/domain/types";
 
 /**
- * Replaceable integration boundary.
- * A future Atmosphere deployment can supply ASR, vision, and wording providers.
+ * Replaceable integration boundary for the evidence pipeline.
+ * Walkthrough video uses src/analysis/walkthrough.ts: OpenAI speech-to-text, vision, and web search when OPENAI_API_KEY is set.
  * Providers return evidence. They do not set prices, approvals, or authorizations.
  */
 export interface TranscriptionProvider {

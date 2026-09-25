@@ -4,7 +4,7 @@ import { useState } from "react";
 
 const TABS = ["Checklist", "Gaps", "Valuation", "Risk", "Scenarios", "Contents", "Baseline"] as const;
 
-export function UnderwritingFlow({ shoppingReady }: { shoppingReady: boolean }) {
+export function UnderwritingFlow({ pricingReady, pricingNote }: { pricingReady: boolean; pricingNote: string }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Checklist");
   const [deductible, setDeductible] = useState(2500);
   const [ordinance, setOrdinance] = useState(false);
@@ -76,15 +76,15 @@ export function UnderwritingFlow({ shoppingReady }: { shoppingReady: boolean }) 
       {tab === "Contents" && (
         <section className="panel">
           <p className="kicker">Contents</p>
-          {shoppingReady ? (
-            <p>A shopping key is set. Offers still have to come back from the provider before a price is shown.</p>
+          {pricingReady ? (
+            <p>{pricingNote} A walkthrough has to return an offer before a price is shown. Offers are not written into the estimate.</p>
           ) : (
-            <p className="banner">SERPAPI_API_KEY is not set. Replacement prices are blank. No price was invented.</p>
+            <p className="banner">{pricingNote}</p>
           )}
           <table>
             <thead><tr><th>Item</th><th>Evidence</th><th>Price</th></tr></thead>
             <tbody>
-              <tr><td>Unidentified until a vision key and a frame agree</td><td><span className="chip">Not verified</span></td><td>—</td></tr>
+              <tr><td>Priced contents show up on Measure after a video is processed</td><td><span className="chip">Not verified</span></td><td>—</td></tr>
             </tbody>
           </table>
         </section>

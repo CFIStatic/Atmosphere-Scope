@@ -16,13 +16,36 @@ type SolverDimension = {
   ask: string | null;
 };
 
+type Offer = {
+  query: string;
+  title: string | null;
+  retailer: string | null;
+  price: number | null;
+  currency: string | null;
+  url: string | null;
+  retrievedAt: string | null;
+  status: "verified" | "unverified" | "unpriced";
+  note: string;
+};
+
 type SolverResult = {
   method: string;
   framesUsed?: number;
   calibrationRmsPx?: number | null;
+  cpuMs?: number;
+  extractMs?: number;
+  solveMs?: number;
   notes?: string[];
   dimensions: SolverDimension[];
   error?: string;
+  ai?: {
+    transcription: { status: string; text: string | null; note: string };
+    objects: { name: string; room: string | null; evidence: string; confidence: string; frames: string[] }[];
+    objectNote: string;
+    offers: Offer[];
+    pricing: { reason: string };
+    measurement: { note: string };
+  };
 };
 
 type SensorState = {
@@ -59,7 +82,7 @@ function blurScore(data: ImageData): number {
   return sumSq / Math.max(count, 1) - mean * mean;
 }
 
-export function MeasureApp() {
+export function MeasureApp({ setup }: { setup: { measurement: string; vision: string; pricing: string } }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [sensors, setSensors] = useState<SensorState>({ webxr: "checking", bluetooth: "checking", laser: null });
   const [coach, setCoach] = useState("Print the sheet, put it on the floor, and start the camera.");
@@ -229,6 +252,12 @@ export function MeasureApp() {
   return (
     <div className="flow">
       <section className="panel">
+        <p className="kicker">This server</p>
+        <p className="meta">{setup.measurement}</p>
+        <p className="meta">{setup.vision}</p>
+        <p className="meta">{setup.pricing}</p>
+      </section>
+      <section className="panel">
         <p className="kicker">Calibration sheet</p>
         <p>Print the letter sheet at 100% scale and lay it on the floor before you walk the room. The 30 mm square is the only absolute scale this solver trusts.</p>
         <a className="btn" href="/api/calibration-target">Download letter PDF</a>
@@ -310,7 +339,63 @@ export function MeasureApp() {
           </table>
         )}
         {fused.find((item) => item.fused.ask) && <p className="banner">{fused.find((item) => item.fused.ask)?.fused.ask}</p>}
+        {result?.cpuMs != null && (
+          <p className="meta">Local CPU time {(result.cpuMs / 1000).toFixed(1)} s (extract {(result.extractMs ?? 0) / 1000} s, solve {(result.solveMs ?? 0) / 1000} s). OpenCV on this server, not a GPU API. At most 16 frames are solved.</p>
+        )}
+        {result?.ai && <p className="meta">{result.ai.measurement.note}</p>}
       </section>
+      {result?.ai && (
+        <>
+          <section className="panel">
+            <p className="kicker">Narration</p>
+            <p>{result.ai.transcription.text ?? result.ai.transcription.note}</p>
+            {result.ai.transcription.text && <p className="meta">{result.ai.transcription.note}</p>}
+          </section>
+          <section className="panel">
+            <p className="kicker">Objects</p>
+            <p className="meta">{result.ai.objectNote}</p>
+            {result.ai.objects.length > 0 && (
+              <table>
+                <thead><tr><th>Name</th><th>Room</th><th>Confidence</th><th>Evidence</th></tr></thead>
+                <tbody>
+                  {result.ai.objects.map((object) => (
+                    <tr key={object.name}>
+                      <td>{object.name}</td>
+                      <td>{object.room ?? "?"}</td>
+                      <td>{object.confidence}</td>
+                      <td>{object.evidence || "—"} <span className="meta">{object.frames.join(", ")}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+          <section className="panel">
+            <p className="kicker">Replacement offers</p>
+            <p className="meta">{result.ai.pricing.reason} Offers are candidates. They are not written into the estimate.</p>
+            {result.ai.offers.length > 0 && (
+              <table>
+                <thead><tr><th>Item</th><th>Offer</th><th>Price</th><th>Check</th></tr></thead>
+                <tbody>
+                  {result.ai.offers.map((offer) => (
+                    <tr key={offer.query}>
+                      <td>{offer.query}</td>
+                      <td>{offer.title ?? "—"}{offer.retailer ? ` · ${offer.retailer}` : ""}{offer.url ? <> · <a href={offer.url}>{offer.url}</a></> : null}</td>
+                      <td>{offer.price == null ? "—" : `${offer.currency ? `${offer.currency} ` : ""}${offer.price}`}</td>
+                      <td>
+                        {offer.status === "verified" && <span className="chip blue">Verified</span>}
+                        {offer.status === "unverified" && <span className="chip orange">Unverified</span>}
+                        {offer.status === "unpriced" && <span className="chip">Unpriced</span>}
+                        <span className="meta"> {offer.note}{offer.retrievedAt ? ` Retrieved ${offer.retrievedAt}.` : ""}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }
