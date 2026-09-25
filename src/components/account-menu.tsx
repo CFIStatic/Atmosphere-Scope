@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { cycleThemePreference, readThemePreference, setThemePreference, themeLabel, type ThemePreference } from "@/theme/theme";
 
 type PublicSession = { email: string; name: string; role: "admin" | "estimator" | "customer" };
 
@@ -12,11 +11,9 @@ export function AccountMenu() {
   const [open, setOpen] = useState(false);
   const [session, setSession] = useState<PublicSession | null>(null);
   const [ready, setReady] = useState(false);
-  const [theme, setTheme] = useState<ThemePreference>("light");
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    setTheme(readThemePreference());
     void fetch("/api/auth/session").then(async (response) => {
       if (response.ok) {
         const body = await response.json();
@@ -62,17 +59,6 @@ export function AccountMenu() {
             {session?.email && <p>{session.email}</p>}
             {session?.role && <p>{roleWord(session.role)}</p>}
           </div>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              const next = cycleThemePreference(theme);
-              setTheme(next);
-              setThemePreference(next);
-            }}
-          >
-            Appearance: {themeLabel(theme)}
-          </button>
           <Link role="menuitem" href="/record" onClick={() => setOpen(false)}>Start a job</Link>
           <Link role="menuitem" href="/account" onClick={() => setOpen(false)}>Settings</Link>
           {session?.role === "admin" && <Link role="menuitem" href="/admin/users" onClick={() => setOpen(false)}>Users</Link>}

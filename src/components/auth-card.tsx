@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Wordmark } from "@/components/wordmark";
 
 export function AuthCard({ title, lede, children, after }: { title: string; lede?: string; children: ReactNode; after?: ReactNode }) {
@@ -7,7 +6,6 @@ export function AuthCard({ title, lede, children, after }: { title: string; lede
     <main className="auth-shell">
       <div className="auth-chrome">
         <Wordmark href="/login" />
-        <ThemeToggle />
       </div>
       <section className="auth-card">
         <p className="auth-kicker">Workspace</p>
