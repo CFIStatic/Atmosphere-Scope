@@ -59,7 +59,7 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
         <Link className="btn" href="/walk">Walk</Link>
       </header>
       <div className="kpi" aria-label="Job summary">
-        <div><span>Total</span><strong><Amount value={version && unpriced === 0 ? version.totals.supportedTotal : null} /></strong></div>
+        <div><span>Total</span><strong>{version && (unpriced === 0 || version.totals.supportedTotal > 0) ? <Amount value={version.totals.supportedTotal} /> : <Amount value={null} />}</strong></div>
         <div><span>Priced</span><strong>{pricedPct == null ? "—" : formatPct(pricedPct)}</strong></div>
         <div><span>Items</span><strong>{job.scopeItems.length}</strong></div>
         <div><span>Needs attention</span><strong>{needs}</strong></div>

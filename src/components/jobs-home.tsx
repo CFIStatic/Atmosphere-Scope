@@ -3,9 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { loadWalkthrough } from "@/capture/snapshot";
-import { Amount } from "@/components/amount";
 import { buildReview } from "@/domain/assist";
-import { formatDate } from "@/domain/format";
+import { formatDate, formatMoney } from "@/domain/format";
 import { jobStatusChip } from "@/domain/labels";
 import type { EstimateStatus } from "@/domain/types";
 
@@ -93,7 +92,10 @@ function JobTable({ rows }: { rows: JobRow[] }) {
             <td data-label="Address">{job.address}</td>
             <td data-label="Type">{job.concern || "Claim"}</td>
             <td data-label="Status">{jobStatusChip(job.status)}</td>
-            <td className="num" data-label="Total"><Amount value={job.unpriced > 0 ? null : job.total} /></td>
+            <td className="num" data-label="Total">
+              <span className="num">{job.total != null && (job.total > 0 || job.unpriced === 0) ? formatMoney(job.total) : "—"}</span>
+              {job.unpriced > 0 && <> <span className="tag">Needs price</span></>}
+            </td>
             <td data-label="Updated">{job.updatedAt ? formatDate(job.updatedAt) : "—"}</td>
           </tr>
         ))}
