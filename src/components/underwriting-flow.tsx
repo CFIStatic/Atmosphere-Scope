@@ -26,7 +26,7 @@ export function UnderwritingFlow() {
     return (
       <div className="empty">
         <p>No walkthrough.</p>
-        <a className="btn" href="/walk">Walk</a>
+        <a className="btn" href="/record">Record</a>
       </div>
     );
   }

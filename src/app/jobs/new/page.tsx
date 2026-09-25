@@ -11,7 +11,7 @@ export default function NewJobPage() {
   const [pending, setPending] = useState(false);
 
   return (
-    <AppFrame current="/">
+    <AppFrame current="/jobs">
     <main className="shell">
       <header className="topbar">
         <h1 className="page-title">New job</h1>
@@ -45,7 +45,7 @@ export default function NewJobPage() {
         {error && <p className="error">{error}</p>}
         <div className="row">
           <button className="btn" disabled={pending} type="submit">{pending ? "Creating…" : "Create job"}</button>
-          <Link href="/">Cancel</Link>
+          <Link href="/jobs">Cancel</Link>
         </div>
       </form>
     </main>

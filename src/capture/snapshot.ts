@@ -29,6 +29,10 @@ export type WalkthroughSnapshot = {
   videoKey?: string | null;
   recordId?: string | null;
   assist?: AssistState;
+  jobId?: string | null;
+  suggestedName?: string | null;
+  suggestedAddress?: string | null;
+  location?: { lat: number; lng: number } | null;
 };
 
 export function gapsFromSnapshot(snapshot: WalkthroughSnapshot): string[] {
@@ -54,6 +58,10 @@ export function saveWalkthrough(snapshot: WalkthroughSnapshot): void {
     finalReport: snapshot.finalReport ?? previous?.finalReport ?? null,
     recordId: snapshot.recordId ?? previous?.recordId ?? null,
     videoKey: snapshot.videoKey ?? previous?.videoKey ?? null,
+    jobId: snapshot.jobId !== undefined ? snapshot.jobId : previous?.jobId ?? null,
+    suggestedName: snapshot.suggestedName !== undefined ? snapshot.suggestedName : previous?.suggestedName ?? null,
+    suggestedAddress: snapshot.suggestedAddress !== undefined ? snapshot.suggestedAddress : previous?.suggestedAddress ?? null,
+    location: snapshot.location !== undefined ? snapshot.location : previous?.location ?? null,
   };
   localStorage.setItem(WALKTHROUGH_KEY, JSON.stringify(next));
 }

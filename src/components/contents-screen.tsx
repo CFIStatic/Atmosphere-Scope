@@ -75,7 +75,7 @@ export function ContentsScreen() {
       {!snapshot && (
         <div className="empty">
           <p>No walkthrough.</p>
-          <Link className="btn" href="/walk">Walk</Link>
+          <Link className="btn" href="/record">Record</Link>
         </div>
       )}
       {snapshot?.importNotes?.map((note) => <p key={note} className="meta">{note}</p>)}

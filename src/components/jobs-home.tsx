@@ -90,7 +90,7 @@ function JobTable({ rows }: { rows: JobRow[] }) {
         {rows.map((job) => (
           <tr key={job.id}>
             <td data-label="Job"><Link href={job.id === "walk" ? "/review" : `/jobs/${job.id}`}>{job.customer}</Link></td>
-            <td data-label="Address">{job.address}</td>
+            <td data-label="Address">{job.address || "—"}</td>
             <td data-label="Type">{job.concern || "Claim"}</td>
             <td data-label="Status">{jobStatusChip(job.status)}</td>
             <td className="num" data-label="Total">

@@ -170,7 +170,19 @@ label.btn input { display: none; }
 .rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bar-mid); display: inline-block; }
 .is-recording .rec-dot { background: var(--danger); }
 .mic-meter { height: 8px; background: #18191b; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
-.mic-meter span { display: block; height: 100%; background: var(--accent); }
+.mic-meter span { display: block; height: 100%; background: var(--ink); }
+.sheet-link { color: var(--muted); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; width: fit-content; }
+.permission-line { margin: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: 0; overflow: hidden; clip: rect(0 0 0 0); border: 0; white-space: nowrap; }
+.record-shell progress { accent-color: var(--bar-mid); }
+.record-shell { max-width: none; min-height: calc(100dvh - 52px); display: flex; flex-direction: column; padding: 8px 16px 20px; }
+.record-shell .flow { flex: 1; display: flex; flex-direction: column; min-height: 0; gap: 10px; }
+.record-shell .capture-stage { flex: 1; min-height: 0; }
+.record-shell .capture-video { min-height: 320px; height: calc(100dvh - 210px); }
+.record-shell .capture-video video { height: 100%; }
+.record-shell .action-bar { flex-direction: column; align-items: stretch; }
+.record-shell .record-btn, .record-shell .stop-btn, .record-shell .action-bar .btn.secondary { min-height: 64px; width: 100%; flex: 0 0 auto; font-size: 18px; }
+.record-shell .action-bar .btn.secondary { min-height: 44px; font-size: 16px; }
 .record-btn, .stop-btn { min-height: 56px; flex: 1; }
 .stop-btn { background: var(--danger); border-color: var(--danger); color: #18191b; }
 .upload-queue progress { width: 100%; height: 12px; accent-color: var(--accent); }
@@ -233,6 +245,13 @@ label.btn input { display: none; }
   table.data tr.subtotal, table.data tr.grand { padding-top: 8px; }
 }
 
+@media (max-width: 860px) {
+  .record-shell { min-height: 0; padding: 0 0 calc(76px + env(safe-area-inset-bottom)); }
+  .record-shell .capture-stage { margin-inline: 0; }
+  .record-shell .capture-video { border-radius: 0; height: auto; }
+  .record-shell .capture-video video { height: calc(100dvh - 188px); min-height: 220px; }
+  .record-shell .permission-line, .record-shell .error { padding: 8px 12px 0; }
+}
 @media (orientation: landscape) and (max-height: 500px) {
   .capture-video video { height: calc(100dvh - 150px); min-height: 140px; }
   .sidebar { padding-bottom: calc(2px + env(safe-area-inset-bottom)); }

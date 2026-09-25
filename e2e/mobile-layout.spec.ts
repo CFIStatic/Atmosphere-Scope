@@ -7,7 +7,7 @@ const viewports = [
   { name: "ipad-air", width: 820, height: 1180 },
 ];
 
-const pages = ["/", "/walk", "/review", "/results", "/estimate", "/estimate?report=underwriting", "/account", "/jobs/new", "/login", "/forgot", "/auth/reset", "/admin/users", "/admin/system"];
+const pages = ["/", "/record", "/jobs", "/review", "/results", "/estimate", "/estimate?report=underwriting", "/account", "/jobs/new", "/login", "/forgot", "/auth/reset", "/admin/users", "/admin/system"];
 
 for (const viewport of viewports) {
   test.describe(viewport.name, () => {
@@ -38,9 +38,17 @@ for (const viewport of viewports) {
   });
 }
 
-test("old routes redirect into the job flow", async ({ page }) => {
+test("old routes redirect into the job flow", async ({ page, context }) => {
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/record$/);
+  await context.addCookies([{ name: "scope_start", value: "jobs", url: "http://127.0.0.1:3099/" }]);
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/jobs$/);
+  await context.clearCookies();
   await page.goto("/measure");
-  await expect(page).toHaveURL(/\/walk$/);
+  await expect(page).toHaveURL(/\/record$/);
+  await page.goto("/walk");
+  await expect(page).toHaveURL(/\/record$/);
   await page.goto("/contents");
   await expect(page).toHaveURL(/\/results$/);
   await page.goto("/claims");

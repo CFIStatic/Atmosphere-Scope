@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 const LINKS = [
-  ["/", "Jobs"],
-  ["/walk", "Walk"],
+  ["/record", "Record"],
+  ["/jobs", "Jobs"],
   ["/results", "Results"],
   ["/estimate", "Estimate"],
   ["/account", "Account"],

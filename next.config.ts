@@ -6,7 +6,8 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["pdf-lib"],
   async redirects() {
     return [
-      { source: "/measure", destination: "/walk", permanent: false },
+      { source: "/measure", destination: "/record", permanent: false },
+      { source: "/walk", destination: "/record", permanent: false },
       { source: "/contents", destination: "/results", permanent: false },
       { source: "/claims", destination: "/estimate", permanent: false },
       { source: "/underwriting", destination: "/estimate?report=underwriting", permanent: false },

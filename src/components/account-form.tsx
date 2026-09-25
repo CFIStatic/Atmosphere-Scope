@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { PasswordField } from "@/components/password-field";
 import { loadWalkthrough, saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
 import { MIN_PASSWORD_LENGTH, passwordProblem } from "@/auth/gate";
+import { parseStartScreen, storedStartScreen, writeStartScreen, type StartScreen } from "@/auth/start-screen";
 
 type PublicSession = { email: string; name: string; role: "admin" | "estimator" | "customer" };
 type Approval = { status: string; approvedBy: string | null; authorizedBy: string | null; statement: string | null };
@@ -41,6 +42,7 @@ export function AccountForm({ notice }: { notice: string | null }) {
       ) : (
         <p className="meta">You are not signed in. <Link href="/login">Sign in</Link>.</p>
       )}
+      {session && <StartScreenControl email={session.email} />}
       {session?.role === "admin" && <p className="meta"><Link href="/admin/users">Users</Link> · <Link href="/admin/system">System</Link></p>}
       {session && <p className="meta">Approval and authorization stay separate.</p>}
       <form className="grid" onSubmit={async (event) => {
@@ -86,6 +88,27 @@ export function AccountForm({ notice }: { notice: string | null }) {
         <WalkthroughActions session={session} snapshot={snapshot} approval={approval} onSnapshot={setSnapshot} onApproval={setApproval} onError={setError} />
       )}
     </section>
+  );
+}
+
+function StartScreenControl({ email }: { email: string }) {
+  const [screen, setScreen] = useState<StartScreen>("record");
+  useEffect(() => {
+    const next = storedStartScreen(email);
+    setScreen(next);
+    writeStartScreen(email, next);
+  }, [email]);
+  return (
+    <label className="field">Start screen
+      <select aria-label="Start screen" value={screen} onChange={(event) => {
+        const next = parseStartScreen(event.target.value);
+        setScreen(next);
+        writeStartScreen(email, next);
+      }}>
+        <option value="record">Record</option>
+        <option value="jobs">Jobs</option>
+      </select>
+    </label>
   );
 }
 

@@ -30,7 +30,7 @@ export function ReviewScreen() {
     return (
       <div className="empty">
         <p>No walkthrough.</p>
-        <Link className="btn" href="/walk">Walk</Link>
+        <Link className="btn" href="/record">Record</Link>
       </div>
     );
   }
@@ -53,6 +53,7 @@ export function ReviewScreen() {
 
   return (
     <div className="grid">
+      <JobIdentity snapshot={snapshot} onSnapshot={save} />
       <div className="kpi" aria-label="Review summary">
         <div><span>Total</span><strong><Amount value={total} /></strong></div>
         <div><span>Priced</span><strong>{pricedPct == null ? "—" : formatPct(pricedPct)}</strong></div>
@@ -75,7 +76,7 @@ export function ReviewScreen() {
             return (
               <div key={item.id} className="job-row">
                 <span>{item.text}</span>
-                {item.action === "rerecord" && <Link className={primary} href="/walk">Record</Link>}
+                {item.action === "rerecord" && <Link className={primary} href="/record">Record</Link>}
                 {item.action === "answer" && <button className={primary} type="button" onClick={() => document.querySelector<HTMLInputElement>("[aria-label='Instruction']")?.focus()}>Answer</button>}
                 {item.action === "skip" && <button className={primary} type="button" onClick={() => save(skipFollowUp(snapshot, item.id))}>Skip</button>}
               </div>
@@ -99,6 +100,46 @@ export function ReviewScreen() {
       <CommandBar snapshot={snapshot} onSnapshot={save} />
       <p className="meta"><Link href="/estimate">Estimate</Link></p>
     </div>
+  );
+}
+
+function JobIdentity({ snapshot, onSnapshot }: { snapshot: WalkthroughSnapshot; onSnapshot: (next: WalkthroughSnapshot) => void }) {
+  const [name, setName] = useState(snapshot.suggestedName ?? "");
+  const [address, setAddress] = useState(snapshot.suggestedAddress ?? "");
+  const [notice, setNotice] = useState<string | null>(null);
+  if (!snapshot.jobId) return null;
+  return (
+    <form className="grid" onSubmit={async (event) => {
+      event.preventDefault();
+      setNotice(null);
+      const response = await fetch(`/api/jobs/${snapshot.jobId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          customerName: name.trim(),
+          address: address.trim(),
+          location: snapshot.location ?? undefined,
+        }),
+      });
+      if (!response.ok) {
+        setNotice("The name was not saved.");
+        return;
+      }
+      onSnapshot({ ...snapshot, suggestedName: name.trim() || null, suggestedAddress: address.trim() || null });
+      setNotice("Saved.");
+    }}>
+      <p className="meta">Name this job when you can.</p>
+      {snapshot.suggestedAddress && <p className="meta">Suggested from the narration.</p>}
+      {snapshot.location && !snapshot.suggestedAddress && <p className="meta">Location recorded. No street was read from it.</p>}
+      <label className="field">Job name
+        <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Untitled" />
+      </label>
+      <label className="field">Address
+        <input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Address" />
+      </label>
+      <button className="btn secondary" type="submit">Save</button>
+      {notice && <p className="meta" role="status">{notice}</p>}
+    </form>
   );
 }
 

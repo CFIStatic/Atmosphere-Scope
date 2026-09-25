@@ -47,15 +47,15 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
   const needs = unpriced + job.questions.filter((question) => question.status === "open").length;
 
   return (
-    <AppFrame current="/">
+    <AppFrame current="/jobs">
     <main className="shell">
       <header className="topbar">
         <div>
-          <Link href="/" className="meta">Jobs</Link>
-          <h1 className="page-title">{job.property.address}</h1>
+          <Link href="/jobs" className="meta">Jobs</Link>
+          <h1 className="page-title">{job.property.address || "Untitled"}</h1>
           <p className="meta">{job.customer.name}</p>
         </div>
-        <Link className="btn" href="/walk">Walk</Link>
+        <Link className="btn" href="/record">Record</Link>
       </header>
       <div className="kpi" aria-label="Job summary">
         <div><span>Total</span><strong>{version && (unpriced === 0 || version.totals.supportedTotal > 0) ? <Amount value={version.totals.supportedTotal} /> : <Amount value={null} />}</strong></div>
