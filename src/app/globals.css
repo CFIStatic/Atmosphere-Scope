@@ -68,6 +68,7 @@ table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .legend i { display: inline-block; width: 28px; height: 0; border-top: 2px solid var(--ink); margin-right: 6px; vertical-align: middle; }
 .legend i.dashed { border-top-style: dashed; }
+.legend i.solid-blue { border-top-color: var(--blue); }
 .legend i.dotted { border-top-style: dotted; }
 .error { color: var(--danger); }
 .chip { font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; }

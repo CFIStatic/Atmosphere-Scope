@@ -5,6 +5,8 @@ import { chunkCount, getCapture, listPendingCaptures, putCapture, saveChunk } fr
 import { captureStatusLabel } from "@/capture/plan";
 import { resumeCapture } from "@/capture/resume-client";
 import { fuseDimension, type FusedDimension, type Reading, type ScaleSource } from "@/domain/fusion";
+import { floorPlanFromMeasurement, recordedSyntheticRoom, type FloorPlan, type MeasuredRoomInput } from "@/domain/plan-from-measurement";
+import { PlanView } from "@/components/plan-view";
 
 type SolverDimension = {
   id: string;
@@ -39,6 +41,8 @@ type SolverResult = {
   extractMs?: number;
   solveMs?: number;
   notes?: string[];
+  polygonFt?: { x: number; y: number }[];
+  rooms?: MeasuredRoomInput[];
   dimensions: SolverDimension[];
   error?: string;
   ai?: {
@@ -85,6 +89,25 @@ function blurScore(data: ImageData): number {
   return sumSq / Math.max(count, 1) - mean * mean;
 }
 
+function planFromResult(result: SolverResult): FloorPlan {
+  if (result.rooms?.length) return floorPlanFromMeasurement(result.rooms);
+  return floorPlanFromMeasurement([{
+    id: "room",
+    name: "Room",
+    polygonFt: result.polygonFt,
+    dimensions: result.dimensions.map((dimension) => ({
+      kind: dimension.kind,
+      label: dimension.label,
+      valueFt: dimension.valueFt,
+      errorPercent: dimension.errorPercent,
+      meetsAccuracyTarget: dimension.meetsAccuracyTarget,
+      confirmed: dimension.confirmed,
+      sources: dimension.sources,
+      note: dimension.note,
+    })),
+  }]);
+}
+
 function sliceBlob(blob: Blob, size = 256 * 1024): Blob[] {
   if (blob.size === 0) return [blob];
   const parts: Blob[] = [];
@@ -100,6 +123,7 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SolverResult | null>(null);
+  const [plan, setPlan] = useState<FloorPlan | null>(null);
   const [tapeLabel, setTapeLabel] = useState("span_a");
   const [tapeValue, setTapeValue] = useState("");
   const [online, setOnline] = useState(true);
@@ -274,7 +298,11 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
       const record = await getCapture(id);
       if (!record || record.totalChunks < 1) throw new Error("The recording was not saved on this phone.");
       const body = await resumeCapture(record, { online: navigator.onLine, onStatus: setUploadStatus });
-      if (body && typeof body === "object") setResult(body as SolverResult);
+      if (body && typeof body === "object") {
+        const measured = body as SolverResult;
+        setResult(measured);
+        setPlan(planFromResult(measured));
+      }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Upload failed.";
       setUploadStatus(captureStatusLabel({ online: navigator.onLine, phase: "error", sent: 0, total: 0 }));
@@ -435,6 +463,13 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
           </label>
         </div>
         <p className="meta">If the tape and the sheet disagree by more than 5%, the value is not confirmed.</p>
+      </section>
+      <section className="panel">
+        <p className="kicker">Floor plan</p>
+        <div className="row">
+          <button className="btn secondary" type="button" onClick={() => setPlan(floorPlanFromMeasurement([recordedSyntheticRoom], "Synthetic pinhole harness. Not a recording from this phone."))}>Preview recorded synthetic room</button>
+        </div>
+        {plan ? <PlanView plan={plan} onChange={setPlan} /> : <p className="meta">No outline yet. A measured wall is drawn only after the solver returns a length.</p>}
       </section>
       <section className="panel">
         <p className="kicker">Dimensions</p>
