@@ -228,6 +228,8 @@ export function DraftEstimate({ snapshot, onSnapshot }: { snapshot: WalkthroughS
 }
 
 function ReportBlock({ title, report, locked }: { title: string; report: EstimateReport; locked?: boolean }) {
+  const sum = report.pricedTotal == null ? "No complete total." : `Sum of complete lines: ${money(report.pricedTotal)}.`;
+  const caveat = report.pricedTotal != null && report.unpricedCount > 0 ? " That sum leaves out unpriced lines." : "";
   return (
     <section className="panel grid">
       <div className="row">
@@ -235,7 +237,7 @@ function ReportBlock({ title, report, locked }: { title: string; report: Estimat
         <span className="chip">{locked ? "Final" : "Draft"}</span>
         {report.unpricedCount > 0 && <span className="chip">Needs price</span>}
       </div>
-      {report.unpricedCount > 0 && <p className="meta">Unpriced lines stay blank.</p>}
+      <p className="banner">{report.note} {sum}{caveat}</p>
       <table className="stack">
         <thead><tr><th>Room</th><th>Code</th><th>Description</th><th>Qty</th><th>Line</th></tr></thead>
         <tbody>
