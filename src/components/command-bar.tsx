@@ -4,7 +4,17 @@ import { useEffect, useState } from "react";
 import { saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
 import type { AssistDiff, AssistProposal } from "@/domain/assist";
 
-export function CommandBar({ snapshot, onSnapshot }: { snapshot: WalkthroughSnapshot | null; onSnapshot?: (next: WalkthroughSnapshot) => void }) {
+export function CommandBar({
+  snapshot,
+  onSnapshot,
+  appearance = "bar",
+  seed,
+}: {
+  snapshot: WalkthroughSnapshot | null;
+  onSnapshot?: (next: WalkthroughSnapshot) => void;
+  appearance?: "bar" | "chat";
+  seed?: { text: string; n: number } | null;
+}) {
   const [prompt, setPrompt] = useState("");
   const [proposal, setProposal] = useState<AssistProposal | null>(null);
   const [diffs, setDiffs] = useState<AssistDiff[]>([]);
@@ -14,6 +24,14 @@ export function CommandBar({ snapshot, onSnapshot }: { snapshot: WalkthroughSnap
   const [listening, setListening] = useState(false);
 
   useEffect(() => {
+    if (!seed?.text) return;
+    setPrompt(seed.text);
+    void ask(seed.text);
+    // The seed counter is the trigger. ask closes over the current snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed?.n]);
+
+  useEffect(() => {
     void fetch("/api/auth/session").then(async (response) => {
       const body = await response.json();
       setAdmin(body.session?.role === "admin");
@@ -21,7 +39,13 @@ export function CommandBar({ snapshot, onSnapshot }: { snapshot: WalkthroughSnap
   }, []);
 
   async function ask(text: string) {
-    if (!snapshot || !text.trim()) return;
+    if (!text.trim()) return;
+    if (!snapshot) {
+      setNotice("Nothing is on file to answer that yet.");
+      setProposal(null);
+      setDiffs([]);
+      return;
+    }
     setPending(true);
     setNotice(null);
     const response = await fetch("/api/assist", {
@@ -86,16 +110,24 @@ export function CommandBar({ snapshot, onSnapshot }: { snapshot: WalkthroughSnap
     }
   }
 
+  const chat = appearance === "chat";
   return (
-    <section className="grid">
-      <form className="command-bar" onSubmit={(event) => { event.preventDefault(); void ask(prompt); }}>
-        <input aria-label="Instruction" placeholder="Instruction" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
-        <button className="btn secondary icon-btn" type="button" aria-label="Microphone" onClick={() => void listen()}>
-          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-            <rect x="6" y="1" width="4" height="8" rx="2" fill="none" stroke="currentColor" strokeWidth="1.2" />
-            <path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-          </svg>
-        </button>
+    <section className={chat ? "ask-compose" : "grid"}>
+      <form className={chat ? "ask-form" : "command-bar"} onSubmit={(event) => { event.preventDefault(); void ask(prompt); }}>
+        <input aria-label={chat ? "Ask what you forgot" : "Instruction"} placeholder={chat ? "Ask what you forgot..." : "Instruction"} value={prompt} onChange={(event) => setPrompt(event.target.value)} />
+        {chat ? (
+          <button className="ask-send" type="submit" aria-label="Send" disabled={pending || !prompt.trim()}>
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 12V4M4.5 7.5 8 4l3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+        ) : null}
+        {!chat && (
+          <button className="btn secondary icon-btn" type="button" aria-label="Microphone" onClick={() => void listen()}>
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="6" y="1" width="4" height="8" rx="2" fill="none" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+            </svg>
+          </button>
+        )}
         <button className="sr-submit" type="submit" disabled={pending || !prompt.trim()}>Submit</button>
       </form>
       {notice && <p className="meta">{notice}</p>}

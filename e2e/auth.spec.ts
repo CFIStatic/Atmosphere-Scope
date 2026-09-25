@@ -43,15 +43,21 @@ test("admin invite page and account password fields are present", async ({ page 
   await expect(page.getByRole("textbox", { name: /^New password/ })).toHaveAttribute("autocomplete", "new-password");
 });
 
-test("phone tabs stay on one line", async ({ page }) => {
+test("phone navigation is the dashboard drawer", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/jobs");
-  for (const name of ["Dashboard", "Record", "Jobs", "Results", "Estimate"]) {
-    const link = page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name, exact: true });
+  await expect(page.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
+  const menu = page.getByRole("button", { name: "Open navigation" });
+  await expect(menu).toBeVisible();
+  const box = await menu.boundingBox();
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await menu.click();
+  const drawer = page.getByRole("dialog", { name: "Navigation" });
+  for (const name of ["Start a job", "Dashboard", "Settings"]) {
+    const link = drawer.getByRole("link", { name, exact: true });
     await expect(link).toBeVisible();
-    const box = await link.boundingBox();
-    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-    expect(box?.height ?? 0).toBeLessThan(56);
+    const linkBox = await link.boundingBox();
+    expect(linkBox?.height ?? 0).toBeGreaterThanOrEqual(44);
   }
 });
 

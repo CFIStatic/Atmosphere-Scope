@@ -15,14 +15,15 @@ export function themeLabel(preference: ThemePreference): string {
 }
 
 export function readThemePreference(): ThemePreference {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   try {
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
     if (isThemePreference(stored)) return stored;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   } catch {
     /* private mode */
   }
-  return "dark";
+  return "light";
 }
 
 export function applyTheme(preference: ThemePreference): void {

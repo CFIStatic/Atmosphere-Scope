@@ -10,6 +10,7 @@ export function LoginForm({ devFallback, nextPath, notice }: { devFallback: bool
   const [error, setError] = useState<string | null>(notice);
   const [confirmNote, setConfirmNote] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [invite, setInvite] = useState(false);
 
   return (
     <div className="grid">
@@ -39,13 +40,21 @@ export function LoginForm({ devFallback, nextPath, notice }: { devFallback: bool
         window.location.assign(safeNext(nextPath));
       }}>
         <label className="field">Email
-          <input name="email" type="email" autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} required />
+          <input name="email" type="email" autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} required placeholder="you@company.com" />
         </label>
-        <PasswordField name="password" label="Password" autoComplete="current-password" minLength={MIN_PASSWORD_LENGTH} />
+        <PasswordField
+          name="password"
+          label="Password"
+          autoComplete="current-password"
+          minLength={MIN_PASSWORD_LENGTH}
+          extra={<Link href="/forgot">Forgot password?</Link>}
+        />
         {error && <p className="error" role="alert">{error}</p>}
-        <button className="btn" type="submit" disabled={pending}>Sign in</button>
+        <button className="btn signin-btn" type="submit" disabled={pending}>Sign in</button>
       </form>
-      <p className="meta"><Link href="/forgot">Forgot password</Link></p>
+      <hr className="auth-rule" />
+      <p className="auth-switch">Don&apos;t have an account? <button type="button" className="text-link" onClick={() => setInvite(true)}>Create an account</button></p>
+      {invite && <p className="meta">Accounts are invite-only. Ask an admin for an invite.</p>}
       <details className="quiet">
       <summary>Resend confirmation</summary>
       <form className="grid" onSubmit={async (event) => {

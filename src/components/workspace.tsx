@@ -2,13 +2,14 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { jobStatusChip } from "@/domain/labels";
-import { formatPct, formatQty } from "@/domain/format";
-import { polygonArea } from "@/domain/geometry";
 import { Amount } from "@/components/amount";
+import { CommandBar } from "@/components/command-bar";
+import { ShareJob } from "@/components/share-job";
 import { TapeVerify } from "@/components/tape-verify";
-import { loadWalkthrough, saveWalkthrough } from "@/capture/snapshot";
+import { loadWalkthrough, saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
 import type { FloorPlan } from "@/domain/plan-from-measurement";
 import type { Job } from "@/domain/types";
 import type { SketchOp } from "@/domain/sketch-ops";
@@ -18,20 +19,28 @@ import { buildSpaceModel } from "@/spatial/model";
 
 const SpaceMap = dynamic(() => import("./space-map").then((mod) => mod.SpaceMap), { ssr: false, loading: () => <p>Loading 3D view…</p> });
 
-const SECTIONS = [
-  ["video", "Walkthrough video"],
+const TABS = [
+  ["chat", "Chat"],
+  ["happening", "Happening Now"],
+  ["access", "Access"],
+  ["videos", "Videos"],
   ["sketch", "Sketch"],
-  ["items", "Items and quantities"],
-  ["results", "Results"],
+  ["items", "Items"],
+  ["measurements", "Measurements"],
   ["estimate", "Estimate"],
-  ["review", "Review"],
 ] as const;
 
+type TabId = (typeof TABS)[number][0];
+
 export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: ReactNode }) {
+  const router = useRouter();
   const [job, setJob] = useState(initialJob);
-  const [tab, setTab] = useState<(typeof SECTIONS)[number][0]>("video");
+  const [tab, setTab] = useState<TabId>("chat");
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameDraft, setRenameDraft] = useState(initialJob.customer.name);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [walk, setWalk] = useState<WalkthroughSnapshot | null>(null);
+  const [askSeed, setAskSeed] = useState<{ text: string; n: number } | null>(null);
   const [roomId, setRoomId] = useState<string | null>(initialJob.rooms[0]?.id ?? null);
   const [findingId, setFindingId] = useState<string | null>(initialJob.findings[0]?.id ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -52,33 +61,82 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
     setJob(payload);
   }
 
-  const area = job.sketch.geometry.rooms.reduce((sum, room) => sum + polygonArea(room.polygon), 0);
   const pricedLines = version?.pricedLines ?? [];
   const unpriced = pricedLines.filter((line) => line.unpricedReason !== "Excluded from price." && (line.unitPrice == null || line.unpricedReason)).length;
-  const pricedPct = pricedLines.length ? ((pricedLines.length - unpriced) / pricedLines.length) * 100 : null;
-  const needs = unpriced + job.questions.filter((question) => question.status === "open").length;
+  const openQuestions = job.questions.filter((question) => question.status === "open");
+
+  useEffect(() => {
+    setWalk(loadWalkthrough());
+    const applyHash = () => {
+      const id = window.location.hash.replace("#", "");
+      if (TABS.some(([key]) => key === id)) setTab(id as TabId);
+    };
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
+  }, []);
+
+  function choose(id: TabId) {
+    setTab(id);
+    const next = `${window.location.pathname}${window.location.search}#${id}`;
+    window.history.replaceState(null, "", next);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  }
+
+  async function duplicate() {
+    const missing = [
+      ["address", job.property.address],
+      ["city", job.property.city],
+      ["region", job.property.region],
+      ["postalCode", job.property.postalCode],
+      ["customerName", job.customer.name],
+      ["concern", job.concern],
+    ].filter(([, value]) => !String(value).trim());
+    if (missing.length) {
+      setError("This job is missing details, so it was not copied.");
+      return;
+    }
+    setError(null);
+    const response = await fetch("/api/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        address: job.property.address,
+        city: job.property.city,
+        region: job.property.region,
+        postalCode: job.property.postalCode,
+        customerName: job.customer.name.trim(),
+        phone: job.customer.phone,
+        email: job.customer.email,
+        concern: job.concern,
+      }),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      setError(body.error ?? "The job was not copied.");
+      return;
+    }
+    router.push(`/jobs/${body.jobId}`);
+  }
+
+  const latestVisit = [...job.media].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).at(-1);
+  const crewAsk = latestVisit
+    ? `What did the crew do on ${new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(new Date(latestVisit.createdAt))}?`
+    : "What did the crew do on the last visit?";
+  const prompts = ["What happened on this job?", crewAsk, "Is anything still unfinished?"];
+  const title = job.customer.name.trim() || job.property.address.trim() || "Untitled";
 
   return (
     <AppFrame current="/jobs">
-    <main className="shell">
-      <header className="topbar">
-        <div>
-          <Link href="/jobs" className="meta">Jobs</Link>
-          <h1 className="page-title">{job.property.address || job.customer.name || "Untitled"}</h1>
-          <p className="meta">{job.customer.name} · {jobStatusChip(version?.status)}</p>
-        </div>
-        <div className="row">
-          <button className="btn secondary" type="button" onClick={() => { setRenameDraft(job.customer.name); setRenameOpen(true); }}>Rename</button>
-          <Link className="btn" href="/record">Record</Link>
+    <main className="shell job-file">
+      <header className="job-file-head">
+        <h1>{title}</h1>
+        <div className="job-file-actions">
+          <button type="button" onClick={() => { setRenameDraft(job.customer.name); setRenameOpen(true); }}>Rename</button>
+          <button type="button" onClick={() => void duplicate()}>Duplicate</button>
+          <button type="button" className="job-file-share" onClick={() => setShareOpen(true)}>Share with homeowner</button>
         </div>
       </header>
-      <div className="kpi" aria-label="Job summary">
-        <div><span>Total</span><strong>{version && (unpriced === 0 || version.totals.supportedTotal > 0) ? <Amount value={version.totals.supportedTotal} /> : <Amount value={null} />}</strong></div>
-        <div><span>Priced</span><strong>{pricedPct == null ? "—" : formatPct(pricedPct)}</strong></div>
-        <div><span>Items</span><strong>{job.scopeItems.length}</strong></div>
-        <div><span>Needs attention</span><strong>{needs}</strong></div>
-        <div><span>Area</span><strong>{area > 0 ? `${formatQty(area)} sf` : "—"}</strong></div>
-      </div>
       <TodayStrip job={job} />
       {extra}
       {error && <p className="error">{error}</p>}
@@ -105,24 +163,37 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
           </div>
         </form>
       )}
+      {shareOpen && (
+        <div className="job-file-dialog" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setShareOpen(false); }}>
+          <div className="panel grid" role="dialog" aria-label="Share with homeowner">
+            <ShareJob jobId={job.id} />
+            <button className="btn secondary" type="button" onClick={() => setShareOpen(false)}>Close</button>
+          </div>
+        </div>
+      )}
       <div className="job-file-bar" role="tablist" aria-label="Job file sections">
-        {SECTIONS.map(([id, label]) => (
-          <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>
+        {TABS.map(([id, label]) => (
+          <button key={id} type="button" role="tab" id={`job-file-section-${id}`} aria-selected={tab === id} onClick={() => choose(id)}>{label}</button>
         ))}
       </div>
-      <div className="row" style={{ margin: "8px 0 14px" }}>
-        <label className="field">Room filter
-          <select value={roomId ?? ""} onChange={(event) => setRoomId(event.target.value || null)}>
-            <option value="">All rooms</option>
-            {job.rooms.map((room) => <option key={room.id} value={room.id}>{room.name}</option>)}
-          </select>
-        </label>
-        <span className="badge">{job.sketch.state.replaceAll("_", " ")}</span>
-        <span className="badge">{job.sketch.scaleClaim === "to_scale" ? "to scale" : "not to scale"}</span>
-        <span className="badge">{job.processing.status}</span>
-      </div>
 
-      {tab === "video" && (
+      {tab === "chat" && (
+        <section className="ask-panel" aria-label="Ask this job">
+          <div className="ask-intro">
+            <p>Forgot something? Ask what happened on site or what the homeowner said.</p>
+            <div className="ask-chips">
+              {prompts.map((prompt) => (
+                <button key={prompt} type="button" onClick={() => setAskSeed({ text: prompt, n: Date.now() })}>{prompt}</button>
+              ))}
+            </div>
+          </div>
+          <CommandBar appearance="chat" snapshot={walk} seed={askSeed} onSnapshot={setWalk} />
+        </section>
+      )}
+      {tab === "chat" && <Review job={job} onAct={act} />}
+      {tab === "happening" && <HappeningNow job={job} unpriced={unpriced} openQuestions={openQuestions.length} status={jobStatusChip(version?.status)} />}
+      {tab === "access" && <ShareJob jobId={job.id} />}
+      {tab === "videos" && (
         <section className="grid">
           <WalkthroughPlayer job={job} />
           <Capture job={job} onProcess={(transcript, usePriceBook) => act({ type: "process", transcript, usePriceBook })} onRetry={() => act({ type: "retry" })} onUploaded={setJob} />
@@ -131,19 +202,23 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
       )}
       {tab === "sketch" && (
         <section className="grid">
+          <RoomFilter roomId={roomId} rooms={job.rooms} onChange={setRoomId} job={job} />
           <SketchEditor job={job} onOp={(op: SketchOp) => act({ type: "sketch", op })} onUndo={() => act({ type: "undo" })} onRedo={() => act({ type: "redo" })} onAddRoom={(name) => act({ type: "add_named_room", name })} />
           <SpaceMap model={model} />
           <p className="meta">Sketch geometry.</p>
         </section>
       )}
       {tab === "items" && (
-        <Estimate job={job} phase={phase} setPhase={setPhase} lines={lines} version={version} onAffected={(sqft) => roomId && act({ type: "set_affected", roomId, sqft, note: "Entered from the estimate tab." })} onApply={() => act({ type: "apply_quantities" })} onEdit={(itemId, quantityValue) => act({ type: "edit_scope", itemId, quantityValue })} onSelectRoom={(id) => setRoomId(id)} />
+        <>
+          <RoomFilter roomId={roomId} rooms={job.rooms} onChange={setRoomId} job={job} />
+          <Estimate job={job} phase={phase} setPhase={setPhase} lines={lines} version={version} onAffected={(sqft) => roomId && act({ type: "set_affected", roomId, sqft, note: "Entered from the estimate tab." })} onApply={() => act({ type: "apply_quantities" })} onEdit={(itemId, quantityValue) => act({ type: "edit_scope", itemId, quantityValue })} onSelectRoom={(id) => setRoomId(id)} />
+        </>
       )}
-      {tab === "results" && (
+      {tab === "measurements" && (
         <section className="grid">
           <h2>Verify with a tape</h2>
           <JobTape />
-          <Assessment job={job} findings={findings} onSave={(findingId, title, interpretation) => act({ type: "correct_finding", findingId, title, interpretation })} onOpen={(id) => { setFindingId(id); setTab("video"); }} />
+          <Assessment job={job} findings={findings} onSave={(findingId, title, interpretation) => act({ type: "correct_finding", findingId, title, interpretation })} onOpen={(id) => { setFindingId(id); choose("videos"); }} />
           <Questions job={job} onAnswer={(questionId, answer) => act({ type: "answer", questionId, answer, kind: "text" })} />
           <Link className="btn secondary" href="/results">Open results</Link>
         </section>
@@ -188,10 +263,77 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
           </div>
         </section>
       )}
-      {tab === "review" && <Review job={job} onAct={act} />}
     </main>
     </AppFrame>
   );
+}
+
+function RoomFilter({ roomId, rooms, onChange, job }: { roomId: string | null; rooms: Job["rooms"]; onChange: (id: string | null) => void; job: Job }) {
+  return (
+    <div className="row">
+      <label className="field">Room filter
+        <select value={roomId ?? ""} onChange={(event) => onChange(event.target.value || null)}>
+          <option value="">All rooms</option>
+          {rooms.map((room) => <option key={room.id} value={room.id}>{room.name}</option>)}
+        </select>
+      </label>
+      <span className="badge">{job.sketch.state.replaceAll("_", " ")}</span>
+      <span className="badge">{job.sketch.scaleClaim === "to_scale" ? "to scale" : "not to scale"}</span>
+      <span className="badge">{job.processing.status}</span>
+    </div>
+  );
+}
+
+function HappeningNow({ job, unpriced, openQuestions, status }: { job: Job; unpriced: number; openQuestions: number; status: string }) {
+  const clips = [...job.media].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const running = job.processing.status === "running";
+  const left = unpriced + openQuestions;
+  return (
+    <section className="happening" aria-label="Happening Now">
+      <h2>Happening Now</h2>
+      <p className="happening-hint">What&apos;s on site right now, what&apos;s done, and what&apos;s left.</p>
+      <div className="happening-row">
+        <h3>Now</h3>
+        <div>{running ? <p>Processing this walkthrough.</p> : <p className="meta">Nothing on site.</p>}</div>
+      </div>
+      <div className="happening-row">
+        <h3>Done</h3>
+        <div>
+          {clips.length === 0 ? <p className="meta">Nothing done.</p> : (
+            <ul className="happening-list">
+              {clips.map((clip) => (
+                <li key={clip.id}>
+                  <div>
+                    <strong>{visitTitle(clip.createdAt, clip.label)}</strong>
+                    <p>{clip.note?.trim() || "Day film on file."}</p>
+                  </div>
+                  <span className="chip chip-neutral">{status}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+      <div className="happening-row">
+        <h3>Left</h3>
+        <div>
+          {left === 0 ? <p className="meta">Nothing left.</p> : (
+            <ul className="happening-list">
+              {unpriced > 0 && <li><div><strong>{unpriced} still need a price</strong></div><span className="chip chip-yellow">Needs price</span></li>}
+              {openQuestions > 0 && <li><div><strong>{openQuestions} open {openQuestions === 1 ? "question" : "questions"}</strong></div><span className="chip chip-neutral">Open</span></li>}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function visitTitle(iso: string, label: string): string {
+  const date = new Date(iso);
+  const day = Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(date);
+  const name = label.trim() || "Field capture";
+  return `${day} · ${name}`;
 }
 
 function TodayStrip({ job }: { job: Job }) {
