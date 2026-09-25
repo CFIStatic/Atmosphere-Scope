@@ -1,4 +1,5 @@
 import type { IdentifiedObject } from "@/analysis/frames";
+import type { AssistState } from "@/domain/assist";
 import type { EstimateReport } from "@/domain/estimate-engine";
 import type { FloorPlan } from "@/domain/plan-from-measurement";
 import type { ResultOffer } from "@/domain/results";
@@ -27,6 +28,7 @@ export type WalkthroughSnapshot = {
   finalReport?: EstimateReport | null;
   videoKey?: string | null;
   recordId?: string | null;
+  assist?: AssistState;
 };
 
 export function gapsFromSnapshot(snapshot: WalkthroughSnapshot): string[] {

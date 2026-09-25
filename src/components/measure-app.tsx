@@ -9,6 +9,7 @@ import { resumeCapture } from "@/capture/resume-client";
 import { fuseDimension, type FusedDimension, type Reading, type ScaleSource } from "@/domain/fusion";
 import { saveWalkthrough } from "@/capture/snapshot";
 import { floorPlanFromMeasurement, type FloorPlan, type MeasuredRoomInput } from "@/domain/plan-from-measurement";
+import { notesFromNarration, type AssistState } from "@/domain/assist";
 import { dimensionLabel } from "@/domain/labels";
 
 type SolverDimension = {
@@ -128,6 +129,7 @@ export function MeasureApp() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SolverResult | null>(null);
+  const [processStep, setProcessStep] = useState(0);
   const [tapeLabel, setTapeLabel] = useState("span_a");
   const [tapeValue, setTapeValue] = useState("");
   const [signal, setSignal] = useState<"online" | "weak" | "offline">("online");
@@ -143,6 +145,13 @@ export function MeasureApp() {
   const captureId = useRef<string | null>(null);
   const saveChain = useRef(Promise.resolve());
   const previous = useRef<ImageData | null>(null);
+
+  useEffect(() => {
+    if (!busy) return;
+    setProcessStep(0);
+    const timer = window.setInterval(() => setProcessStep((step) => Math.min(step + 1, 2)), 900);
+    return () => window.clearInterval(timer);
+  }, [busy]);
 
   useEffect(() => {
     setSignal(readSignal());
@@ -349,6 +358,17 @@ export function MeasureApp() {
         const plan = planFromResult(measured);
         setResult(measured);
         if (!measured.error && measured.dimensions) {
+          const names = (measured.ai?.objects ?? []).map((object) => object.name);
+          const narration = notesFromNarration(measured.ai?.transcription.text ?? null, names);
+          const assist: AssistState = {
+            acceptedIds: [],
+            skippedIds: [],
+            conditions: narration.filter((note) => note.note === "salvageable").map((note) => ({ target: note.target, value: note.note })),
+            renames: narration.filter((note) => note.target === "Flooring").map((note) => ({ from: "Flooring", to: note.note })),
+            notes: [],
+            added: [],
+            log: [],
+          };
           saveWalkthrough({
             savedAt: new Date().toISOString(),
             source: "measurement",
@@ -359,8 +379,9 @@ export function MeasureApp() {
             objects: (measured.ai?.objects ?? []).map((object) => ({ ...object, confidence: object.confidence === "high" || object.confidence === "medium" || object.confidence === "low" ? object.confidence : "low" })),
             offers: (measured.ai?.offers ?? []).map((offer) => ({ query: offer.query, title: offer.title, retailer: offer.retailer, price: offer.price, currency: offer.currency, url: offer.url, status: offer.status, note: offer.note })),
             videoKey: measured.videoKey ?? null,
+            assist,
           });
-          router.push("/results");
+          router.push("/review");
         }
       }
     } catch (caught) {
@@ -489,7 +510,7 @@ export function MeasureApp() {
         </div>
         <div className="action-bar">
           {result ? (
-            <Link className="btn record-btn" href="/results">See results</Link>
+            <Link className="btn record-btn" href="/review">Review draft</Link>
           ) : !recording ? (
             <button className="btn record-btn" type="button" onClick={() => void startCamera()}>Record</button>
           ) : (
@@ -511,6 +532,13 @@ export function MeasureApp() {
           )}
         </div>
       </section>
+      {busy && (
+        <ol className="steps" aria-live="polite">
+          <li data-current={processStep === 0 ? "true" : undefined}>Measuring walls</li>
+          <li data-current={processStep === 1 ? "true" : undefined}>Finding items</li>
+          <li data-current={processStep === 2 ? "true" : undefined}>Pricing</li>
+        </ol>
+      )}
       {showQueue && (
         <section className="upload-queue" aria-live="polite">
           <p className="meta">{signal === "offline" ? "Offline. The video stays on this phone." : signal === "weak" ? "Weak signal. The upload will retry." : uploadStatus}</p>

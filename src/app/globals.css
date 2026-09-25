@@ -119,6 +119,12 @@ label.btn input { display: none; }
 .report-type a[aria-current="page"] { color: var(--ink); font-weight: 650; }
 .quiet { border: 1px solid var(--line); border-radius: 12px; padding: 4px 16px 12px; margin-top: 20px; }
 .quiet summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+.review-summary { font-size: 20px; margin: 0; }
+.command-bar { display: flex; gap: 8px; align-items: center; }
+.command-bar input { flex: 1 1 auto; min-width: 0; }
+.command-bar .btn { flex: 0 0 auto; }
+.diff { display: grid; gap: 4px; margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.skeleton { height: 16px; border-radius: 8px; background: color-mix(in srgb, var(--bar-mid) 40%, var(--bg)); }
 .auth-shell { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); }
 .auth-card { width: min(440px, 100%); }
 .password-row { display: flex; gap: 8px; align-items: stretch; }

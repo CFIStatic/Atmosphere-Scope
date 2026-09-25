@@ -8,6 +8,7 @@ import type { Job } from "@/domain/types";
 import type { SketchOp } from "@/domain/sketch-ops";
 import { SketchEditor } from "./sketch-editor";
 import { AppFrame } from "@/components/app-frame";
+import { CommandBar } from "@/components/command-bar";
 import { buildSpaceModel } from "@/spatial/model";
 
 const SpaceMap = dynamic(() => import("./space-map").then((mod) => mod.SpaceMap), { ssr: false, loading: () => <p>Loading 3D view…</p> });
@@ -50,9 +51,10 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
       </header>
       <p><span className={version?.status === "customer_authorized" ? "chip blue" : "chip"}>{jobStatusChip(version?.status)}</span></p>
       <div className="row">
-        <Link className="btn secondary" href="/results">Results</Link>
+        <Link className="btn secondary" href="/review">Review</Link>
         <Link className="btn secondary" href="/estimate">Estimate</Link>
       </div>
+      <CommandBar snapshot={null} />
       {error && <p className="error">{error}</p>}
       <details className="quiet">
       <summary>Job file</summary>
