@@ -90,7 +90,7 @@ export function PlanView({ plan, onChange }: { plan: FloorPlan; onChange: (plan:
               setRoomId(nextRoom);
               setEdgeIndex(Number(nextEdge));
             }}>
-              {edges.map((edge) => <option key={edge.edgeIndex} value={`${edge.roomId}:${edge.edgeIndex}`}>{dimensionLabel(edge.label)}</option>)}
+              {edges.map((edge) => <option key={edge.edgeIndex} value={`${edge.roomId}:${edge.edgeIndex}`}>Edge {edge.edgeIndex + 1} · {dimensionLabel(edge.label)}</option>)}
             </select>
           </label>
           <label className="field">Corrected length, feet

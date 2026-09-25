@@ -1,5 +1,5 @@
-const SHELL = ["/", "/measure", "/manifest.webmanifest", "/favicon.ico", "/apple-touch-icon.png", "/icon-192.png", "/icon-512.png"];
-const CACHE = "scope-shell-v3";
+const SHELL = ["/", "/record", "/manifest.webmanifest", "/favicon.ico", "/apple-touch-icon.png", "/icon-192.png", "/icon-512.png"];
+const CACHE = "scope-shell-v4";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -22,7 +22,7 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       })
-      .catch(async () => (await caches.match(event.request)) || (await caches.match("/measure")) || Response.error()),
+      .catch(async () => (await caches.match(event.request)) || (await caches.match("/record")) || Response.error()),
   );
 });
 

@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { chunkCount, getCapture, listPendingCaptures, putCapture, saveChunk } from "@/capture/db";
 import { captureStatusLabel } from "@/capture/plan";
 import { resumeCapture } from "@/capture/resume-client";
-import { fuseDimension, type FusedDimension, type Reading, type ScaleSource } from "@/domain/fusion";
 import { saveWalkthrough } from "@/capture/snapshot";
 import { floorPlanFromMeasurement, type FloorPlan, type MeasuredRoomInput } from "@/domain/plan-from-measurement";
-import { dimensionLabel } from "@/domain/labels";
+import { notesFromNarration, type AssistState } from "@/domain/assist";
+import { suggestFromNarration } from "@/domain/job-identity";
 
 type SolverDimension = {
   id: string;
@@ -66,34 +65,6 @@ function readSignal(): "online" | "weak" | "offline" {
   return "online";
 }
 
-function sourceForMethod(method: string): ScaleSource {
-  if (method === "charuco_multiview") return "charuco";
-  if (method === "door" || method === "door_prior") return "door_prior";
-  return "none";
-}
-
-function blurScore(data: ImageData): number {
-  const { data: pixels, width, height } = data;
-  let sum = 0;
-  let sumSq = 0;
-  let count = 0;
-  for (let y = 1; y < height; y += 4) {
-    for (let x = 1; x < width; x += 4) {
-      const index = (y * width + x) * 4;
-      const gray = pixels[index] * 0.3 + pixels[index + 1] * 0.59 + pixels[index + 2] * 0.11;
-      const left = pixels[index - 4] * 0.3 + pixels[index - 3] * 0.59 + pixels[index - 2] * 0.11;
-      const upIndex = ((y - 1) * width + x) * 4;
-      const up = pixels[upIndex] * 0.3 + pixels[upIndex + 1] * 0.59 + pixels[upIndex + 2] * 0.11;
-      const edge = Math.abs(gray - left) + Math.abs(gray - up);
-      sum += edge;
-      sumSq += edge * edge;
-      count += 1;
-    }
-  }
-  const mean = sum / Math.max(count, 1);
-  return sumSq / Math.max(count, 1) - mean * mean;
-}
-
 function planFromResult(result: SolverResult): FloorPlan {
   if (result.rooms?.length) return floorPlanFromMeasurement(result.rooms);
   return floorPlanFromMeasurement([{
@@ -113,6 +84,20 @@ function planFromResult(result: SolverResult): FloorPlan {
   }]);
 }
 
+type CameraState = "pending" | "live" | "denied" | "missing";
+type JobOption = { id: string; address: string; customer: string };
+type GeoPoint = { lat: number; lng: number };
+
+function cameraDenied(caught: unknown): boolean {
+  const name = caught instanceof Error ? caught.name : "";
+  return name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError";
+}
+
+function clock(seconds: number): string {
+  const safe = Math.max(0, seconds);
+  return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
+}
+
 function sliceBlob(blob: Blob, size = 256 * 1024): Blob[] {
   if (blob.size === 0) return [blob];
   const parts: Blob[] = [];
@@ -123,26 +108,107 @@ function sliceBlob(blob: Blob, size = 256 * 1024): Blob[] {
 export function MeasureApp() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [coach, setCoach] = useState("Place the sheet, then record.");
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<SolverResult | null>(null);
-  const [tapeLabel, setTapeLabel] = useState("span_a");
-  const [tapeValue, setTapeValue] = useState("");
+  const [processStep, setProcessStep] = useState(0);
   const [signal, setSignal] = useState<"online" | "weak" | "offline">("online");
   const [queue, setQueue] = useState<{ id: string; filename: string; status: string; totalChunks: number; error: string | null }[]>([]);
   const [progress, setProgress] = useState<{ sent: number; total: number } | null>(null);
   const [micLevel, setMicLevel] = useState(0);
-  const [micNote, setMicNote] = useState("Mic level appears once recording starts.");
   const [uploadStatus, setUploadStatus] = useState("");
+  const [camera, setCamera] = useState<CameraState>("pending");
+  const [jobs, setJobs] = useState<JobOption[]>([]);
+  const [attachId, setAttachId] = useState("");
+  const [sheetSeen, setSheetSeen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const audioContext = useRef<AudioContext | null>(null);
+  const previewRef = useRef<MediaStream | null>(null);
+  const previewRequest = useRef<Promise<MediaStream | null> | null>(null);
+  const draftIdRef = useRef<string | null>(null);
+  const jobPromise = useRef<Promise<string | null>>(Promise.resolve(null));
+  const locationRef = useRef<GeoPoint | null>(null);
+  const attachRef = useRef("");
   const meterFrame = useRef<number | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const captureId = useRef<string | null>(null);
   const saveChain = useRef(Promise.resolve());
-  const previous = useRef<ImageData | null>(null);
+
+  useEffect(() => {
+    if (!recording) {
+      setElapsed(0);
+      return;
+    }
+    const started = Date.now();
+    const timer = window.setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 250);
+    return () => window.clearInterval(timer);
+  }, [recording]);
+
+  useEffect(() => {
+    if (camera !== "live" || recording || sheetSeen) return;
+    let cancel = false;
+    const timer = window.setInterval(async () => {
+      const video = videoRef.current;
+      if (!video || video.videoWidth === 0 || cancel) return;
+      const canvas = document.createElement("canvas");
+      canvas.width = 160;
+      canvas.height = Math.max(1, Math.round((160 * video.videoHeight) / video.videoWidth));
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.6));
+      if (!blob || cancel) return;
+      try {
+        const response = await fetch("/api/measure/target", { method: "POST", body: blob, signal: AbortSignal.timeout(1500) });
+        const payload = await response.json();
+        if (payload.readable) setSheetSeen(true);
+      } catch {
+        // The hint stays until the sheet is readable or recording starts.
+      }
+    }, 1200);
+    return () => {
+      cancel = true;
+      window.clearInterval(timer);
+    };
+  }, [camera, recording, sheetSeen]);
+
+  useEffect(() => {
+    if (!busy) return;
+    setProcessStep(0);
+    const timer = window.setInterval(() => setProcessStep((step) => Math.min(step + 1, 2)), 900);
+    return () => window.clearInterval(timer);
+  }, [busy]);
+
+  useEffect(() => {
+    attachRef.current = attachId;
+  }, [attachId]);
+
+  useEffect(() => {
+    let stopped = false;
+    let stream: MediaStream | null = null;
+    void requestPreview().then((opened) => {
+      stream = opened;
+      if (stopped && opened) {
+        opened.getTracks().forEach((track) => track.stop());
+        if (previewRef.current === opened) previewRef.current = null;
+      }
+    });
+    return () => {
+      stopped = true;
+      stream?.getTracks().forEach((track) => track.stop());
+      if (stream && previewRef.current === stream) previewRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    void fetch("/api/jobs").then(async (response) => {
+      if (!response.ok) return;
+      const body = await response.json();
+      if (Array.isArray(body.jobs)) setJobs(body.jobs);
+    }).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     setSignal(readSignal());
@@ -186,42 +252,19 @@ export function MeasureApp() {
       const canvas = document.createElement("canvas");
       canvas.width = 320;
       canvas.height = Math.round((320 * video.videoHeight) / video.videoWidth);
-      const context = canvas.getContext("2d", { willReadFrequently: true });
+      const context = canvas.getContext("2d");
       if (!context) return;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const frame = context.getImageData(0, 0, canvas.width, canvas.height);
-      const blur = blurScore(frame);
-      let motion = 0;
-      if (previous.current && previous.current.data.length === frame.data.length) {
-        let total = 0;
-        let count = 0;
-        for (let index = 0; index < frame.data.length; index += 16) {
-          total += Math.abs(frame.data[index] - previous.current.data[index]);
-          count += 1;
-        }
-        motion = total / Math.max(count, 1);
-      }
-      previous.current = frame;
-      const notes = [window.matchMedia("(orientation: portrait)").matches ? "Hold the phone upright." : "Landscape is fine. Keep the sheet in the frame.", "Keep the sheet at the bottom of the frame.", "Sweep slowly from floor to ceiling and overlap each wall."];
-      if (blur < 40) notes.unshift("Frame looks soft. Pause and let the sheet sharpen.");
-      if (motion > 28) notes.unshift("Moving too fast. Slow the pan.");
-      if (navigator.onLine === false) {
-        notes.unshift("No signal. Still recording. The sheet check waits.");
-        setCoach(notes[0]);
-        return;
-      }
+      if (navigator.onLine === false) return;
       try {
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.7));
-        if (blob) {
-          const response = await fetch("/api/measure/target", { method: "POST", body: blob, signal: AbortSignal.timeout(1500) });
-          const payload = await response.json();
-          if (!payload.readable) notes.unshift(payload.note ?? "The sheet is not readable in this frame.");
-          else notes.unshift("Sheet is readable. Keep it in view while you show the next wall.");
-        }
+        if (!blob) return;
+        const response = await fetch("/api/measure/target", { method: "POST", body: blob, signal: AbortSignal.timeout(1500) });
+        const payload = await response.json();
+        if (payload.readable) setSheetSeen(true);
       } catch {
-        notes.unshift("Live sheet check did not return. Recording continues on this phone.");
+        // Recording continues when the sheet check does not return.
       }
-      setCoach(notes[0]);
     }, 900);
     return () => window.clearInterval(timer);
   }, [recording]);
@@ -236,10 +279,7 @@ export function MeasureApp() {
 
   function watchMic(stream: MediaStream) {
     const track = stream.getAudioTracks()[0];
-    if (!track) {
-      setMicNote("Mic is off. Video still records. The level stays empty.");
-      return;
-    }
+    if (!track) return;
     const context = new AudioContext();
     audioContext.current = context;
     const analyser = context.createAnalyser();
@@ -256,37 +296,98 @@ export function MeasureApp() {
       setMicLevel(Math.min(1, Math.sqrt(sum / samples.length) * 4));
       meterFrame.current = requestAnimationFrame(tick);
     };
-    setMicNote("Mic is live.");
     tick();
   }
 
-  async function startCamera() {
-    setError(null);
+  function requestPreview(): Promise<MediaStream | null> {
+    const current = previewRef.current;
+    if (current?.getVideoTracks().some((track) => track.readyState === "live")) return Promise.resolve(current);
+    if (previewRequest.current) return previewRequest.current;
+    const pending = openPreview().finally(() => {
+      if (previewRequest.current === pending) previewRequest.current = null;
+    });
+    previewRequest.current = pending;
+    return pending;
+  }
+
+  async function openPreview(): Promise<MediaStream | null> {
     if (!navigator.mediaDevices?.getUserMedia) {
-      setError("This browser has no camera. Upload a video instead. Nothing was recorded.");
-      return;
+      setCamera("missing");
+      return null;
+    }
+    try {
+      const permission = await navigator.permissions?.query({ name: "camera" as PermissionName });
+      if (permission?.state === "denied") {
+        setCamera("denied");
+        return null;
+      }
+    } catch {
+      // The Permissions API is missing in some browsers. The prompt below still runs.
     }
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: true });
-    } catch {
+    } catch (caught) {
+      if (cameraDenied(caught)) {
+        setCamera("denied");
+        return null;
+      }
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-        setMicNote("Mic is off. Video still records. The level stays empty.");
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "The camera did not start.");
-        return;
+      } catch (videoError) {
+        setCamera(cameraDenied(videoError) ? "denied" : "missing");
+        return null;
       }
     }
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.muted = true;
-      await videoRef.current.play();
+    previewRef.current = stream;
+    const video = videoRef.current;
+    if (video) {
+      video.srcObject = stream;
+      video.muted = true;
+      await video.play().catch(() => undefined);
     }
+    setCamera("live");
+    return stream;
+  }
+
+  function ensureJob(): Promise<string | null> {
+    const chosen = attachRef.current;
+    if (chosen) return Promise.resolve(chosen);
+    if (draftIdRef.current) return Promise.resolve(draftIdRef.current);
+    return fetch("/api/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ draft: true }),
+    }).then(async (response) => {
+      if (!response.ok) return null;
+      const body = await response.json();
+      const id = typeof body.jobId === "string" ? body.jobId : null;
+      draftIdRef.current = id;
+      return id;
+    }).catch(() => null);
+  }
+
+  function rememberLocation() {
+    if (!navigator.geolocation || locationRef.current) return;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        locationRef.current = { lat: position.coords.latitude, lng: position.coords.longitude };
+      },
+      () => undefined,
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 },
+    );
+  }
+
+  async function startRecording() {
+    setError(null);
+    const stream = await requestPreview();
+    if (!stream) return;
     watchMic(stream);
     chunks.current = [];
     const id = crypto.randomUUID();
     captureId.current = id;
+    jobPromise.current = ensureJob();
+    rememberLocation();
     saveChain.current = putCapture({
       id,
       filename: "walkthrough.webm",
@@ -308,7 +409,6 @@ export function MeasureApp() {
     media.start(1000);
     setRecording(true);
     setUploadStatus(captureStatusLabel({ online: navigator.onLine, phase: "recording", sent: 0, total: 0 }));
-    setCoach("Slow pan. Show every corner. Sweep floor to ceiling. Keep the sheet in the lower frame.");
   }
 
   async function finishRecording() {
@@ -346,9 +446,24 @@ export function MeasureApp() {
       } });
       if (body && typeof body === "object") {
         const measured = body as SolverResult;
-        const plan = planFromResult(measured);
-        setResult(measured);
-        if (!measured.error && measured.dimensions) {
+        if (measured.error || !measured.dimensions) {
+          setError(measured.error ?? "The measurement did not return dimensions. Nothing was saved.");
+        } else {
+          const plan = planFromResult(measured);
+          const names = (measured.ai?.objects ?? []).map((object) => object.name);
+          const transcript = measured.ai?.transcription.text ?? null;
+          const narration = notesFromNarration(transcript, names);
+          const suggestion = suggestFromNarration(transcript);
+          const jobId = await jobPromise.current;
+          const assist: AssistState = {
+            acceptedIds: [],
+            skippedIds: [],
+            conditions: narration.filter((note) => note.note === "salvageable").map((note) => ({ target: note.target, value: note.note })),
+            renames: narration.filter((note) => note.target === "Flooring").map((note) => ({ from: "Flooring", to: note.note })),
+            notes: [],
+            added: [],
+            log: [],
+          };
           saveWalkthrough({
             savedAt: new Date().toISOString(),
             source: "measurement",
@@ -359,8 +474,13 @@ export function MeasureApp() {
             objects: (measured.ai?.objects ?? []).map((object) => ({ ...object, confidence: object.confidence === "high" || object.confidence === "medium" || object.confidence === "low" ? object.confidence : "low" })),
             offers: (measured.ai?.offers ?? []).map((offer) => ({ query: offer.query, title: offer.title, retailer: offer.retailer, price: offer.price, currency: offer.currency, url: offer.url, status: offer.status, note: offer.note })),
             videoKey: measured.videoKey ?? null,
+            assist,
+            jobId,
+            suggestedName: suggestion.name,
+            suggestedAddress: suggestion.address,
+            location: locationRef.current,
           });
-          router.push("/results");
+          router.push("/review");
         }
       }
     } catch (caught) {
@@ -413,6 +533,8 @@ export function MeasureApp() {
   }
 
   async function submitVideo(blob: Blob, filename: string) {
+    jobPromise.current = ensureJob();
+    rememberLocation();
     setBusy(true);
     setError(null);
     try {
@@ -436,129 +558,98 @@ export function MeasureApp() {
     }
   }
 
-  const fused: { raw: SolverDimension; fused: FusedDimension }[] = (result?.dimensions ?? []).map((dimension) => {
-    const readings: Reading[] = [
-      {
-        source: sourceForMethod(result?.method ?? "none"),
-        valueFt: dimension.valueFt,
-        errorPercent: dimension.errorPercent,
-        instrumentLock: false,
-      },
-    ];
-    const tape = Number(tapeValue);
-    if (tapeLabel === dimension.label && Number.isFinite(tape) && tape > 0) {
-      readings.push({ source: "tape", valueFt: tape, errorPercent: 1, instrumentLock: true });
-    }
-    return { raw: dimension, fused: fuseDimension(readings) };
-  });
-
-  const step = result ? 3 : recording ? 2 : 1;
-  const showQueue = queue.length > 0 || busy || Boolean(error) || signal !== "online";
-  const tapeOptions = result?.dimensions?.length ? result.dimensions : [{ label: "span_a" }, { label: "span_b" }, { label: "height" }, { label: "area" }];
+  const blocked = camera === "denied" || camera === "missing";
+  const showHint = camera === "live" && !recording && !sheetSeen && !busy;
+  const showQueue = queue.length > 0 || Boolean(error) || (signal !== "online" && !busy);
 
   return (
-    <div className="flow">
-      <ol className="steps">
-        <li data-current={step === 1 ? "true" : undefined}>Place the sheet</li>
-        <li data-current={step === 2 ? "true" : undefined}>Record</li>
-        <li data-current={step === 3 ? "true" : undefined}>Done</li>
-      </ol>
-      <section className={`capture-stage ${recording ? "is-recording" : ""}`}>
-        <div className="capture-video">
-          <video ref={videoRef} playsInline muted />
-          <div className="capture-overlay">
-            <p className="rec-indicator" role="status">
-              <span className="rec-dot" aria-hidden="true" />
-              {recording ? "Recording" : result ? "Done" : "Ready"}
-            </p>
-            {!recording && !result && (
-              <div className="capture-overlay-copy">
-                <p className="sheet-reminder">Place the sheet on the floor.</p>
-                <a className="btn secondary" href="/api/calibration-target">Sheet PDF</a>
-              </div>
-            )}
-            {recording && (
-              <div className="capture-overlay-copy">
-                <div className="mic-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(micLevel * 100)} aria-label="Microphone level">
-                  <span style={{ width: `${Math.round(micLevel * 100)}%` }} />
-                </div>
-                <p className="coach">{coach || micNote}</p>
-              </div>
-            )}
+    <div className={`camera-app ${recording ? "is-recording" : ""}`}>
+      <video ref={videoRef} playsInline muted />
+      <LinkJobs />
+      {recording && (
+        <div className="camera-top">
+          <p className="rec-status" role="status">
+            <span className="rec-dot" aria-hidden="true" />
+            {clock(elapsed)}
+          </p>
+          <div className="mic-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(micLevel * 100)} aria-label="Microphone level">
+            <span style={{ width: `${Math.round(micLevel * 100)}%` }} />
           </div>
         </div>
-        <div className="action-bar">
-          {result ? (
-            <Link className="btn record-btn" href="/results">See results</Link>
-          ) : !recording ? (
-            <button className="btn record-btn" type="button" onClick={() => void startCamera()}>Record</button>
-          ) : (
-            <button className="btn stop-btn" type="button" onClick={() => void finishRecording()}>Stop</button>
-          )}
-          {!result && (
-            <label className="btn secondary">
-              Upload
-              <input
-                type="file"
-                accept="video/*"
-                hidden
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void submitVideo(file, file.name);
-                }}
-              />
-            </label>
-          )}
-        </div>
-      </section>
-      {showQueue && (
-        <section className="upload-queue" aria-live="polite">
-          <p className="meta">{signal === "offline" ? "Offline. The video stays on this phone." : signal === "weak" ? "Weak signal. The upload will retry." : uploadStatus}</p>
-          {progress && <progress max={progress.total} value={progress.sent}>{progress.sent} of {progress.total}</progress>}
-          <ul className="list">
-            {queue.map((item) => (
-              <li key={item.id} className="item">
-                <strong>{item.filename}</strong>
-                <span className="meta"> {item.status}</span>
-              </li>
-            ))}
-          </ul>
-          {queue.length > 0 && <button className="btn secondary" type="button" onClick={() => void retryUploads()} disabled={busy || recording}>Retry upload</button>}
-          {error && <p className="error">{error}</p>}
-        </section>
       )}
-      <details className="quiet">
-        <summary>Tape check</summary>
-        <div className="row">
-          <label className="field">Dimension
-            <select value={tapeLabel} onChange={(event) => setTapeLabel(event.target.value)}>
-              {tapeOptions.map((dimension) => (
-                <option key={dimension.label} value={dimension.label}>{dimensionLabel(dimension.label)}</option>
-              ))}
-            </select>
-          </label>
-          <label className="field">Feet
-            <input value={tapeValue} onChange={(event) => setTapeValue(event.target.value)} inputMode="decimal" placeholder="14.0" />
-          </label>
+      {camera === "pending" && <p className="camera-hint">Camera is used to record the walk.</p>}
+      {blocked && (
+        <div className="camera-permission">
+          <p>{camera === "denied" ? "Camera is blocked. Allow it in the browser, or upload a video." : "This browser has no camera. Upload a video."}</p>
+          <UploadControl onFile={(file) => void submitVideo(file, file.name)} prominent />
         </div>
-        <p className="meta">If the tape and the sheet disagree by more than 5%, it stays not verified.</p>
-      </details>
-      {fused.length > 0 && (
-        <table className="stack">
-          <thead>
-            <tr><th>Dimension</th><th>Value</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            {fused.map(({ raw, fused: item }) => (
-              <tr key={raw.label}>
-                <td data-label="Dimension">{dimensionLabel(raw.label)}</td>
-                <td data-label="Value">{item.valueFt == null ? "—" : `${item.valueFt} ${raw.kind === "floor_area" ? "sq ft" : "ft"}`}</td>
-                <td data-label="Status">{item.confirmed ? <span className="chip blue">Verified</span> : <span className="chip orange">Not verified</span>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      )}
+      {showHint && <p className="camera-hint">Place the calibration sheet on the floor, then record.</p>}
+      {busy && (
+        <ol className="process-line" aria-live="polite">
+          <li data-current={processStep === 0 ? "true" : undefined}>Measuring walls</li>
+          <li data-current={processStep === 1 ? "true" : undefined}>Finding items</li>
+          <li data-current={processStep === 2 ? "true" : undefined}>Pricing</li>
+        </ol>
+      )}
+      {!busy && !blocked && camera === "live" && (
+        <div className="camera-controls">
+          <UploadControl onFile={(file) => void submitVideo(file, file.name)} />
+          <button
+            className="shutter"
+            type="button"
+            data-recording={recording ? "true" : "false"}
+            aria-label={recording ? "Stop" : "Record"}
+            onClick={() => void (recording ? finishRecording() : startRecording())}
+          />
+          <button className="camera-side" type="button" aria-label="Help" onClick={() => setHelpOpen(true)}>?</button>
+        </div>
+      )}
+      {showQueue && (
+        <p className="camera-status" role="status">
+          {error ?? (signal === "offline" ? "Offline. The video stays on this phone." : signal === "weak" ? "Weak signal. The upload will retry." : uploadStatus)}
+          {progress ? ` ${progress.sent} of ${progress.total}` : ""}
+          {queue.length > 0 && <button className="camera-side" type="button" onClick={() => void retryUploads()} disabled={busy || recording}>Retry</button>}
+        </p>
+      )}
+      {helpOpen && (
+        <div className="camera-sheet-backdrop" onClick={() => setHelpOpen(false)}>
+          <div className="camera-sheet" role="dialog" aria-modal="true" aria-label="Calibration sheet" onClick={(event) => event.stopPropagation()}>
+            <p>Place the sheet flat on the floor, in view of the camera, then record.</p>
+            <a href="/api/calibration-target">Download sheet PDF</a>
+            <label className="field">Attach to existing job
+              <select aria-label="Attach to existing job" value={attachId} onChange={(event) => setAttachId(event.target.value)}>
+                <option value="">New draft</option>
+                {jobs.map((job) => (
+                  <option key={job.id} value={job.id}>{job.customer}{job.address ? ` · ${job.address}` : ""}</option>
+                ))}
+              </select>
+            </label>
+            <button className="camera-side" type="button" onClick={() => setHelpOpen(false)}>Close</button>
+          </div>
+        </div>
       )}
     </div>
+  );
+}
+
+function LinkJobs() {
+  return <a className="phone-jobs phone-jobs-inside" href="/jobs">Jobs</a>;
+}
+
+function UploadControl({ onFile, prominent }: { onFile: (file: File) => void; prominent?: boolean }) {
+  return (
+    <label className={prominent ? "btn secondary" : "camera-side"}>
+      Upload
+      <input
+        type="file"
+        accept="video/*"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) onFile(file);
+        }}
+      />
+    </label>
   );
 }

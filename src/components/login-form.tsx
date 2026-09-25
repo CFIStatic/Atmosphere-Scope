@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { PasswordField } from "@/components/password-field";
 import { CONFIRM_SENT, MIN_PASSWORD_LENGTH, passwordProblem, safeNext } from "@/auth/gate";
+import { applyStartScreenForEmail } from "@/auth/start-screen";
 
 export function LoginForm({ devFallback, nextPath, notice }: { devFallback: boolean; nextPath: string; notice: string | null }) {
   const [error, setError] = useState<string | null>(notice);
@@ -34,6 +35,7 @@ export function LoginForm({ devFallback, nextPath, notice }: { devFallback: bool
           setError(body.error ?? "Email or password is incorrect.");
           return;
         }
+        applyStartScreenForEmail(String(form.get("email") ?? ""));
         window.location.assign(safeNext(nextPath));
       }}>
         <label className="field">Email
@@ -82,6 +84,7 @@ export function LoginForm({ devFallback, nextPath, notice }: { devFallback: bool
               setError(body.error ?? "Dev sign-in failed.");
               return;
             }
+            applyStartScreenForEmail(String(form.get("email") ?? ""));
             window.location.assign(safeNext(nextPath));
           }}>
             <p className="meta">This panel is only for a server that is not using Supabase. It does not create a password account, and it cannot pick admin.</p>

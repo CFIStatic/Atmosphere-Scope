@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useState, Fragment, type Dispatch, type SetStateAction } from "react";
 import { saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
+import { draftLinesWithAssist, sourcesWithAssist } from "@/domain/assist";
 import { draftScope, type CatalogComponent, type CatalogItem, type CatalogTrigger, type CatalogVersion, type LossType } from "@/domain/catalog";
-import { finalizeReport, priceDraft, type EquipmentRate, type EstimateReport, type LaborRate, type MaterialPrice, type PricedDraftLine, type RateBook } from "@/domain/estimate-engine";
+import { finalizeReport, priceDraft, type EquipmentRate, type EstimateReport, type LaborRate, type MaterialPrice, type RateBook } from "@/domain/estimate-engine";
 import type { ResultOffer } from "@/domain/results";
+import { Amount } from "@/components/amount";
+import { formatQty } from "@/domain/format";
 
 type RateDraft = {
   region: string;
@@ -47,11 +50,13 @@ export function DraftEstimate({ snapshot, onSnapshot }: { snapshot: WalkthroughS
     };
   }, []);
 
-  const materials = useMemo(() => materialsFromOffers(snapshot.offers), [snapshot.offers]);
+  const sources = useMemo(() => sourcesWithAssist(snapshot), [snapshot]);
+  const materials = useMemo(() => materialsFromOffers(sources.offers), [sources.offers]);
   const live = useMemo(() => {
     if (!catalog || !rates) return null;
-    return priceDraft(draftScope({ plan: snapshot.plan, objects: snapshot.objects, catalog, loss }), catalog, rates, materials);
-  }, [catalog, rates, snapshot.plan, snapshot.objects, loss, materials]);
+    const lines = draftLinesWithAssist(snapshot, draftScope({ plan: snapshot.plan, objects: sources.objects, catalog, loss }));
+    return priceDraft(lines, catalog, rates, materials);
+  }, [catalog, rates, snapshot, loss, materials, sources.objects]);
 
   async function saveRates() {
     if (!rateDraft) return;
@@ -116,14 +121,14 @@ export function DraftEstimate({ snapshot, onSnapshot }: { snapshot: WalkthroughS
       {snapshot.finalReport && <ReportBlock title="Finalized estimate" report={snapshot.finalReport} locked />}
       {live && <ReportBlock title={snapshot.finalReport ? "Current draft" : "Estimate"} report={live} />}
       <div className="row action-bar">
-        <button className="btn" type="button" disabled={!live} onClick={finalize}>Finalize estimate</button>
-        <button className="btn secondary" type="button" disabled={!live && !snapshot.finalReport} onClick={() => send("pdf", snapshot.finalReport ?? live)}>Send report (PDF)</button>
-        <button className="btn secondary" type="button" disabled={!live && !snapshot.finalReport} onClick={() => send("csv", snapshot.finalReport ?? live)}>Send report (CSV)</button>
-        <button className="btn secondary" type="button" disabled={!live && !snapshot.finalReport} onClick={() => send("json", snapshot.finalReport ?? live)}>Send report (JSON)</button>
+        <button className="btn" type="button" disabled={!live} onClick={finalize}>Finalize</button>
+        <button className="btn secondary" type="button" disabled={!live && !snapshot.finalReport} onClick={() => send("pdf", snapshot.finalReport ?? live)}>PDF</button>
+        <button className="btn secondary" type="button" disabled={!live && !snapshot.finalReport} onClick={() => send("csv", snapshot.finalReport ?? live)}>CSV</button>
+        <button className="btn secondary" type="button" disabled={!live && !snapshot.finalReport} onClick={() => send("json", snapshot.finalReport ?? live)}>JSON</button>
       </div>
       {rateDraft && (
         <details className="panel">
-          <summary>Admin · regional rates</summary>
+          <summary>Rate book</summary>
           <form className="grid" onSubmit={(event) => { event.preventDefault(); void saveRates(); }}>
             <div className="form-grid">
               <label className="field">Region<input value={rateDraft.region} onChange={(event) => setRateDraft({ ...rateDraft, region: event.target.value })} /></label>
@@ -132,36 +137,46 @@ export function DraftEstimate({ snapshot, onSnapshot }: { snapshot: WalkthroughS
               <label className="field">Tax %<input value={rateDraft.tax} inputMode="decimal" onChange={(event) => setRateDraft({ ...rateDraft, tax: event.target.value })} /></label>
               <label className="field">Tax base
                 <select value={rateDraft.taxBase} onChange={(event) => setRateDraft({ ...rateDraft, taxBase: event.target.value === "materials" ? "materials" : "none" })}>
-                  <option value="none">On the line after overhead and profit</option>
-                  <option value="materials">Materials only</option>
+                  <option value="none">Line</option>
+                  <option value="materials">Materials</option>
                 </select>
               </label>
             </div>
-            <p className="kicker">Labor, hourly</p>
-            {rateDraft.labor.map((row, index) => (
-              <div className="form-grid" key={row.trade}>
-                <label className="field">{row.trade}<input aria-label={`${row.trade} hourly`} value={row.hourly} inputMode="decimal" placeholder="No rate" onChange={(event) => updateLabor(setRateDraft, index, { hourly: event.target.value })} /></label>
-                <label className="field">Source<input aria-label={`${row.trade} source`} value={row.source} onChange={(event) => updateLabor(setRateDraft, index, { source: event.target.value })} /></label>
-                <label className="field">As of<input aria-label={`${row.trade} date`} type="date" value={row.asOf} onChange={(event) => updateLabor(setRateDraft, index, { asOf: event.target.value })} /></label>
-              </div>
-            ))}
-            <p className="kicker">Equipment</p>
-            {rateDraft.equipment.map((row, index) => (
-              <div className="form-grid" key={row.equipment}>
-                <label className="field">{row.equipment}<input aria-label={`${row.equipment} rate`} value={row.rate} inputMode="decimal" placeholder="No rate" onChange={(event) => updateEquipment(setRateDraft, index, { rate: event.target.value })} /></label>
-                <label className="field">Source<input aria-label={`${row.equipment} source`} value={row.source} onChange={(event) => updateEquipment(setRateDraft, index, { source: event.target.value })} /></label>
-                <label className="field">As of<input aria-label={`${row.equipment} date`} type="date" value={row.asOf} onChange={(event) => updateEquipment(setRateDraft, index, { asOf: event.target.value })} /></label>
-              </div>
-            ))}
+            <table className="data">
+              <thead><tr><th>Trade</th><th className="num">Hourly</th><th>Source</th><th>As of</th></tr></thead>
+              <tbody>
+                {rateDraft.labor.map((row, index) => (
+                  <tr key={row.trade}>
+                    <td data-label="Trade">{row.trade}</td>
+                    <td className="num" data-label="Hourly"><input aria-label={`${row.trade} hourly`} value={row.hourly} inputMode="decimal" placeholder="—" onChange={(event) => updateLabor(setRateDraft, index, { hourly: event.target.value })} /></td>
+                    <td data-label="Source"><input aria-label={`${row.trade} source`} value={row.source} onChange={(event) => updateLabor(setRateDraft, index, { source: event.target.value })} /></td>
+                    <td data-label="As of"><input aria-label={`${row.trade} date`} type="date" value={row.asOf} onChange={(event) => updateLabor(setRateDraft, index, { asOf: event.target.value })} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <table className="data">
+              <thead><tr><th>Equipment</th><th className="num">Rate</th><th>Source</th><th>As of</th></tr></thead>
+              <tbody>
+                {rateDraft.equipment.map((row, index) => (
+                  <tr key={row.equipment}>
+                    <td data-label="Equipment">{row.equipment}</td>
+                    <td className="num" data-label="Rate"><input aria-label={`${row.equipment} rate`} value={row.rate} inputMode="decimal" placeholder="—" onChange={(event) => updateEquipment(setRateDraft, index, { rate: event.target.value })} /></td>
+                    <td data-label="Source"><input aria-label={`${row.equipment} source`} value={row.source} onChange={(event) => updateEquipment(setRateDraft, index, { source: event.target.value })} /></td>
+                    <td data-label="As of"><input aria-label={`${row.equipment} date`} type="date" value={row.asOf} onChange={(event) => updateEquipment(setRateDraft, index, { asOf: event.target.value })} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
             <button className="btn" type="submit" disabled={busy === "rates"}>Save rate book</button>
-            <p className="meta">A rate needs a source and a date. A blank amount stays unpriced. Saving publishes the next rate-book version. A finalized estimate keeps the version it already used.</p>
+            <p className="meta">A blank rate stays unpriced.</p>
           </form>
         </details>
       )}
       {catalog && (
         <details className="panel">
           <summary>Catalog</summary>
-          <p className="meta">Publishing adds a version. A finalized estimate keeps the one it already used.</p>
+          <p className="meta">A published version is kept by a finalized estimate.</p>
           {items.map((item, index) => (
             <div className="item" key={`${item.code}-${index}`}>
               <div className="form-grid">
@@ -228,46 +243,55 @@ export function DraftEstimate({ snapshot, onSnapshot }: { snapshot: WalkthroughS
 }
 
 function ReportBlock({ title, report, locked }: { title: string; report: EstimateReport; locked?: boolean }) {
+  const rooms = [...new Set(report.lines.map((line) => line.room))];
   return (
-    <section className="panel grid">
+    <section className="grid">
       <div className="row">
         <h2>{title}</h2>
-        <span className="chip">{locked ? "Final" : "Draft"}</span>
-        {report.unpricedCount > 0 && <span className="chip">Needs price</span>}
+        <span className="tag">{locked ? "Final" : "Draft"}</span>
       </div>
-      {report.unpricedCount > 0 && <p className="meta">Unpriced lines stay blank.</p>}
-      <table className="stack">
-        <thead><tr><th>Room</th><th>Code</th><th>Description</th><th>Qty</th><th>Line</th></tr></thead>
+      <table className="data">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th className="num">Qty</th>
+            <th>Unit</th>
+            <th className="num">Amount</th>
+          </tr>
+        </thead>
         <tbody>
-          {report.lines.map((line, index) => (
-            <tr key={`${line.code}-${line.room}-${index}`}>
-              <td data-label="Room">{line.room}</td>
-              <td data-label="Code">{line.code}</td>
-              <td data-label="Description">
-                {line.description}
-                <div className="meta">{line.quantityNote}</div>
-                <ComponentList line={line} />
-              </td>
-              <td data-label="Qty">{line.quantity == null ? "—" : `${line.quantity} ${line.unit}`}</td>
-              <td data-label="Line">{line.lineTotal == null ? "Needs price" : money(line.lineTotal)}</td>
-            </tr>
-          ))}
+          {rooms.map((room) => {
+            const lines = report.lines.filter((line) => line.room === room);
+            const missing = lines.every((line) => line.lineTotal == null);
+            const subtotal = lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0);
+            return (
+              <Fragment key={room}>
+                <tr>
+                  <td colSpan={4} data-label="Room">{room}</td>
+                </tr>
+                {lines.map((line, index) => (
+                  <tr key={`${line.code}-${room}-${index}`}>
+                    <td data-label="Description">{line.description}</td>
+                    <td className="num" data-label="Qty">{line.quantity == null ? "—" : formatQty(line.quantity)}</td>
+                    <td data-label="Unit">{line.unit}</td>
+                    <td className="num" data-label="Amount"><Amount value={line.lineTotal} /></td>
+                  </tr>
+                ))}
+                <tr className="subtotal">
+                  <td colSpan={3} data-label="Subtotal">{room}</td>
+                  <td className="num" data-label="Amount"><Amount value={missing ? null : subtotal} /></td>
+                </tr>
+              </Fragment>
+            );
+          })}
+          <tr className="grand">
+            <td colSpan={3} data-label="Total">Total</td>
+            <td className="num" data-label="Amount"><Amount value={report.pricedTotal} /></td>
+          </tr>
         </tbody>
       </table>
+      {report.unpricedCount > 0 && <p className="meta">Unpriced lines excluded.</p>}
     </section>
-  );
-}
-
-function ComponentList({ line }: { line: PricedDraftLine }) {
-  return (
-    <ul>
-      {line.componentsPriced.map((component) => (
-        <li key={`${component.kind}-${component.label}`}>
-          {component.label}: {component.amount == null ? "Needs price" : money(component.amount)}
-        </li>
-      ))}
-      {line.unpriced.map((gap) => <li key={gap}>{gap}</li>)}
-    </ul>
   );
 }
 
@@ -381,8 +405,4 @@ function editComponent(component: CatalogComponent, raw: string): CatalogCompone
   if (!Number.isFinite(value) || value < 0) return component;
   if (component.kind === "labor") return { ...component, hoursPerUnit: value };
   return { ...component, perUnit: value };
-}
-
-function money(value: number | null): string {
-  return value == null ? "Needs price" : `$${value.toFixed(2)}`;
 }

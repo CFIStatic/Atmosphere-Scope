@@ -73,7 +73,7 @@ npm test
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Jobs are stored as JSON in `data/` (gitignored). Uploaded media stays in `data/media` and is served only through the job route. To use Supabase instead, set `STORAGE=supabase` plus the project URL and secret key, and run the SQL in `docs/STORAGE.md`. Missing Supabase settings are an error. The app does not silently keep writing to disk.
+Open [http://localhost:3000](http://localhost:3000). Jobs are stored as JSON in `data/` (gitignored). Uploaded media stays in `data/media` and is served only through the job route. To use Supabase instead, set `STORAGE=supabase` plus the project URL and secret key, and apply `supabase/migrations/20260925160000_jobs_shares_rls.sql`. Missing Supabase settings are an error. The app does not silently keep writing to disk.
 
 ## Continuous integration
 
@@ -103,7 +103,7 @@ Set variables on the Railway service. Do not use `NEXT_PUBLIC_` for any key, and
 
 Add a volume mounted at `/data` and set `DATA_DIR=/data`. Railway's container disk is ephemeral. The volume holds in-progress capture chunks. With local storage it also holds job JSON, media, walkthroughs, and the catalog. The phone still has its copy of a capture in IndexedDB and can upload again.
 
-To keep finished jobs, walkthroughs, the catalog, and video in Supabase, set `STORAGE=supabase` plus the URL and secret key, and run the SQL in `docs/STORAGE.md`. The bucket stays private. Chunks for a capture that is still uploading remain under `DATA_DIR/uploads` until the server stores the finished video, so the volume is still the scratch space. The service role key stays a service variable. It is not sent to the browser.
+To keep finished jobs, walkthroughs, the catalog, and video in Supabase, set `STORAGE=supabase` plus the URL and secret key, and apply `supabase/migrations/20260925160000_jobs_shares_rls.sql`. The bucket stays private. Chunks for a capture that is still uploading remain under `DATA_DIR/uploads` until the server stores the finished video, so the volume is still the scratch space. The service role key stays a service variable. It is not sent to the browser.
 
 These are the variables to set on the Railway service before a hosted deploy. Values are not listed here.
 

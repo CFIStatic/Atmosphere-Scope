@@ -6,6 +6,7 @@ import { loadWalkthrough, saveWalkthrough, type WalkthroughSnapshot } from "@/ca
 import { FieldPair } from "@/components/field-pair";
 import { PlanView } from "@/components/plan-view";
 import { ResultsView } from "@/components/results-view";
+import { TapeVerify } from "@/components/tape-verify";
 import { crossCheckPlans, importFloorPlan } from "@/import/floor-plan";
 
 export function ContentsScreen() {
@@ -74,14 +75,14 @@ export function ContentsScreen() {
       </details>
       {!snapshot && (
         <div className="empty">
-          <p>Walk a room to see the sketch and items.</p>
-          <Link className="btn" href="/walk">Walk</Link>
+          <p>No walkthrough.</p>
+          <Link className="btn" href="/record">Record</Link>
         </div>
       )}
       {snapshot?.importNotes?.map((note) => <p key={note} className="meta">{note}</p>)}
       {snapshot?.crossCheck && snapshot.crossCheck.length > 0 && (
         <section className="panel">
-          <p className="kicker">Compared with the video</p>
+          <p className="meta">Video comparison</p>
           <table className="stack">
             <thead><tr><th>Room</th><th>Item</th><th>Imported</th><th>Video</th><th></th></tr></thead>
             <tbody>
@@ -98,6 +99,11 @@ export function ContentsScreen() {
           </table>
         </section>
       )}
+      {snapshot && <TapeVerify plan={snapshot.plan} onPlan={(plan) => {
+        const next = { ...snapshot, plan };
+        setSnapshot(next);
+        saveWalkthrough(next);
+      }} />}
       {snapshot && (
         <FieldPair
           sketch={<PlanView plan={snapshot.plan} onChange={(plan) => {

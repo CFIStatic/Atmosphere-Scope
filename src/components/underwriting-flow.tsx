@@ -25,8 +25,8 @@ export function UnderwritingFlow() {
   if (!snapshot) {
     return (
       <div className="empty">
-        <p>Walk a room before this report.</p>
-        <a className="btn" href="/walk">Walk</a>
+        <p>No walkthrough.</p>
+        <a className="btn" href="/record">Record</a>
       </div>
     );
   }
@@ -50,19 +50,18 @@ export function UnderwritingFlow() {
       )}
       {tab === "Gaps" && (
         <section className="panel">
-          <p className="kicker">Open items before the report</p>
-          {gaps.length === 0 && <p>No open measurements on the saved plan. Generate report can still leave other items Not verified.</p>}
+          <p className="meta">Not a coverage decision.</p>
           {gaps.map((gap) => <p key={gap}>{gap}</p>)}
         </section>
       )}
       {tab === "Valuation" && (
         <section className="panel">
-          <p className="banner">The underwriter decides. These rows are not a coverage suggestion.</p>
-          <table className="stack">
+          <p className="meta">Not a coverage decision.</p>
+          <table className="data">
             <thead><tr><th>Component</th><th>Status</th><th>Amount</th></tr></thead>
             <tbody>
               <tr><td data-label="Component">Dwelling</td><td data-label="Status"><span className="chip">Not measured</span></td><td data-label="Amount">—</td></tr>
-              <tr><td data-label="Component">Contents from this walkthrough</td><td data-label="Status">{totals?.job == null ? <span className="chip">Needs price</span> : <span className="chip orange">Not verified</span>}</td><td data-label="Amount">{totals?.job ?? "—"}</td></tr>
+              <tr><td data-label="Component">Contents</td><td data-label="Status">{totals?.job == null ? <span className="tag">Needs price</span> : <span className="tag">Not verified</span>}</td><td className="num" data-label="Amount">{totals?.job == null ? "—" : totals.job.toLocaleString("en-US", { style: "currency", currency: "USD" })}</td></tr>
             </tbody>
           </table>
           {totals && <p className="meta">{totals.note}</p>}
@@ -70,14 +69,13 @@ export function UnderwritingFlow() {
       )}
       {tab === "Risk" && (
         <section className="panel">
-          <p className="kicker">Risk inspection</p>
-          <p>No risk notes were recorded on this walkthrough. Water, electrical, roof, and safety stay unobserved until a photo or a test is attached. This is not a decision.</p>
+          <p className="meta">No risk notes on this walkthrough.</p>
         </section>
       )}
       {tab === "Scenarios" && (
         <section className="panel">
           <p className="kicker">Loss scenario</p>
-          {totals?.job == null ? <p>No priced total is available, so no loss was illustrated.</p> : (
+          {totals?.job == null ? <p>No priced total.</p> : (
             <>
               <label className="field">Deductible
                 <select value={deductible} onChange={(event) => setDeductible(Number(event.target.value))}>
@@ -86,7 +84,7 @@ export function UnderwritingFlow() {
                   <option value={5000}>$5,000</option>
                 </select>
               </label>
-              <p>Starting figure ${totals.job.toLocaleString()}. Deductible ${deductible.toLocaleString()}. Remainder ${Math.max(0, totals.job - deductible).toLocaleString()} in this illustration. {totals.note} Not a claim payment.</p>
+              <p>Figure {totals.job.toLocaleString("en-US", { style: "currency", currency: "USD" })}. Deductible {deductible.toLocaleString("en-US", { style: "currency", currency: "USD" })}. Remainder {Math.max(0, totals.job - deductible).toLocaleString("en-US", { style: "currency", currency: "USD" })}. Not a claim payment.</p>
             </>
           )}
         </section>
@@ -98,8 +96,7 @@ export function UnderwritingFlow() {
       }} />}
       {tab === "Baseline" && (
         <section className="panel">
-          <p className="kicker">Baseline</p>
-          <p><span className="chip">Not verified</span> No pre-loss photo is attached. A narrative guess is not a baseline.</p>
+          <p><span className="tag">Not verified</span></p>
         </section>
       )}
     </div>

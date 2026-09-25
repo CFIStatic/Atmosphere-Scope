@@ -23,8 +23,8 @@ export function ClaimsFlow() {
   if (!snapshot) {
     return (
       <div className="empty">
-        <p>Walk a room to start an estimate.</p>
-        <a className="btn" href="/walk">Walk</a>
+        <p>No walkthrough.</p>
+        <a className="btn" href="/record">Record</a>
       </div>
     );
   }

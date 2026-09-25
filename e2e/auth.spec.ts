@@ -45,8 +45,8 @@ test("admin invite page and account password fields are present", async ({ page 
 
 test("phone tabs stay on one line", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
-  for (const name of ["Jobs", "Walk", "Results", "Estimate", "Account"]) {
+  await page.goto("/jobs");
+  for (const name of ["Record", "Jobs", "Results", "Estimate", "Account"]) {
     const link = page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name, exact: true });
     await expect(link).toBeVisible();
     const box = await link.boundingBox();

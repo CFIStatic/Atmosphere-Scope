@@ -1,7 +1,7 @@
 {
   "name": "Atmosphere Scope",
   "short_name": "Scope",
-  "start_url": "/measure",
+  "start_url": "/record",
   "scope": "/",
   "display": "standalone",
   "background_color": "#18191b",
