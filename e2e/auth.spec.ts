@@ -26,7 +26,7 @@ test("forgot password and reset link states stay generic", async ({ page }) => {
   await page.goto("/auth/reset?error=invalid");
   await expect(page.getByText("This link is expired or invalid.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Request another" })).toHaveAttribute("href", "/forgot");
-  await expect(page.getByLabel("New password")).toHaveAttribute("autocomplete", "new-password");
+  await expect(page.getByRole("textbox", { name: /^New password/ })).toHaveAttribute("autocomplete", "new-password");
 });
 
 test("admin invite page and account password fields are present", async ({ page }) => {
@@ -40,7 +40,7 @@ test("admin invite page and account password fields are present", async ({ page 
 
   await page.goto("/account");
   await expect(page.getByLabel("Current password")).toHaveAttribute("autocomplete", "current-password");
-  await expect(page.getByLabel("New password")).toHaveAttribute("autocomplete", "new-password");
+  await expect(page.getByRole("textbox", { name: /^New password/ })).toHaveAttribute("autocomplete", "new-password");
 });
 
 test("the phone tab shortens Underwriting", async ({ page }) => {
