@@ -6,9 +6,8 @@ const workflow = readFileSync(path.resolve(__dirname, "../../.github/workflows/c
 
 describe("CI workflow", () => {
   it("targets one editable GitHub environment and does not print the key", () => {
-    expect(workflow).toMatch(/OPENAI_GITHUB_ENVIRONMENT:\s+&openai_environment production/);
-    expect(workflow).toMatch(/environment:\s+\*openai_environment/);
-    expect(workflow.match(/production/g)).toHaveLength(1);
+    expect(workflow).toMatch(/environment:\s+"Atmosphere \/ production"/);
+    expect(workflow.match(/Atmosphere \/ production/g)).toHaveLength(1);
     expect(workflow).toMatch(/OPENAI_API_KEY is not available\. Skipping real-provider tests\./);
     expect(workflow).not.toMatch(/echo\s+[^\n]*\$\{?OPENAI_API_KEY\}?/);
     expect(workflow).not.toMatch(/echo\s+[^\n]*\$\{\{\s*secrets\.OPENAI_API_KEY\s*\}\}/);

@@ -13,11 +13,6 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # GitHub environment that stores the OPENAI_API_KEY secret.
-  # Change this one value if the secret lives in a different environment.
-  OPENAI_GITHUB_ENVIRONMENT: &openai_environment production
-
 jobs:
   unit:
     name: unit tests
@@ -63,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-    environment: *openai_environment
+    environment: "Atmosphere / production"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
