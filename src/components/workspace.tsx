@@ -10,7 +10,7 @@ import { CommandBar } from "@/components/command-bar";
 import { ShareJob } from "@/components/share-job";
 import { TapeVerify } from "@/components/tape-verify";
 import { loadWalkthrough, saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
-import type { FloorPlan } from "@/domain/plan-from-measurement";
+import { floorPlanFromSketch, type FloorPlan } from "@/domain/plan-from-measurement";
 import type { Job } from "@/domain/types";
 import type { SketchOp } from "@/domain/sketch-ops";
 import { SketchEditor } from "./sketch-editor";
@@ -217,7 +217,7 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
       {tab === "measurements" && (
         <section className="grid">
           <h2>Verify with a tape</h2>
-          <JobTape />
+          <JobTape job={job} onSketch={(op) => act({ type: "sketch", op })} />
           <Assessment job={job} findings={findings} onSave={(findingId, title, interpretation) => act({ type: "correct_finding", findingId, title, interpretation })} onOpen={(id) => { setFindingId(id); choose("videos"); }} />
           <Questions job={job} onAnswer={(questionId, answer) => act({ type: "answer", questionId, answer, kind: "text" })} />
           <Link className="btn secondary" href="/results">Open results</Link>
@@ -336,10 +336,18 @@ function visitTitle(iso: string, label: string): string {
   return `${day} · ${name}`;
 }
 
+function localDateKey(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 function TodayStrip({ job }: { job: Job }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const clips = job.media.filter((item) => item.createdAt.slice(0, 10) === today).length;
-  const updated = job.updatedAt.slice(0, 10) === today;
+  const today = localDateKey(new Date());
+  const clips = job.media.filter((item) => localDateKey(item.createdAt) === today).length;
+  const updated = localDateKey(job.updatedAt) === today;
   if (!clips && !updated) return null;
   const bits = [
     clips ? `${clips} new ${clips === 1 ? "clip" : "clips"}` : "",
@@ -359,16 +367,39 @@ function WalkthroughPlayer({ job }: { job: Job }) {
   return <video className="job-file-player" controls playsInline src={`/api/jobs/${job.id}/media/${video.id}`} />;
 }
 
-function JobTape() {
+function JobTape({ job, onSketch }: { job: Job; onSketch: (op: SketchOp) => void }) {
   const [plan, setPlan] = useState<FloorPlan | null>(null);
   useEffect(() => {
-    setPlan(loadWalkthrough()?.plan ?? null);
-  }, []);
-  if (!plan || plan.rooms.length === 0) return <p className="meta">No measurements yet.</p>;
+    const snapshot = loadWalkthrough();
+    if (snapshot?.jobId === job.id && snapshot.plan.rooms.length > 0) {
+      setPlan(snapshot.plan);
+      return;
+    }
+    const names = Object.fromEntries(job.rooms.map((room) => [room.id, room.name]));
+    const derived = floorPlanFromSketch(job.sketch, names);
+    setPlan(derived.edges.length > 0 || Object.keys(derived.ceilingHeights).length > 0 ? derived : null);
+  }, [job]);
+  if (!plan || (plan.edges.length === 0 && Object.keys(plan.ceilingHeights).length === 0)) return <p className="meta">No measurements yet.</p>;
   return (
     <TapeVerify plan={plan} onPlan={(next) => {
       const snapshot = loadWalkthrough();
-      if (snapshot) saveWalkthrough({ ...snapshot, plan: next });
+      if (snapshot?.jobId === job.id) {
+        saveWalkthrough({ ...snapshot, plan: next });
+        setPlan(next);
+        return;
+      }
+      const edge = next.edges.find((item) => {
+        const previous = plan.edges.find((row) => row.roomId === item.roomId && row.edgeIndex === item.edgeIndex);
+        return !!previous && item.valueFt != null && (previous.valueFt !== item.valueFt || previous.status !== item.status);
+      });
+      if (edge?.valueFt != null) {
+        onSketch({ type: "set_edge", roomId: edge.roomId, edgeIndex: edge.edgeIndex, lengthFt: edge.valueFt, lock: edge.status === "confirmed", sourceNote: "Locked by a user measurement." });
+      }
+      for (const [roomId, height] of Object.entries(next.ceilingHeights)) {
+        const previous = plan.ceilingHeights[roomId];
+        if (!previous || (previous.valueFt === height.valueFt && previous.status === height.status)) continue;
+        onSketch({ type: "set_height", roomId, valueFt: height.valueFt, lock: height.status === "confirmed", sourceNote: "Locked by a user measurement." });
+      }
       setPlan(next);
     }} />
   );

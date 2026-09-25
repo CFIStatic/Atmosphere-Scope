@@ -1,5 +1,5 @@
 import { edgeLength, polygonArea, rectangle, setEdgeLength } from "./geometry";
-import type { Point, ProvenanceKind, QuantityStatus, SketchAnnotation, SketchDimension, SketchOpening, SketchRoom } from "./types";
+import type { Point, ProvenanceKind, QuantityStatus, SketchAnnotation, SketchDimension, SketchDocument, SketchOpening, SketchRoom } from "./types";
 
 export type MeasuredDimension = {
   id?: string;
@@ -157,6 +157,21 @@ export function floorPlanFromMeasurement(inputs: MeasuredRoomInput[], note?: str
     disclaimer: note ? `${note} ${DISCLAIMER}` : DISCLAIMER,
   };
   return refresh(plan);
+}
+
+export function floorPlanFromSketch(sketch: SketchDocument, names: Record<string, string> = {}): FloorPlan {
+  return refresh({
+    rooms: sketch.geometry.rooms,
+    openings: sketch.geometry.openings,
+    annotations: sketch.geometry.annotations,
+    dimensions: sketch.geometry.dimensions,
+    ceilingHeights: sketch.ceilingHeights,
+    edges: [],
+    quantities: [],
+    names,
+    overrides: {},
+    disclaimer: sketch.disclaimer,
+  });
 }
 
 export function correctPlanEdge(plan: FloorPlan, roomId: string, edgeIndex: number, lengthFt: number, lock: boolean): FloorPlan {

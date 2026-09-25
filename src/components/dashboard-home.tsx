@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { loadWalkthrough } from "@/capture/snapshot";
-import { buildReview } from "@/domain/assist";
+import { buildReview, jobCardSentence } from "@/domain/assist";
 import { formatDate, formatMoney } from "@/domain/format";
 import { jobStatusChip } from "@/domain/labels";
 import type { JobRow } from "@/components/jobs-home";
@@ -39,8 +39,8 @@ export function DashboardHome({ jobs, customer }: { jobs: JobRow[]; customer: bo
     return rows.filter((job) => [job.customer, job.address, job.concern, job.id, job.status ?? ""].join(" ").toLowerCase().includes(q));
   }, [jobs, walk, query]);
 
-  const attention = ranked.filter((job) => job.unpriced > 0 || job.status === "ai_draft");
-  const recent = [...ranked].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const attention = ranked.filter((job) => needsAttention(job, customer));
+  const recent = ranked.filter((job) => !needsAttention(job, customer)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const priced = ranked.reduce((sum, job) => sum + (job.total != null && job.total > 0 ? job.total : 0), 0);
   const unpriced = ranked.reduce((sum, job) => sum + job.unpriced, 0);
   const empty = ranked.length === 0;
@@ -83,6 +83,11 @@ export function DashboardHome({ jobs, customer }: { jobs: JobRow[]; customer: bo
       )}
     </div>
   );
+}
+
+function needsAttention(job: JobRow, customer: boolean): boolean {
+  if (job.id === "walk") return true;
+  return jobCardSentence({ customer: job.customer, concern: job.concern, status: job.status, unpriced: job.unpriced, viewerIsCustomer: customer }).needsAttention;
 }
 
 function DashList({ rows }: { rows: JobRow[] }) {
