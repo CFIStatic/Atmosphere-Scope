@@ -2,11 +2,14 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { jobStatusChip } from "@/domain/labels";
 import { formatPct, formatQty } from "@/domain/format";
 import { polygonArea } from "@/domain/geometry";
 import { Amount } from "@/components/amount";
+import { TapeVerify } from "@/components/tape-verify";
+import { loadWalkthrough, saveWalkthrough } from "@/capture/snapshot";
+import type { FloorPlan } from "@/domain/plan-from-measurement";
 import type { Job } from "@/domain/types";
 import type { SketchOp } from "@/domain/sketch-ops";
 import { SketchEditor } from "./sketch-editor";
@@ -15,11 +18,20 @@ import { buildSpaceModel } from "@/spatial/model";
 
 const SpaceMap = dynamic(() => import("./space-map").then((mod) => mod.SpaceMap), { ssr: false, loading: () => <p>Loading 3D view…</p> });
 
-const TABS = ["capture", "evidence", "sketch", "map", "assessment", "questions", "estimate", "review", "export"] as const;
+const SECTIONS = [
+  ["video", "Walkthrough video"],
+  ["sketch", "Sketch"],
+  ["items", "Items and quantities"],
+  ["results", "Results"],
+  ["estimate", "Estimate"],
+  ["review", "Review"],
+] as const;
 
 export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: ReactNode }) {
   const [job, setJob] = useState(initialJob);
-  const [tab, setTab] = useState<(typeof TABS)[number]>("map");
+  const [tab, setTab] = useState<(typeof SECTIONS)[number][0]>("video");
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameDraft, setRenameDraft] = useState(initialJob.customer.name);
   const [roomId, setRoomId] = useState<string | null>(initialJob.rooms[0]?.id ?? null);
   const [findingId, setFindingId] = useState<string | null>(initialJob.findings[0]?.id ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -52,10 +64,13 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
       <header className="topbar">
         <div>
           <Link href="/jobs" className="meta">Jobs</Link>
-          <h1 className="page-title">{job.property.address || "Untitled"}</h1>
-          <p className="meta">{job.customer.name}</p>
+          <h1 className="page-title">{job.property.address || job.customer.name || "Untitled"}</h1>
+          <p className="meta">{job.customer.name} · {jobStatusChip(version?.status)}</p>
         </div>
-        <Link className="btn" href="/record">Record</Link>
+        <div className="row">
+          <button className="btn secondary" type="button" onClick={() => { setRenameDraft(job.customer.name); setRenameOpen(true); }}>Rename</button>
+          <Link className="btn" href="/record">Record</Link>
+        </div>
       </header>
       <div className="kpi" aria-label="Job summary">
         <div><span>Total</span><strong>{version && (unpriced === 0 || version.totals.supportedTotal > 0) ? <Amount value={version.totals.supportedTotal} /> : <Amount value={null} />}</strong></div>
@@ -64,18 +79,35 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
         <div><span>Needs attention</span><strong>{needs}</strong></div>
         <div><span>Area</span><strong>{area > 0 ? `${formatQty(area)} sf` : "—"}</strong></div>
       </div>
-      <p className="meta">{jobStatusChip(version?.status)}</p>
-      <div className="row">
-        <Link className="btn secondary" href="/review">Review</Link>
-        <Link className="btn secondary" href="/estimate">Estimate</Link>
-      </div>
-      {error && <p className="error">{error}</p>}
-      <details className="quiet">
-      <summary>Job file</summary>
+      <TodayStrip job={job} />
       {extra}
-      <div className="tabs" role="tablist">
-        {TABS.map((item) => (
-          <button key={item} type="button" role="tab" aria-selected={tab === item} onClick={() => setTab(item)}>{item[0].toUpperCase() + item.slice(1)}</button>
+      {error && <p className="error">{error}</p>}
+      {renameOpen && (
+        <form className="panel grid" onSubmit={async (event) => {
+          event.preventDefault();
+          const name = renameDraft.trim();
+          if (name.length < 2) return;
+          const response = await fetch(`/api/jobs/${job.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ customerName: name }) });
+          if (!response.ok) {
+            setError("The name was not saved.");
+            return;
+          }
+          setJob({ ...job, customer: { ...job.customer, name } });
+          setRenameOpen(false);
+        }}>
+          <h2>Rename this job file</h2>
+          <label className="field">Name
+            <input value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} minLength={2} required aria-label="Job file name" />
+          </label>
+          <div className="row">
+            <button className="btn" type="submit">Save name</button>
+            <button className="btn secondary" type="button" onClick={() => setRenameOpen(false)}>Cancel</button>
+          </div>
+        </form>
+      )}
+      <div className="job-file-bar" role="tablist" aria-label="Job file sections">
+        {SECTIONS.map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
       <div className="row" style={{ margin: "8px 0 14px" }}>
@@ -90,17 +122,32 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
         <span className="badge">{job.processing.status}</span>
       </div>
 
-      {tab === "capture" && <Capture job={job} onProcess={(transcript, usePriceBook) => act({ type: "process", transcript, usePriceBook })} onRetry={() => act({ type: "retry" })} onUploaded={setJob} />}
-      {tab === "evidence" && <Evidence job={job} findings={findings} findingId={findingId} onSelect={(id) => { setFindingId(id); const finding = job.findings.find((item) => item.id === id); if (finding?.roomId) setRoomId(finding.roomId); }} />}
-      {tab === "sketch" && <SketchEditor job={job} onOp={(op: SketchOp) => act({ type: "sketch", op })} onUndo={() => act({ type: "undo" })} onRedo={() => act({ type: "redo" })} onAddRoom={(name) => act({ type: "add_named_room", name })} />}
-      {tab === "map" && (
+      {tab === "video" && (
         <section className="grid">
+          <WalkthroughPlayer job={job} />
+          <Capture job={job} onProcess={(transcript, usePriceBook) => act({ type: "process", transcript, usePriceBook })} onRetry={() => act({ type: "retry" })} onUploaded={setJob} />
+          <Evidence job={job} findings={findings} findingId={findingId} onSelect={(id) => { setFindingId(id); const finding = job.findings.find((item) => item.id === id); if (finding?.roomId) setRoomId(finding.roomId); }} />
+        </section>
+      )}
+      {tab === "sketch" && (
+        <section className="grid">
+          <SketchEditor job={job} onOp={(op: SketchOp) => act({ type: "sketch", op })} onUndo={() => act({ type: "undo" })} onRedo={() => act({ type: "redo" })} onAddRoom={(name) => act({ type: "add_named_room", name })} />
           <SpaceMap model={model} />
           <p className="meta">Sketch geometry.</p>
         </section>
       )}
-      {tab === "assessment" && <Assessment job={job} findings={findings} onSave={(findingId, title, interpretation) => act({ type: "correct_finding", findingId, title, interpretation })} onOpen={(id) => { setFindingId(id); setTab("evidence"); }} />}
-      {tab === "questions" && <Questions job={job} onAnswer={(questionId, answer) => act({ type: "answer", questionId, answer, kind: "text" })} />}
+      {tab === "items" && (
+        <Estimate job={job} phase={phase} setPhase={setPhase} lines={lines} version={version} onAffected={(sqft) => roomId && act({ type: "set_affected", roomId, sqft, note: "Entered from the estimate tab." })} onApply={() => act({ type: "apply_quantities" })} onEdit={(itemId, quantityValue) => act({ type: "edit_scope", itemId, quantityValue })} onSelectRoom={(id) => setRoomId(id)} />
+      )}
+      {tab === "results" && (
+        <section className="grid">
+          <h2>Verify with a tape</h2>
+          <JobTape />
+          <Assessment job={job} findings={findings} onSave={(findingId, title, interpretation) => act({ type: "correct_finding", findingId, title, interpretation })} onOpen={(id) => { setFindingId(id); setTab("video"); }} />
+          <Questions job={job} onAnswer={(questionId, answer) => act({ type: "answer", questionId, answer, kind: "text" })} />
+          <Link className="btn secondary" href="/results">Open results</Link>
+        </section>
+      )}
       {tab === "estimate" && version && (
         <form className="panel form-grid" onSubmit={(event) => {
           event.preventDefault();
@@ -130,10 +177,6 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
         </form>
       )}
       {tab === "estimate" && (
-        <Estimate job={job} phase={phase} setPhase={setPhase} lines={lines} version={version} onAffected={(sqft) => roomId && act({ type: "set_affected", roomId, sqft, note: "Entered from the estimate tab." })} onApply={() => act({ type: "apply_quantities" })} onEdit={(itemId, quantityValue) => act({ type: "edit_scope", itemId, quantityValue })} onSelectRoom={(id) => setRoomId(id)} />
-      )}
-      {tab === "review" && <Review job={job} onAct={act} />}
-      {tab === "export" && (
         <section className="panel grid">
           <p>Report</p>
           <div className="row">
@@ -141,13 +184,51 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
             <a className="btn-secondary" href={`/api/jobs/${job.id}/export/csv`}>CSV</a>
             <a className="btn-secondary" href={`/api/jobs/${job.id}/export/svg`}>SVG</a>
             <a className="btn-secondary" href={`/api/jobs/${job.id}/export/json`}>JSON</a>
-            <a className="btn-secondary" href="/estimate">Finalize</a>
+            <Link className="btn secondary" href="/estimate">Open estimate</Link>
           </div>
         </section>
       )}
-      </details>
+      {tab === "review" && <Review job={job} onAct={act} />}
     </main>
     </AppFrame>
+  );
+}
+
+function TodayStrip({ job }: { job: Job }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const clips = job.media.filter((item) => item.createdAt.slice(0, 10) === today).length;
+  const updated = job.updatedAt.slice(0, 10) === today;
+  if (!clips && !updated) return null;
+  const bits = [
+    clips ? `${clips} new ${clips === 1 ? "clip" : "clips"}` : "",
+    updated ? "Job file updated" : "",
+  ].filter(Boolean);
+  return (
+    <p className="job-file-today" data-testid="job-file-today">
+      <strong>What changed today</strong>
+      <span className="meta">{bits.join(" · ")}</span>
+    </p>
+  );
+}
+
+function WalkthroughPlayer({ job }: { job: Job }) {
+  const video = job.media.find((item) => item.kind === "video" && item.storageKey);
+  if (!video) return <p className="meta">No walkthrough video.</p>;
+  return <video className="job-file-player" controls playsInline src={`/api/jobs/${job.id}/media/${video.id}`} />;
+}
+
+function JobTape() {
+  const [plan, setPlan] = useState<FloorPlan | null>(null);
+  useEffect(() => {
+    setPlan(loadWalkthrough()?.plan ?? null);
+  }, []);
+  if (!plan || plan.rooms.length === 0) return <p className="meta">No measurements yet.</p>;
+  return (
+    <TapeVerify plan={plan} onPlan={(next) => {
+      const snapshot = loadWalkthrough();
+      if (snapshot) saveWalkthrough({ ...snapshot, plan: next });
+      setPlan(next);
+    }} />
   );
 }
 

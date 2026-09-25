@@ -6,16 +6,14 @@ export const dynamic = "force-dynamic";
 
 export default function ReviewPage() {
   return (
-    <div className="field-flow">
-      <AppFrame current="/results">
-        <main className="shell review-shell">
-          <header className="topbar">
-            <h1 className="page-title">Review</h1>
-            <Link className="meta" href="/jobs">Jobs</Link>
-          </header>
-          <ReviewScreen />
-        </main>
-      </AppFrame>
-    </div>
+    <AppFrame current="/review">
+      <main className="shell">
+        <header className="topbar">
+          <h1 className="page-title">Review</h1>
+          <Link className="meta" href="/jobs">Jobs</Link>
+        </header>
+        <ReviewScreen />
+      </main>
+    </AppFrame>
   );
 }

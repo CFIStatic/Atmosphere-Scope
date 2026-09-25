@@ -23,15 +23,20 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#18191b",
+  themeColor: "#141311",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
 };
 
+const themeBoot = `(function(){try{var t=localStorage.getItem("atmosphere.theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t);document.documentElement.setAttribute("data-theme-preference",t);}}catch(e){}})();`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBoot }} />
+      </head>
       <body className={`${display.variable} ${sans.variable}`}>{children}</body>
     </html>
   );
