@@ -1,17 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { chunkCount, getCapture, listPendingCaptures, putCapture, saveChunk } from "@/capture/db";
 import { captureStatusLabel } from "@/capture/plan";
 import { resumeCapture } from "@/capture/resume-client";
-import { fuseDimension, type FusedDimension, type Reading, type ScaleSource } from "@/domain/fusion";
 import { saveWalkthrough } from "@/capture/snapshot";
 import { floorPlanFromMeasurement, type FloorPlan, type MeasuredRoomInput } from "@/domain/plan-from-measurement";
 import { notesFromNarration, type AssistState } from "@/domain/assist";
 import { suggestFromNarration } from "@/domain/job-identity";
-import { dimensionLabel } from "@/domain/labels";
 
 type SolverDimension = {
   id: string;
@@ -68,34 +65,6 @@ function readSignal(): "online" | "weak" | "offline" {
   return "online";
 }
 
-function sourceForMethod(method: string): ScaleSource {
-  if (method === "charuco_multiview") return "charuco";
-  if (method === "door" || method === "door_prior") return "door_prior";
-  return "none";
-}
-
-function blurScore(data: ImageData): number {
-  const { data: pixels, width, height } = data;
-  let sum = 0;
-  let sumSq = 0;
-  let count = 0;
-  for (let y = 1; y < height; y += 4) {
-    for (let x = 1; x < width; x += 4) {
-      const index = (y * width + x) * 4;
-      const gray = pixels[index] * 0.3 + pixels[index + 1] * 0.59 + pixels[index + 2] * 0.11;
-      const left = pixels[index - 4] * 0.3 + pixels[index - 3] * 0.59 + pixels[index - 2] * 0.11;
-      const upIndex = ((y - 1) * width + x) * 4;
-      const up = pixels[upIndex] * 0.3 + pixels[upIndex + 1] * 0.59 + pixels[upIndex + 2] * 0.11;
-      const edge = Math.abs(gray - left) + Math.abs(gray - up);
-      sum += edge;
-      sumSq += edge * edge;
-      count += 1;
-    }
-  }
-  const mean = sum / Math.max(count, 1);
-  return sumSq / Math.max(count, 1) - mean * mean;
-}
-
 function planFromResult(result: SolverResult): FloorPlan {
   if (result.rooms?.length) return floorPlanFromMeasurement(result.rooms);
   return floorPlanFromMeasurement([{
@@ -124,6 +93,11 @@ function cameraDenied(caught: unknown): boolean {
   return name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError";
 }
 
+function clock(seconds: number): string {
+  const safe = Math.max(0, seconds);
+  return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
+}
+
 function sliceBlob(blob: Blob, size = 256 * 1024): Blob[] {
   if (blob.size === 0) return [blob];
   const parts: Blob[] = [];
@@ -134,23 +108,21 @@ function sliceBlob(blob: Blob, size = 256 * 1024): Blob[] {
 export function MeasureApp() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [coach, setCoach] = useState("Place the sheet, then record.");
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<SolverResult | null>(null);
   const [processStep, setProcessStep] = useState(0);
-  const [tapeLabel, setTapeLabel] = useState("span_a");
-  const [tapeValue, setTapeValue] = useState("");
   const [signal, setSignal] = useState<"online" | "weak" | "offline">("online");
   const [queue, setQueue] = useState<{ id: string; filename: string; status: string; totalChunks: number; error: string | null }[]>([]);
   const [progress, setProgress] = useState<{ sent: number; total: number } | null>(null);
   const [micLevel, setMicLevel] = useState(0);
-  const [micNote, setMicNote] = useState("Mic level appears once recording starts.");
   const [uploadStatus, setUploadStatus] = useState("");
   const [camera, setCamera] = useState<CameraState>("pending");
   const [jobs, setJobs] = useState<JobOption[]>([]);
   const [attachId, setAttachId] = useState("");
+  const [sheetSeen, setSheetSeen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const audioContext = useRef<AudioContext | null>(null);
   const previewRef = useRef<MediaStream | null>(null);
   const previewRequest = useRef<Promise<MediaStream | null> | null>(null);
@@ -163,7 +135,44 @@ export function MeasureApp() {
   const chunks = useRef<Blob[]>([]);
   const captureId = useRef<string | null>(null);
   const saveChain = useRef(Promise.resolve());
-  const previous = useRef<ImageData | null>(null);
+
+  useEffect(() => {
+    if (!recording) {
+      setElapsed(0);
+      return;
+    }
+    const started = Date.now();
+    const timer = window.setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 250);
+    return () => window.clearInterval(timer);
+  }, [recording]);
+
+  useEffect(() => {
+    if (camera !== "live" || recording || sheetSeen) return;
+    let cancel = false;
+    const timer = window.setInterval(async () => {
+      const video = videoRef.current;
+      if (!video || video.videoWidth === 0 || cancel) return;
+      const canvas = document.createElement("canvas");
+      canvas.width = 160;
+      canvas.height = Math.max(1, Math.round((160 * video.videoHeight) / video.videoWidth));
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.6));
+      if (!blob || cancel) return;
+      try {
+        const response = await fetch("/api/measure/target", { method: "POST", body: blob, signal: AbortSignal.timeout(1500) });
+        const payload = await response.json();
+        if (payload.readable) setSheetSeen(true);
+      } catch {
+        // The hint stays until the sheet is readable or recording starts.
+      }
+    }, 1200);
+    return () => {
+      cancel = true;
+      window.clearInterval(timer);
+    };
+  }, [camera, recording, sheetSeen]);
 
   useEffect(() => {
     if (!busy) return;
@@ -243,42 +252,19 @@ export function MeasureApp() {
       const canvas = document.createElement("canvas");
       canvas.width = 320;
       canvas.height = Math.round((320 * video.videoHeight) / video.videoWidth);
-      const context = canvas.getContext("2d", { willReadFrequently: true });
+      const context = canvas.getContext("2d");
       if (!context) return;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const frame = context.getImageData(0, 0, canvas.width, canvas.height);
-      const blur = blurScore(frame);
-      let motion = 0;
-      if (previous.current && previous.current.data.length === frame.data.length) {
-        let total = 0;
-        let count = 0;
-        for (let index = 0; index < frame.data.length; index += 16) {
-          total += Math.abs(frame.data[index] - previous.current.data[index]);
-          count += 1;
-        }
-        motion = total / Math.max(count, 1);
-      }
-      previous.current = frame;
-      const notes = [window.matchMedia("(orientation: portrait)").matches ? "Hold the phone upright." : "Keep the sheet in frame.", "Sweep slowly."];
-      if (blur < 40) notes.unshift("Pause. Let the sheet sharpen.");
-      if (motion > 28) notes.unshift("Slow the pan.");
-      if (navigator.onLine === false) {
-        notes.unshift("No signal. Recording continues.");
-        setCoach(notes[0]);
-        return;
-      }
+      if (navigator.onLine === false) return;
       try {
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.7));
-        if (blob) {
-          const response = await fetch("/api/measure/target", { method: "POST", body: blob, signal: AbortSignal.timeout(1500) });
-          const payload = await response.json();
-          if (!payload.readable) notes.unshift(payload.note ?? "Sheet is not readable.");
-          else notes.unshift("Sheet is readable.");
-        }
+        if (!blob) return;
+        const response = await fetch("/api/measure/target", { method: "POST", body: blob, signal: AbortSignal.timeout(1500) });
+        const payload = await response.json();
+        if (payload.readable) setSheetSeen(true);
       } catch {
-        notes.unshift("Sheet check did not return. Recording continues.");
+        // Recording continues when the sheet check does not return.
       }
-      setCoach(notes[0]);
     }, 900);
     return () => window.clearInterval(timer);
   }, [recording]);
@@ -293,10 +279,7 @@ export function MeasureApp() {
 
   function watchMic(stream: MediaStream) {
     const track = stream.getAudioTracks()[0];
-    if (!track) {
-      setMicNote("Mic is off. Video still records. The level stays empty.");
-      return;
-    }
+    if (!track) return;
     const context = new AudioContext();
     audioContext.current = context;
     const analyser = context.createAnalyser();
@@ -313,7 +296,6 @@ export function MeasureApp() {
       setMicLevel(Math.min(1, Math.sqrt(sum / samples.length) * 4));
       meterFrame.current = requestAnimationFrame(tick);
     };
-    setMicNote("Mic is live.");
     tick();
   }
 
@@ -352,7 +334,6 @@ export function MeasureApp() {
       }
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-        setMicNote("Mic is off. Video still records.");
       } catch (videoError) {
         setCamera(cameraDenied(videoError) ? "denied" : "missing");
         return null;
@@ -428,7 +409,6 @@ export function MeasureApp() {
     media.start(1000);
     setRecording(true);
     setUploadStatus(captureStatusLabel({ online: navigator.onLine, phase: "recording", sent: 0, total: 0 }));
-    setCoach("Sweep slowly. Keep the sheet in frame.");
   }
 
   async function finishRecording() {
@@ -467,11 +447,9 @@ export function MeasureApp() {
       if (body && typeof body === "object") {
         const measured = body as SolverResult;
         if (measured.error || !measured.dimensions) {
-          setResult(measured.dimensions ? measured : null);
           setError(measured.error ?? "The measurement did not return dimensions. Nothing was saved.");
         } else {
           const plan = planFromResult(measured);
-          setResult(measured);
           const names = (measured.ai?.objects ?? []).map((object) => object.name);
           const transcript = measured.ai?.transcription.text ?? null;
           const narration = notesFromNarration(transcript, names);
@@ -508,7 +486,6 @@ export function MeasureApp() {
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Upload failed.";
       setUploadStatus(captureStatusLabel({ online: navigator.onLine, phase: "error", sent: 0, total: 0 }));
-      setResult(null);
       setError(message);
       const record = await getCapture(id);
       if (record) await putCapture({ ...record, status: "error", error: message });
@@ -581,148 +558,98 @@ export function MeasureApp() {
     }
   }
 
-  const fused: { raw: SolverDimension; fused: FusedDimension }[] = (result?.dimensions ?? []).map((dimension) => {
-    const readings: Reading[] = [
-      {
-        source: sourceForMethod(result?.method ?? "none"),
-        valueFt: dimension.valueFt,
-        errorPercent: dimension.errorPercent,
-        instrumentLock: false,
-      },
-    ];
-    const tape = Number(tapeValue);
-    if (tapeLabel === dimension.label && Number.isFinite(tape) && tape > 0) {
-      readings.push({ source: "tape", valueFt: tape, errorPercent: 1, instrumentLock: true });
-    }
-    return { raw: dimension, fused: fuseDimension(readings) };
-  });
-
-  const saved = Boolean(result && !result.error && result.dimensions);
-  const showQueue = queue.length > 0 || busy || Boolean(error) || signal !== "online";
-  const tapeOptions = result?.dimensions?.length ? result.dimensions : [{ label: "span_a" }, { label: "span_b" }, { label: "height" }, { label: "area" }];
-  const canRecord = camera === "live" && !saved;
+  const blocked = camera === "denied" || camera === "missing";
+  const showHint = camera === "live" && !recording && !sheetSeen && !busy;
+  const showQueue = queue.length > 0 || Boolean(error) || (signal !== "online" && !busy);
 
   return (
-    <div className="flow">
-      {camera === "pending" && <p className="permission-line">Camera is used to record the walk.</p>}
-      {camera === "denied" && <p className="error" role="alert">Camera is blocked. Allow it in the browser, or upload a video.</p>}
-      {camera === "missing" && <p className="error" role="alert">This browser has no camera. Upload a video.</p>}
-      <section className={`capture-stage ${recording ? "is-recording" : ""}`}>
-        <div className="capture-video">
-          <video ref={videoRef} playsInline muted />
-          <div className="capture-overlay">
-            <p className="rec-indicator" role="status">
-              <span className="rec-dot" aria-hidden="true" />
-              {recording ? "Recording" : saved ? "Done" : "Ready"}
-            </p>
-            {!recording && !saved && camera !== "denied" && camera !== "missing" && (
-              <div className="capture-overlay-copy">
-                <p className="sheet-reminder">Place the sheet, then record.</p>
-                <a className="sheet-link" href="/api/calibration-target">Sheet PDF</a>
-              </div>
-            )}
-            {recording && (
-              <div className="capture-overlay-copy">
-                <div className="mic-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(micLevel * 100)} aria-label="Microphone level">
-                  <span style={{ width: `${Math.round(micLevel * 100)}%` }} />
-                </div>
-                <p className="coach">{coach || micNote}</p>
-              </div>
-            )}
+    <div className={`camera-app ${recording ? "is-recording" : ""}`}>
+      <video ref={videoRef} playsInline muted />
+      <LinkJobs />
+      {recording && (
+        <div className="camera-top">
+          <p className="rec-status" role="status">
+            <span className="rec-dot" aria-hidden="true" />
+            {clock(elapsed)}
+          </p>
+          <div className="mic-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(micLevel * 100)} aria-label="Microphone level">
+            <span style={{ width: `${Math.round(micLevel * 100)}%` }} />
           </div>
         </div>
-        <div className="action-bar">
-          {saved ? (
-            <Link className="btn secondary record-btn" href="/review">Review</Link>
-          ) : recording ? (
-            <button className="btn stop-btn" type="button" onClick={() => void finishRecording()}>Stop</button>
-          ) : canRecord ? (
-            <button className="btn record-btn" type="button" onClick={() => void startRecording()}>Record</button>
-          ) : null}
-          {!saved && !recording && (
-            <label className="btn secondary">
-              Upload video
-              <input
-                type="file"
-                accept="video/*"
-                hidden
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void submitVideo(file, file.name);
-                }}
-              />
-            </label>
-          )}
-        </div>
-      </section>
-      {!recording && !saved && (
-        <details className="quiet">
-          <summary>Attach to existing job</summary>
-          <label className="field">Job
-            <select aria-label="Attach to existing job" value={attachId} onChange={(event) => setAttachId(event.target.value)}>
-              <option value="">New draft</option>
-              {jobs.map((job) => (
-                <option key={job.id} value={job.id}>{job.customer}{job.address ? ` · ${job.address}` : ""}</option>
-              ))}
-            </select>
-          </label>
-        </details>
       )}
+      {camera === "pending" && <p className="camera-hint">Camera is used to record the walk.</p>}
+      {blocked && (
+        <div className="camera-permission">
+          <p>{camera === "denied" ? "Camera is blocked. Allow it in the browser, or upload a video." : "This browser has no camera. Upload a video."}</p>
+          <UploadControl onFile={(file) => void submitVideo(file, file.name)} prominent />
+        </div>
+      )}
+      {showHint && <p className="camera-hint">Place the calibration sheet on the floor, then record.</p>}
       {busy && (
-        <ol className="steps" aria-live="polite">
+        <ol className="process-line" aria-live="polite">
           <li data-current={processStep === 0 ? "true" : undefined}>Measuring walls</li>
           <li data-current={processStep === 1 ? "true" : undefined}>Finding items</li>
           <li data-current={processStep === 2 ? "true" : undefined}>Pricing</li>
         </ol>
       )}
-      {showQueue && (
-        <section className="upload-queue" aria-live="polite">
-          <p className="meta">{signal === "offline" ? "Offline. The video stays on this phone." : signal === "weak" ? "Weak signal. The upload will retry." : uploadStatus}</p>
-          {progress && <progress max={progress.total} value={progress.sent}>{progress.sent} of {progress.total}</progress>}
-          <ul className="list">
-            {queue.map((item) => (
-              <li key={item.id} className="item">
-                <strong>{item.filename}</strong>
-                <span className="meta"> {item.status}</span>
-              </li>
-            ))}
-          </ul>
-          {queue.length > 0 && <button className="btn secondary" type="button" onClick={() => void retryUploads()} disabled={busy || recording}>Retry upload</button>}
-          {error && <p className="error">{error}</p>}
-        </section>
-      )}
-      <details className="quiet">
-        <summary>Tape check</summary>
-        <div className="row">
-          <label className="field">Dimension
-            <select value={tapeLabel} onChange={(event) => setTapeLabel(event.target.value)}>
-              {tapeOptions.map((dimension) => (
-                <option key={dimension.label} value={dimension.label}>{dimensionLabel(dimension.label)}</option>
-              ))}
-            </select>
-          </label>
-          <label className="field">Feet
-            <input value={tapeValue} onChange={(event) => setTapeValue(event.target.value)} inputMode="decimal" placeholder="14.0" />
-          </label>
+      {!busy && !blocked && camera === "live" && (
+        <div className="camera-controls">
+          <UploadControl onFile={(file) => void submitVideo(file, file.name)} />
+          <button
+            className="shutter"
+            type="button"
+            data-recording={recording ? "true" : "false"}
+            aria-label={recording ? "Stop" : "Record"}
+            onClick={() => void (recording ? finishRecording() : startRecording())}
+          />
+          <button className="camera-side" type="button" aria-label="Help" onClick={() => setHelpOpen(true)}>?</button>
         </div>
-        <p className="meta">If the tape and the sheet disagree by more than 5%, it stays not verified.</p>
-      </details>
-      {fused.length > 0 && (
-        <table className="stack">
-          <thead>
-            <tr><th>Dimension</th><th>Value</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            {fused.map(({ raw, fused: item }) => (
-              <tr key={raw.label}>
-                <td data-label="Dimension">{dimensionLabel(raw.label)}</td>
-                <td data-label="Value">{item.valueFt == null ? "—" : `${item.valueFt} ${raw.kind === "floor_area" ? "sq ft" : "ft"}`}</td>
-                <td data-label="Status">{item.confirmed ? <span className="chip blue">Verified</span> : <span className="chip orange">Not verified</span>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      )}
+      {showQueue && (
+        <p className="camera-status" role="status">
+          {error ?? (signal === "offline" ? "Offline. The video stays on this phone." : signal === "weak" ? "Weak signal. The upload will retry." : uploadStatus)}
+          {progress ? ` ${progress.sent} of ${progress.total}` : ""}
+          {queue.length > 0 && <button className="camera-side" type="button" onClick={() => void retryUploads()} disabled={busy || recording}>Retry</button>}
+        </p>
+      )}
+      {helpOpen && (
+        <div className="camera-sheet-backdrop" onClick={() => setHelpOpen(false)}>
+          <div className="camera-sheet" role="dialog" aria-modal="true" aria-label="Calibration sheet" onClick={(event) => event.stopPropagation()}>
+            <p>Place the sheet flat on the floor, in view of the camera, then record.</p>
+            <a href="/api/calibration-target">Download sheet PDF</a>
+            <label className="field">Attach to existing job
+              <select aria-label="Attach to existing job" value={attachId} onChange={(event) => setAttachId(event.target.value)}>
+                <option value="">New draft</option>
+                {jobs.map((job) => (
+                  <option key={job.id} value={job.id}>{job.customer}{job.address ? ` · ${job.address}` : ""}</option>
+                ))}
+              </select>
+            </label>
+            <button className="camera-side" type="button" onClick={() => setHelpOpen(false)}>Close</button>
+          </div>
+        </div>
       )}
     </div>
+  );
+}
+
+function LinkJobs() {
+  return <a className="phone-jobs phone-jobs-inside" href="/jobs">Jobs</a>;
+}
+
+function UploadControl({ onFile, prominent }: { onFile: (file: File) => void; prominent?: boolean }) {
+  return (
+    <label className={prominent ? "btn secondary" : "camera-side"}>
+      Upload
+      <input
+        type="file"
+        accept="video/*"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) onFile(file);
+        }}
+      />
+    </label>
   );
 }

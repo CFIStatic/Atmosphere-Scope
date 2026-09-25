@@ -6,6 +6,7 @@ import { loadWalkthrough, saveWalkthrough, type WalkthroughSnapshot } from "@/ca
 import { FieldPair } from "@/components/field-pair";
 import { PlanView } from "@/components/plan-view";
 import { ResultsView } from "@/components/results-view";
+import { TapeVerify } from "@/components/tape-verify";
 import { crossCheckPlans, importFloorPlan } from "@/import/floor-plan";
 
 export function ContentsScreen() {
@@ -98,6 +99,11 @@ export function ContentsScreen() {
           </table>
         </section>
       )}
+      {snapshot && <TapeVerify plan={snapshot.plan} onPlan={(plan) => {
+        const next = { ...snapshot, plan };
+        setSnapshot(next);
+        saveWalkthrough(next);
+      }} />}
       {snapshot && (
         <FieldPair
           sketch={<PlanView plan={snapshot.plan} onChange={(plan) => {

@@ -174,15 +174,37 @@ label.btn input { display: none; }
 .sheet-link { color: var(--muted); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; width: fit-content; }
 .permission-line { margin: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: 0; overflow: hidden; clip: rect(0 0 0 0); border: 0; white-space: nowrap; }
-.record-shell progress { accent-color: var(--bar-mid); }
-.record-shell { max-width: none; min-height: calc(100dvh - 52px); display: flex; flex-direction: column; padding: 8px 16px 20px; }
-.record-shell .flow { flex: 1; display: flex; flex-direction: column; min-height: 0; gap: 10px; }
-.record-shell .capture-stage { flex: 1; min-height: 0; }
-.record-shell .capture-video { min-height: 320px; height: calc(100dvh - 210px); }
-.record-shell .capture-video video { height: 100%; }
-.record-shell .action-bar { flex-direction: column; align-items: stretch; }
-.record-shell .record-btn, .record-shell .stop-btn, .record-shell .action-bar .btn.secondary { min-height: 64px; width: 100%; flex: 0 0 auto; font-size: 18px; }
-.record-shell .action-bar .btn.secondary { min-height: 44px; font-size: 16px; }
+.phone-stage { min-height: 100dvh; background: var(--bg); display: grid; place-items: center; }
+.phone-frame { position: relative; width: 100%; height: 100dvh; background: #000; overflow: hidden; }
+.phone-jobs { color: var(--muted); text-decoration: none; font-size: 13px; min-height: 44px; display: inline-flex; align-items: center; z-index: 4; }
+.phone-jobs-inside { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: 16px; }
+.phone-jobs-outside { display: none; }
+.camera-app { position: absolute; inset: 0; background: #000; color: var(--ink); }
+.camera-app video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+.camera-top { position: absolute; top: calc(12px + env(safe-area-inset-top)); left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 2; }
+.rec-status { margin: 0; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-variant-numeric: tabular-nums lining-nums; }
+.camera-app .rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); display: inline-block; }
+.camera-app .mic-meter { width: 64px; height: 3px; background: rgba(246, 245, 241, 0.28); border: 0; border-radius: 2px; overflow: hidden; }
+.camera-app .mic-meter span { display: block; height: 100%; background: var(--ink); }
+.camera-hint { position: absolute; left: 28px; right: 28px; bottom: calc(112px + env(safe-area-inset-bottom)); margin: 0; text-align: center; font-size: 13px; line-height: 1.35; z-index: 2; }
+.camera-controls { position: absolute; left: 0; right: 0; bottom: calc(16px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: 1fr 76px 1fr; align-items: center; padding: 0 24px; z-index: 3; }
+.camera-controls .camera-side:first-of-type { justify-self: start; }
+.camera-controls .camera-side:last-of-type { justify-self: end; }
+.camera-side { min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--ink); font-size: 16px; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; }
+.camera-side input { display: none; }
+.shutter { width: 76px; height: 76px; border-radius: 50%; border: 4px solid var(--accent); background: var(--accent); padding: 0; display: grid; place-items: center; }
+.shutter[data-recording="true"] { background: transparent; }
+.shutter[data-recording="true"]::after { content: ""; width: 28px; height: 28px; border-radius: 4px; background: var(--accent); }
+.camera-permission { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 32px 24px; text-align: center; }
+.camera-permission p { margin: 0; }
+.camera-status { position: absolute; left: 16px; right: 16px; top: calc(52px + env(safe-area-inset-top)); margin: 0; font-size: 13px; color: var(--muted); text-align: center; z-index: 2; }
+.process-line { position: absolute; left: 24px; right: 24px; bottom: 32%; margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; text-align: center; z-index: 2; }
+.process-line li { color: var(--muted); font-size: 14px; }
+.process-line li[data-current="true"] { color: var(--ink); }
+.camera-sheet-backdrop { position: absolute; inset: 0; z-index: 6; background: rgba(0, 0, 0, 0.62); display: flex; align-items: flex-end; }
+.camera-sheet { width: 100%; max-height: 72%; overflow: auto; background: var(--bg); color: var(--ink); border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); display: grid; gap: 12px; }
+.camera-sheet p { margin: 0; }
+.camera-sheet a { color: var(--ink); }
 .record-btn, .stop-btn { min-height: 56px; flex: 1; }
 .stop-btn { background: var(--danger); border-color: var(--danger); color: #18191b; }
 .upload-queue progress { width: 100%; height: 12px; accent-color: var(--accent); }
@@ -245,25 +267,29 @@ label.btn input { display: none; }
   table.data tr.subtotal, table.data tr.grand { padding-top: 8px; }
 }
 
-@media (max-width: 860px) {
-  .record-shell { min-height: 0; padding: 0 0 calc(76px + env(safe-area-inset-bottom)); }
-  .record-shell .capture-stage { margin-inline: 0; }
-  .record-shell .capture-video { border-radius: 0; height: auto; }
-  .record-shell .capture-stage { position: relative; flex: 1; }
-  .record-shell .capture-video { flex: 1; }
-  .record-shell .capture-video video { height: calc(100dvh - 156px); min-height: 420px; }
-  .record-shell .action-bar {
-    position: absolute;
-    left: 8px;
-    right: 8px;
-    bottom: 12px;
-    background: transparent;
-    border: 0;
-    padding: 0;
+@media (min-width: 701px) {
+  .phone-stage { position: relative; }
+  .phone-jobs-inside { display: none; }
+  .phone-jobs-outside { display: inline-flex; position: absolute; top: 16px; left: 20px; }
+  .phone-frame {
+    width: min(420px, calc((100dvh - 32px) * 0.462));
+    max-width: 430px;
+    height: min(844px, calc(100dvh - 32px));
+    border: 1px solid var(--line);
+    border-radius: 24px;
   }
-  .record-shell .action-bar .record-btn,
-  .record-shell .action-bar .stop-btn { min-height: 64px; }
-  .record-shell .permission-line, .record-shell .error { padding: 8px 12px 0; }
+  .field-flow .sidebar, .field-flow .mobile-brand, .field-flow .account-chip { display: none; }
+  .field-flow .app-frame { display: block; }
+  .field-flow .review-shell {
+    width: min(420px, calc((100dvh - 32px) * 0.462));
+    max-width: 430px;
+    height: min(844px, calc(100dvh - 32px));
+    margin: 16px auto;
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    padding: 20px 16px 28px;
+  }
 }
 @media (orientation: landscape) and (max-height: 500px) {
   .capture-video video { height: calc(100dvh - 150px); min-height: 140px; }

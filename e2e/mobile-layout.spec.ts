@@ -25,7 +25,7 @@ for (const viewport of viewports) {
           }).slice(0, 6).map((element) => `${element.tagName}.${String((element as HTMLElement).className).slice(0, 80)}`);
           const input = document.querySelector("input, select, textarea");
           const font = input ? parseFloat(getComputedStyle(input).fontSize) : parseFloat(getComputedStyle(document.body).fontSize);
-          const button = document.querySelector("a.btn, button.btn, nav a");
+          const button = [...document.querySelectorAll("a.btn, button.btn, nav a")].find((element) => element.getBoundingClientRect().height >= 1);
           const target = button ? button.getBoundingClientRect().height : 44;
           return { scroll: document.documentElement.scrollWidth, view, wide, font, target };
         });
