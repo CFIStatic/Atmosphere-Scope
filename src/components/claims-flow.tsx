@@ -60,25 +60,25 @@ export function ClaimsFlow({ walls, height }: { walls: Row[]; height: Row | null
       <section className="panel">
         <p className="kicker">Synthetic harness, not this walkthrough</p>
         <p className="meta">These rows are the ChArUco solve on rendered rooms. A miss is not shown as confirmed.</p>
-        <table>
+        <table className="stack">
           <thead><tr><th>Truth</th><th>Solved</th><th>Actual error</th><th>Bound</th><th></th></tr></thead>
           <tbody>
             {walls.map((row) => (
               <tr key={`${row.truthFt}-${row.valueFt}`}>
-                <td>{row.truthFt} ft</td>
-                <td>{row.valueFt ?? "?"} ft</td>
-                <td>{row.actualPercent == null ? "?" : `${row.actualPercent}%`}</td>
-                <td>{row.errorPercent == null ? "?" : `±${row.errorPercent}%`}</td>
-                <td>{row.meetsAccuracyTarget ? <span className="chip blue">Meets ±5%</span> : <span className="chip orange">Does not meet ±5%</span>}</td>
+                <td data-label="Truth">{row.truthFt} ft</td>
+                <td data-label="Solved">{row.valueFt ?? "?"} ft</td>
+                <td data-label="Actual error">{row.actualPercent == null ? "?" : `${row.actualPercent}%`}</td>
+                <td data-label="Bound">{row.errorPercent == null ? "?" : `±${row.errorPercent}%`}</td>
+                <td data-label="Target">{row.meetsAccuracyTarget ? <span className="chip blue">Meets ±5%</span> : <span className="chip orange">Does not meet ±5%</span>}</td>
               </tr>
             ))}
             {height && (
               <tr>
-                <td>Ceiling {height.truthFt} ft</td>
-                <td>{height.valueFt == null ? "?" : `${height.valueFt} ft`}</td>
-                <td>{height.actualPercent == null ? "?" : `${height.actualPercent}%`}</td>
-                <td>{height.errorPercent == null ? "?" : `±${height.errorPercent}%`}</td>
-                <td>{height.meetsAccuracyTarget ? <span className="chip blue">Meets ±5%</span> : <span className="chip orange">Does not meet ±5%</span>}</td>
+                <td data-label="Truth">Ceiling {height.truthFt} ft</td>
+                <td data-label="Solved">{height.valueFt == null ? "?" : `${height.valueFt} ft`}</td>
+                <td data-label="Actual error">{height.actualPercent == null ? "?" : `${height.actualPercent}%`}</td>
+                <td data-label="Bound">{height.errorPercent == null ? "?" : `±${height.errorPercent}%`}</td>
+                <td data-label="Target">{height.meetsAccuracyTarget ? <span className="chip blue">Meets ±5%</span> : <span className="chip orange">Does not meet ±5%</span>}</td>
               </tr>
             )}
           </tbody>

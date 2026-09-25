@@ -120,7 +120,7 @@ export function DraftEstimate({ snapshot, onSnapshot }: { snapshot: WalkthroughS
       </section>
       {snapshot.finalReport && <ReportBlock title="Finalized estimate" report={snapshot.finalReport} locked />}
       {live && <ReportBlock title={snapshot.finalReport ? "Current draft" : "Estimate"} report={live} />}
-      <div className="row">
+      <div className="row action-bar">
         <button className="btn" type="button" disabled={!live} onClick={finalize}>Finalize estimate</button>
         <button className="btn secondary" type="button" disabled={!live && !snapshot.finalReport} onClick={() => send("pdf", snapshot.finalReport ?? live)}>Send report (PDF)</button>
         <button className="btn secondary" type="button" disabled={!live && !snapshot.finalReport} onClick={() => send("csv", snapshot.finalReport ?? live)}>Send report (CSV)</button>
@@ -239,20 +239,20 @@ function ReportBlock({ title, report, locked }: { title: string; report: Estimat
       <p className="kicker">{title}</p>
       <p className="meta">{report.status} · catalog {report.catalogVersionId} · rates {report.rateBookId} · {report.region}{locked ? " · this copy does not change when rates are edited" : ""}</p>
       <p className="banner">{report.unpricedCount ? `${report.note} Sum of complete lines: ${money(report.pricedTotal)}. That sum leaves out unpriced lines.` : report.note}</p>
-      <table>
+      <table className="stack">
         <thead><tr><th>Room</th><th>Code</th><th>Description</th><th>Qty</th><th>Line</th></tr></thead>
         <tbody>
           {report.lines.map((line, index) => (
             <tr key={`${line.code}-${line.room}-${index}`}>
-              <td>{line.room}</td>
-              <td>{line.code}</td>
-              <td>
+              <td data-label="Room">{line.room}</td>
+              <td data-label="Code">{line.code}</td>
+              <td data-label="Description">
                 {line.description}
                 <div className="meta">{line.quantityNote}</div>
                 <ComponentList line={line} />
               </td>
-              <td>{line.quantity == null ? "—" : `${line.quantity} ${line.unit}`}</td>
-              <td>{line.lineTotal == null ? "Unpriced" : money(line.lineTotal)}</td>
+              <td data-label="Qty">{line.quantity == null ? "—" : `${line.quantity} ${line.unit}`}</td>
+              <td data-label="Line">{line.lineTotal == null ? "Unpriced" : money(line.lineTotal)}</td>
             </tr>
           ))}
         </tbody>

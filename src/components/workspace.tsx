@@ -343,20 +343,20 @@ function Estimate({ job, phase, setPhase, lines, version, onAffected, onApply, o
         <input name="sqft" type="number" step="0.1" min="0" placeholder="Affected sqft for filtered room" aria-label="Affected area" />
         <button className="btn-secondary" type="submit">Set affected area</button>
       </form>
-      <table>
+      <table className="stack">
         <thead><tr><th>Class</th><th>Line</th><th>Qty</th><th>Amount</th></tr></thead>
         <tbody>
           {lines.map((item) => {
             const priced = version?.pricedLines.find((line) => line.scopeItemId === item.id);
             return (
               <tr key={item.id}>
-                <td><span className="badge">{item.scopeClass}</span></td>
-                <td>
+                <td data-label="Class"><span className="badge">{item.scopeClass}</span></td>
+                <td data-label="Line">
                   <button type="button" className="btn-secondary" onClick={() => item.roomId && onSelectRoom(item.roomId)}>{item.location}</button>
                   <div>{item.description}</div>
                   <div className="meta">{item.reason}</div>
                 </td>
-                <td>
+                <td data-label="Qty">
                   {item.quantity.value ?? "—"} {item.quantity.unit} · {item.quantity.status}
                   <form onSubmit={(event) => {
                     event.preventDefault();
@@ -365,7 +365,7 @@ function Estimate({ job, phase, setPhase, lines, version, onAffected, onApply, o
                     <input name="qty" type="number" step="0.1" aria-label={`Quantity for ${item.description}`} placeholder="edit qty" />
                   </form>
                 </td>
-                <td>{priced?.extendedPrice ?? "unpriced"}{priced?.unpricedReason ? ` · ${priced.unpricedReason}` : ""}</td>
+                <td data-label="Amount">{priced?.extendedPrice ?? "unpriced"}{priced?.unpricedReason ? ` · ${priced.unpricedReason}` : ""}</td>
               </tr>
             );
           })}

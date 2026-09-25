@@ -36,16 +36,16 @@ export default async function HomePage() {
       <section className="panel" style={{ marginBottom: 16 }}>
         <p className="kicker">Keys</p>
         <p className="meta">The walkthrough needs only OPENAI_API_KEY. Measurement and local storage run without it. SerpAPI, a GPU host, and Supabase stay optional.</p>
-        <table>
+        <table className="stack">
           <thead><tr><th>Stage</th><th>Env</th><th>Provider</th><th>Cost</th><th>Status</th></tr></thead>
           <tbody>
             {providerStatus().map((row) => (
               <tr key={row.stage}>
-                <td>{row.stage}</td>
-                <td>{row.env ?? "—"}</td>
-                <td>{row.provider}</td>
-                <td>{row.cost}</td>
-                <td>{row.ready ? "ready" : "missing"} · {row.note}</td>
+                <td data-label="Stage">{row.stage}</td>
+                <td data-label="Env">{row.env ?? "—"}</td>
+                <td data-label="Provider">{row.provider}</td>
+                <td data-label="Cost">{row.cost}</td>
+                <td data-label="Status">{row.ready ? "ready" : "missing"} · {row.note}</td>
               </tr>
             ))}
           </tbody>

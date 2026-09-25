@@ -45,11 +45,11 @@ export function UnderwritingFlow() {
       {tab === "Valuation" && (
         <section className="panel">
           <p className="banner">The underwriter decides. These rows are not a coverage suggestion.</p>
-          <table>
+          <table className="stack">
             <thead><tr><th>Component</th><th>Status</th><th>Amount</th></tr></thead>
             <tbody>
-              <tr><td>Dwelling</td><td><span className="chip">Not measured</span></td><td>—</td></tr>
-              <tr><td>Contents from this walkthrough</td><td>{totals?.job == null ? <span className="chip">Unpriced</span> : <span className="chip orange">See the total note</span>}</td><td>{totals?.job ?? "—"}</td></tr>
+              <tr><td data-label="Component">Dwelling</td><td data-label="Status"><span className="chip">Not measured</span></td><td data-label="Amount">—</td></tr>
+              <tr><td data-label="Component">Contents from this walkthrough</td><td data-label="Status">{totals?.job == null ? <span className="chip">Unpriced</span> : <span className="chip orange">See the total note</span>}</td><td data-label="Amount">{totals?.job ?? "—"}</td></tr>
             </tbody>
           </table>
           {totals && <p className="meta">{totals.note}</p>}

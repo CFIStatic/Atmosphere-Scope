@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
+    "test:mobile": "playwright test",
     "test:providers": "vitest run --config vitest.live.config.ts",
     "typecheck": "tsc --noEmit",
     "eval:accuracy": "python3 -m measure.eval_harness"
@@ -21,6 +22,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^22.15.30",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",

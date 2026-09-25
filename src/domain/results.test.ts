@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { inventoryFromWalkthrough } from "@/analysis/inventory";
 import { floorPlanFromMeasurement, recordedSyntheticRoom } from "@/domain/plan-from-measurement";
-import { buildResultLines, chooseReplacement, overrideReplacement, resultTotals, type ResultOffer } from "@/domain/results";
+import { buildResultLines, chooseReplacement, overrideQuantity, overrideReplacement, resultTotals, type ResultOffer } from "@/domain/results";
 
 const offer: ResultOffer = {
   query: "AA alkaline batteries",
@@ -44,5 +44,9 @@ describe("priced results", () => {
     expect(overridden[0]?.replacements.at(-1)?.status).toBe("manual");
     expect(overridden[0]?.replacements.at(-1)?.note).toMatch(/Not checked/);
     expect(resultTotals(overridden).job).toBeNull();
+    const withQuantity = overrideQuantity(overridden, overridden[0].id, 2);
+    expect(withQuantity[0]?.quantity).toBe(2);
+    expect(withQuantity[0]?.lineTotal).toBe(480);
+    expect(overrideQuantity(withQuantity, withQuantity[0].id, Number.NaN)[0]?.quantity).toBeNull();
   });
 });

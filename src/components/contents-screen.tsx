@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { loadWalkthrough, saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
+import { FieldPair } from "@/components/field-pair";
 import { PlanView } from "@/components/plan-view";
 import { ResultsView } from "@/components/results-view";
 import { crossCheckPlans, importFloorPlan } from "@/import/floor-plan";
@@ -75,16 +76,16 @@ export function ContentsScreen() {
       {snapshot?.crossCheck && snapshot.crossCheck.length > 0 && (
         <section className="panel">
           <p className="kicker">Import compared with the video</p>
-          <table>
+          <table className="stack">
             <thead><tr><th>Room</th><th>Item</th><th>Imported</th><th>Video</th><th></th></tr></thead>
             <tbody>
               {snapshot.crossCheck.map((row) => (
                 <tr key={`${row.room}-${row.item}`}>
-                  <td>{row.room}</td>
-                  <td>{row.item}</td>
-                  <td>{row.imported ?? "—"}</td>
-                  <td>{row.video ?? "—"}</td>
-                  <td>{row.note}</td>
+                  <td data-label="Room">{row.room}</td>
+                  <td data-label="Item">{row.item}</td>
+                  <td data-label="Imported">{row.imported ?? "—"}</td>
+                  <td data-label="Video">{row.video ?? "—"}</td>
+                  <td data-label="Note">{row.note}</td>
                 </tr>
               ))}
             </tbody>
@@ -92,14 +93,14 @@ export function ContentsScreen() {
         </section>
       )}
       {snapshot && (
-        <div className="contents-layout">
-          <PlanView plan={snapshot.plan} onChange={(plan) => {
+        <FieldPair
+          sketch={<PlanView plan={snapshot.plan} onChange={(plan) => {
             const next = { ...snapshot, plan };
             setSnapshot(next);
             saveWalkthrough(next);
-          }} />
-          <ResultsView plan={snapshot.plan} objects={snapshot.objects} offers={snapshot.offers} />
-        </div>
+          }} />}
+          items={<ResultsView plan={snapshot.plan} objects={snapshot.objects} offers={snapshot.offers} />}
+        />
       )}
     </div>
   );

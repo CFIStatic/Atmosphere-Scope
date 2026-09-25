@@ -65,6 +65,14 @@ export function chooseReplacement(lines: ResultLine[], id: string, index: number
   return lines.map((line) => (line.id === id && index >= 0 && index < line.replacements.length ? finish({ ...line, selected: index }) : line));
 }
 
+export function overrideQuantity(lines: ResultLine[], id: string, quantity: number | null): ResultLine[] {
+  return lines.map((line) => {
+    if (line.id !== id) return line;
+    const next = quantity != null && Number.isFinite(quantity) && quantity >= 0 ? quantity : null;
+    return finish({ ...line, quantity: next });
+  });
+}
+
 export function overrideReplacement(lines: ResultLine[], id: string, entry: { title: string; unitPrice: number | null; note?: string }): ResultLine[] {
   return lines.map((line) => {
     if (line.id !== id) return line;

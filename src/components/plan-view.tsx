@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { boundsOf } from "@/domain/geometry";
 import { correctPlanEdge, correctPlanHeight, type FloorPlan, type PlanEdge } from "@/domain/plan-from-measurement";
 
@@ -21,7 +21,7 @@ export function PlanView({ plan, onChange }: { plan: FloorPlan; onChange: (plan:
     <div className="split">
       <div>
         <p className="legend meta"><i /> measured, estimated · <i className="solid-blue" /> confirmed · <i className="dashed" /> unmeasured</p>
-        <div className="sketch-wrap">
+        <SketchFrame>
           <svg viewBox={view} role="img" aria-label="Floor plan from the measurement">
             <rect x={box.minX - pad} y={box.minY - pad} width={width} height={height} fill="#f0efeb" />
             {plan.rooms.map((room) => {
@@ -58,20 +58,20 @@ export function PlanView({ plan, onChange }: { plan: FloorPlan; onChange: (plan:
               </g>
             ))}
           </svg>
-        </div>
+        </SketchFrame>
         <p className="meta">{plan.disclaimer}</p>
       </div>
       <aside className="panel grid">
         <p className="kicker">Quantities from this plan</p>
-        <table>
+        <table className="stack">
           <thead><tr><th>Room</th><th>Item</th><th>Qty</th><th>Status</th></tr></thead>
           <tbody>
             {plan.quantities.map((item) => (
               <tr key={`${item.roomId}-${item.kind}`}>
-                <td>{item.roomName}</td>
-                <td>{item.label}</td>
-                <td>{item.value == null ? "—" : `${item.value} ${item.unit}`}</td>
-                <td>{item.status === "confirmed" ? <span className="chip blue">Confirmed</span> : item.status === "imported" ? <span className="chip">Imported</span> : item.status === "estimated" ? <span className="chip orange">Estimated</span> : <span className="chip">Unmeasured</span>}</td>
+                <td data-label="Room">{item.roomName}</td>
+                <td data-label="Item">{item.label}</td>
+                <td data-label="Qty">{item.value == null ? "—" : `${item.value} ${item.unit}`}</td>
+                <td data-label="Status">{item.status === "confirmed" ? <span className="chip blue">Confirmed</span> : item.status === "imported" ? <span className="chip">Imported</span> : item.status === "estimated" ? <span className="chip orange">Estimated</span> : <span className="chip">Unmeasured</span>}</td>
               </tr>
             ))}
           </tbody>
@@ -109,6 +109,84 @@ export function PlanView({ plan, onChange }: { plan: FloorPlan; onChange: (plan:
       </aside>
     </div>
   );
+}
+
+function SketchFrame({ children }: { children: ReactNode }) {
+  const wrap = useRef<HTMLDivElement>(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const origin = useRef({ scale: 1, x: 0, y: 0, dist: 0, cx: 0, cy: 0 });
+  const [transform, setTransform] = useState({ scale: 1, x: 0, y: 0 });
+
+  useEffect(() => {
+    const element = wrap.current;
+    if (!element) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const factor = event.deltaY < 0 ? 1.12 : 0.89;
+      setTransform((current) => ({ ...current, scale: clampScale(current.scale * factor) }));
+    };
+    element.addEventListener("wheel", onWheel, { passive: false });
+    return () => element.removeEventListener("wheel", onWheel);
+  }, []);
+
+  function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const points = [...pointers.current.values()];
+    origin.current = { ...transform, dist: distance(points), cx: event.clientX, cy: event.clientY };
+  }
+
+  function onPointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!pointers.current.has(event.pointerId)) return;
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const points = [...pointers.current.values()];
+    if (points.length >= 2) {
+      const dist = distance(points);
+      const next = clampScale(origin.current.scale * (dist / Math.max(origin.current.dist, 1)));
+      setTransform({ scale: next, x: origin.current.x, y: origin.current.y });
+      return;
+    }
+    setTransform({
+      scale: origin.current.scale,
+      x: origin.current.x + event.clientX - origin.current.cx,
+      y: origin.current.y + event.clientY - origin.current.cy,
+    });
+  }
+
+  function onPointerUp(event: ReactPointerEvent<HTMLDivElement>) {
+    pointers.current.delete(event.pointerId);
+    if (pointers.current.size === 0) origin.current = { ...transform, dist: 0, cx: 0, cy: 0 };
+  }
+
+  return (
+    <div>
+      <div className="row">
+        <button className="btn secondary" type="button" onClick={() => setTransform({ scale: 1, x: 0, y: 0 })}>Reset view</button>
+        <span className="meta">Pinch or drag the sketch. Scroll zooms on a trackpad.</span>
+      </div>
+      <div
+        className="sketch-wrap"
+        ref={wrap}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
+        <div className="sketch-transform" style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})` }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function distance(points: { x: number; y: number }[]): number {
+  if (points.length < 2) return 0;
+  return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+}
+
+function clampScale(scale: number): number {
+  return Math.min(6, Math.max(1, scale));
 }
 
 function Wall({ edge, x1, y1, x2, y2 }: { edge: PlanEdge; x1: number; y1: number; x2: number; y2: number }) {

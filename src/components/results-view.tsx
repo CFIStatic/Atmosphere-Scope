@@ -4,70 +4,98 @@ import { useMemo, useState } from "react";
 import { inventoryFromWalkthrough } from "@/analysis/inventory";
 import type { IdentifiedObject } from "@/analysis/frames";
 import type { FloorPlan } from "@/domain/plan-from-measurement";
-import { buildResultLines, chooseReplacement, overrideReplacement, resultTotals, type ResultOffer } from "@/domain/results";
+import { buildResultLines, chooseReplacement, overrideQuantity, overrideReplacement, resultTotals, type ResultLine, type ResultOffer } from "@/domain/results";
 
 export function ResultsView({ plan, objects, offers }: { plan: FloorPlan; objects: IdentifiedObject[]; offers: ResultOffer[] }) {
   const built = useMemo(() => buildResultLines(inventoryFromWalkthrough(objects, plan), offers), [plan, objects, offers]);
   const [picks, setPicks] = useState<Record<string, number>>({});
   const [manuals, setManuals] = useState<Record<string, { title: string; unitPrice: number | null }>>({});
+  const [quantities, setQuantities] = useState<Record<string, number | null>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
   const lines = useMemo(() => {
     let next = built;
+    for (const [id, quantity] of Object.entries(quantities)) next = overrideQuantity(next, id, quantity);
     for (const [id, index] of Object.entries(picks)) next = chooseReplacement(next, id, index);
     for (const [id, entry] of Object.entries(manuals)) next = overrideReplacement(next, id, entry);
     return next;
-  }, [built, picks, manuals]);
+  }, [built, picks, manuals, quantities]);
   const totals = resultTotals(lines);
   const rooms = [...new Set(lines.map((line) => line.room))];
+  const editing = lines.find((line) => line.id === editingId) ?? null;
 
   return (
     <div className="grid">
       {rooms.map((room) => (
-        <section key={room}>
+        <section key={room} className="grid">
           <p className="kicker">{room}</p>
-          <table>
-            <thead>
-              <tr><th>Item</th><th>Qty</th><th>Evidence</th><th>Replacement</th><th>Unit price</th><th>Line</th></tr>
-            </thead>
-            <tbody>
-              {lines.filter((line) => line.room === room).map((line) => {
-                const choice = line.replacements[line.selected];
-                return (
-                  <tr key={line.id}>
-                    <td>{line.item}</td>
-                    <td>{line.quantity == null ? "—" : `${line.quantity} ${line.unit}`}</td>
-                    <td>{line.evidence}{line.links[0] ? <span className="meta"> {line.links[0].frame}{line.links[0].timeMs == null ? "" : ` @ ${(line.links[0].timeMs / 1000).toFixed(1)}s`}</span> : null}</td>
-                    <td>
-                      {choice?.title ?? "—"}{choice?.retailer ? ` · ${choice.retailer}` : ""}
-                      {choice?.url ? <> · <a href={choice.url}>{choice.url}</a></> : null}
-                      <div className="meta">{choice?.note}</div>
-                      <div className="row">
-                        {choice?.status === "verified" ? <span className="chip blue">Verified</span> : choice?.status === "manual" ? <span className="chip orange">Manual</span> : choice?.status === "unverified" ? <span className="chip orange">Unverified</span> : <span className="chip">Unpriced</span>}
-                        {line.replacements.length > 1 && <button className="btn secondary" type="button" onClick={() => setPicks((current) => ({ ...current, [line.id]: ((current[line.id] ?? line.selected) + 1) % line.replacements.length }))}>Another match</button>}
-                      </div>
-                      <form className="row" onSubmit={(event) => {
-                        event.preventDefault();
-                        const form = new FormData(event.currentTarget);
-                        const raw = String(form.get("price") ?? "");
-                        const unitPrice = raw.trim() === "" ? null : Number(raw);
-                        if (unitPrice != null && !Number.isFinite(unitPrice)) return;
-                        setManuals((current) => ({ ...current, [line.id]: { title: String(form.get("title") ?? ""), unitPrice } }));
-                      }}>
-                        <input name="title" aria-label={`Replacement for ${line.item}`} placeholder="Hand-entered replacement" />
-                        <input name="price" aria-label={`Unit price for ${line.item}`} inputMode="decimal" placeholder="Unit price" />
-                        <button className="btn secondary" type="submit">Use this price</button>
-                      </form>
-                    </td>
-                    <td>{choice?.unitPrice == null ? "—" : `${choice.currency ?? ""} ${choice.unitPrice}`.trim()} {choice?.status === "verified" ? <span className="chip blue">Verified</span> : choice?.unitPrice != null ? <span className="chip orange">Not verified</span> : null}</td>
-                    <td>{line.lineTotal == null ? "—" : line.lineTotal}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          {lines.filter((line) => line.room === room).map((line) => {
+            const choice = line.replacements[line.selected];
+            const verified = choice?.status === "verified";
+            return (
+              <article key={line.id} className="item-card">
+                <div className="item-card-top">
+                  <strong>{line.item}</strong>
+                  {verified ? <span className="chip blue">Verified</span> : choice?.unitPrice == null ? <span className="chip">Unpriced</span> : <span className="chip orange">Not verified</span>}
+                </div>
+                <p className="item-card-qty">{line.quantity == null ? "Quantity —" : `${line.quantity} ${line.unit}`}</p>
+                <p className="item-card-price">{choice?.unitPrice == null ? "Price —" : `${choice.currency ?? "USD"} ${choice.unitPrice}`}</p>
+                <p className="meta">{line.lineTotal == null ? "Line —" : `Line ${line.lineTotal}`} · {choice?.title ?? "No replacement"}{choice?.retailer ? ` · ${choice.retailer}` : ""}</p>
+                <p className="meta">{line.evidence}{line.links[0] ? ` · ${line.links[0].frame}${line.links[0].timeMs == null ? "" : ` @ ${(line.links[0].timeMs / 1000).toFixed(1)}s`}` : ""}</p>
+                <button className="btn secondary" type="button" onClick={() => setEditingId(line.id)}>Edit</button>
+              </article>
+            );
+          })}
           <p className="meta">Room total {totals.rooms.find((item) => item.room === room)?.total ?? "—"}{totals.rooms.find((item) => item.room === room)?.unverified ? " · includes an unverified price" : ""}</p>
         </section>
       ))}
       <p className="banner">{totals.job == null ? totals.note : `Job total ${totals.job}. ${totals.note}`}</p>
+      {editing && <EditSheet line={editing} onClose={() => setEditingId(null)} onAnother={() => setPicks((current) => ({ ...current, [editing.id]: ((current[editing.id] ?? editing.selected) + 1) % editing.replacements.length }))} onSave={(entry) => {
+        setQuantities((current) => ({ ...current, [editing.id]: entry.quantity }));
+        setManuals((current) => ({ ...current, [editing.id]: { title: entry.title, unitPrice: entry.unitPrice } }));
+        setEditingId(null);
+      }} />}
+    </div>
+  );
+}
+
+function EditSheet({ line, onClose, onAnother, onSave }: {
+  line: ResultLine;
+  onClose: () => void;
+  onAnother: () => void;
+  onSave: (entry: { title: string; unitPrice: number | null; quantity: number | null }) => void;
+}) {
+  const choice = line.replacements[line.selected];
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <form className="sheet" role="dialog" aria-modal="true" aria-label={`Edit ${line.item}`} onClick={(event) => event.stopPropagation()} onSubmit={(event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        const priceRaw = String(form.get("price") ?? "");
+        const quantityRaw = String(form.get("quantity") ?? "");
+        const unitPrice = priceRaw.trim() === "" ? null : Number(priceRaw);
+        const quantity = quantityRaw.trim() === "" ? null : Number(quantityRaw);
+        if (unitPrice != null && !Number.isFinite(unitPrice)) return;
+        if (quantity != null && !Number.isFinite(quantity)) return;
+        onSave({ title: String(form.get("title") ?? ""), unitPrice, quantity });
+      }}>
+        <p className="kicker">Edit item</p>
+        <h2>{line.item}</h2>
+        <p className="meta">A blank price stays unpriced. This quantity is for the list. It does not redraw the sketch.</p>
+        <label className="field">Quantity
+          <input name="quantity" inputMode="decimal" defaultValue={line.quantity ?? ""} aria-label={`Quantity for ${line.item}`} />
+        </label>
+        <label className="field">Replacement
+          <input name="title" defaultValue={choice?.title ?? ""} aria-label={`Replacement for ${line.item}`} placeholder="Hand-entered replacement" />
+        </label>
+        <label className="field">Unit price
+          <input name="price" inputMode="decimal" defaultValue={choice?.unitPrice ?? ""} aria-label={`Unit price for ${line.item}`} placeholder="Unit price" />
+        </label>
+        {line.replacements.length > 1 && <button className="btn secondary" type="button" onClick={onAnother}>Another match</button>}
+        <div className="action-bar">
+          <button className="btn secondary" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn" type="submit">Save</button>
+        </div>
+      </form>
     </div>
   );
 }

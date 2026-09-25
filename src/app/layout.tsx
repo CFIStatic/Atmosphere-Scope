@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description: "Atmosphere Scope writes its own residential estimate from a walkthrough, a line-item catalog, and recorded prices.",
   manifest: "/manifest.webmanifest",
   applicationName: "Atmosphere Scope",
-  appleWebApp: { capable: true, title: "Atmosphere Scope" },
+  appleWebApp: { capable: true, title: "Atmosphere Scope", statusBarStyle: "black-translucent" },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "32x32" },
@@ -22,7 +22,12 @@ export const metadata: Metadata = {
   },
 };
 
-export const viewport: Viewport = { themeColor: "#18191b" };
+export const viewport: Viewport = {
+  themeColor: "#18191b",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
