@@ -15,7 +15,7 @@ export default async function HomePage() {
       <header className="topbar">
         <div>
           <p className="brand"><span>Atmosphere</span>Scope</p>
-          <p className="meta">Priced, evidence-linked contents from a walkthrough. The sketch sits beside the list. Measurement and an imported plan feed the quantities.</p>
+          <p className="meta">Atmosphere Scope writes its own estimate from the walkthrough. Contents stay evidence-linked. The sketch supplies quantities. Labor and equipment rates are entered here.</p>
         </div>
         <div className="row">
           <div className="row">
@@ -28,7 +28,7 @@ export default async function HomePage() {
       <nav className="cards" style={{ marginBottom: 16 }}>
         <Link className="card" href="/contents"><strong>Contents</strong><span className="meta">Sketch beside the priced list. Evidence and unverified prices stay visible.</span></Link>
         <Link className="card" href="/measure"><strong>Measure</strong><span className="meta">Supporting capture. The sheet sets scale. It is not the landing screen.</span></Link>
-        <Link className="card" href="/claims"><strong>Claims review</strong><span className="meta">Gaps and the draft, from the saved contents.</span></Link>
+        <Link className="card" href="/claims"><strong>Claims review</strong><span className="meta">Draft scope and estimate from the catalog and rate book.</span></Link>
         <Link className="card" href="/underwriting"><strong>Underwriting</strong><span className="meta">Checklist through the same contents list.</span></Link>
         <Link className="card" href="/accuracy"><strong>Accuracy harness</strong><span className="meta">Synthetic results by method. 95% is not claimed.</span></Link>
       </nav>

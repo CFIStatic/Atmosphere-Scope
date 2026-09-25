@@ -1,4 +1,5 @@
 import type { IdentifiedObject } from "@/analysis/frames";
+import type { EstimateReport } from "@/domain/estimate-engine";
 import type { FloorPlan } from "@/domain/plan-from-measurement";
 import type { ResultOffer } from "@/domain/results";
 
@@ -23,6 +24,7 @@ export type WalkthroughSnapshot = {
   crossCheck?: PlanCrossCheck[];
   objects: IdentifiedObject[];
   offers: ResultOffer[];
+  finalReport?: EstimateReport | null;
 };
 
 export function gapsFromSnapshot(snapshot: WalkthroughSnapshot): string[] {

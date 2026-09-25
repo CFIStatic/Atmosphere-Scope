@@ -94,6 +94,7 @@ export function Workspace({ initialJob }: { initialJob: Job }) {
           });
         }}>
           <p className="kicker">Price settings — markup or margin, not both</p>
+          <p className="meta">Sample jobs can still show illustrative arithmetic. The estimate you finalize is on Claims, from the catalog and rate book.</p>
           <label className="field">Mode<select name="mode" defaultValue={version.settings.mode}><option value="markup">Markup on cost</option><option value="margin">Target margin</option></select></label>
           <label className="field">Markup %<input name="markup" type="number" step="0.1" defaultValue={version.settings.markupPercent * 100} /></label>
           <label className="field">Margin %<input name="margin" type="number" step="0.1" defaultValue={version.settings.marginPercent * 100} /></label>
@@ -109,12 +110,13 @@ export function Workspace({ initialJob }: { initialJob: Job }) {
       {tab === "review" && <Review job={job} onAct={act} />}
       {tab === "export" && (
         <section className="panel grid">
-          <p>Exports include draft status, sketch measurement state, and assumptions.</p>
+          <p>Send this job’s report from Atmosphere Scope. The files are the sketch, the scope, and the assumptions on this job. The catalog estimate is finalized on Claims.</p>
           <div className="row">
-            <a className="btn" href={`/api/jobs/${job.id}/export/pdf`}>PDF package</a>
-            <a className="btn-secondary" href={`/api/jobs/${job.id}/export/csv`}>Estimate CSV</a>
+            <a className="btn" href={`/api/jobs/${job.id}/export/pdf`}>Send report (PDF)</a>
+            <a className="btn-secondary" href={`/api/jobs/${job.id}/export/csv`}>Send report (CSV)</a>
             <a className="btn-secondary" href={`/api/jobs/${job.id}/export/svg`}>Sketch SVG</a>
-            <a className="btn-secondary" href={`/api/jobs/${job.id}/export/json`}>JSON package</a>
+            <a className="btn-secondary" href={`/api/jobs/${job.id}/export/json`}>Send report (JSON)</a>
+            <a className="btn-secondary" href="/claims">Finalize estimate</a>
           </div>
         </section>
       )}
@@ -140,8 +142,7 @@ function Capture({ job, onProcess, onRetry, onUploaded }: { job: Job; onProcess:
           <textarea rows={6} value={transcript} onChange={(event) => setTranscript(event.target.value)} placeholder="This is the kitchen. The ceiling stain is dry. The wall is 12 ft." />
         </label>
         <div className="row">
-          <button className="btn" type="button" onClick={() => onProcess(transcript, true)}>Analyze with demo price book</button>
-          <button className="btn-secondary" type="button" onClick={() => onProcess(transcript, false)}>Analyze unpriced</button>
+          <button className="btn" type="button" onClick={() => onProcess(transcript, false)}>Build draft scope</button>
           {job.processing.status === "failed" && <button className="btn-secondary" type="button" onClick={onRetry}>Retry failed stage</button>}
         </div>
         {job.processing.lastError && <p className="error">{job.processing.lastError}</p>}

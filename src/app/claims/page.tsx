@@ -27,7 +27,7 @@ export default async function ClaimsPage() {
       <header className="topbar">
         <div>
           <p className="brand"><span>Atmosphere Scope</span>Claims review</p>
-          <p className="meta">Capture, gaps, and the draft read the walkthrough saved in this browser.</p>
+          <p className="meta">Capture, gaps, and the draft scope and estimate read the walkthrough saved in this browser.</p>
         </div>
         <Link className="btn secondary" href="/contents">Contents</Link>
       </header>

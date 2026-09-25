@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { gapsFromSnapshot, loadWalkthrough, saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
+import { DraftEstimate } from "@/components/draft-estimate";
 import { PlanView } from "@/components/plan-view";
-import { ResultsView } from "@/components/results-view";
 
 type Row = {
   kind: string;
@@ -14,7 +14,7 @@ type Row = {
   meetsAccuracyTarget: boolean;
 };
 
-const STEPS = ["Capture", "Gaps", "Review", "Draft estimate"] as const;
+const STEPS = ["Capture", "Gaps", "Review", "Draft scope & estimate"] as const;
 
 export function ClaimsFlow({ walls, height }: { walls: Row[]; height: Row | null }) {
   const [step, setStep] = useState<(typeof STEPS)[number]>("Capture");
@@ -24,7 +24,7 @@ export function ClaimsFlow({ walls, height }: { walls: Row[]; height: Row | null
 
   return (
     <div className="flow">
-      <p className="kicker">Capture, gaps, review, then a draft. Estimator approval is a later sign-in. Customer authorization is a separate sign-in.</p>
+      <p className="kicker">Capture, gaps, review, then the scope and estimate. Finalize locks the catalog and rate book. Estimator approval is a later sign-in. Customer authorization is a separate sign-in.</p>
       <div className="tabs" role="tablist">
         {STEPS.map((item) => (
           <button key={item} type="button" role="tab" aria-selected={step === item} onClick={() => setStep(item)}>{item}</button>
@@ -54,7 +54,9 @@ export function ClaimsFlow({ walls, height }: { walls: Row[]; height: Row | null
           saveWalkthrough(next);
         }} />
       )}
-      {step === "Draft estimate" && snapshot && <ResultsView plan={snapshot.plan} objects={snapshot.objects} offers={snapshot.offers} />}
+      {step === "Draft scope & estimate" && snapshot && (
+        <DraftEstimate snapshot={snapshot} onSnapshot={(next) => { setSnapshot(next); saveWalkthrough(next); }} />
+      )}
       <section className="panel">
         <p className="kicker">Synthetic harness, not this walkthrough</p>
         <p className="meta">These rows are the ChArUco solve on rendered rooms. A miss is not shown as confirmed.</p>

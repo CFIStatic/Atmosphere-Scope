@@ -7,7 +7,7 @@ export const DEMO_PRICE_BOOK: PriceBook = {
   currency: "USD",
   illustrative: true,
   disclaimer:
-    "Rates are fictional demonstration numbers bundled with this prototype. They are not Xactimate, not a local price survey, and not a quote.",
+    "Rates are fictional demonstration numbers bundled with sample jobs. They are not a local price survey and not a quote. The estimate is built from the catalog and rate book.",
   items: [
     { code: "MIT-PROTECT", phase: "mitigation", description: "Protect adjacent finishes and contents", unit: "sqft", cost: { labor: 0.35, material: 0.22, equipment: 0.05, disposal: 0 }, minimumCharge: 85, taxable: false },
     { code: "MIT-EXTRACT", phase: "mitigation", description: "Extract standing water", unit: "sqft", cost: { labor: 0.7, material: 0.05, equipment: 0.55, disposal: 0.1 }, minimumCharge: 175, taxable: false },

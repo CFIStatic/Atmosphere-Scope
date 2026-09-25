@@ -17,7 +17,7 @@ export function ContentsScreen() {
     <div className="grid">
       <section className="panel grid">
         <p className="kicker">Import a floor plan</p>
-        <p className="meta">CSV, magicplan statistics CSV, DXF, SVG, or a Hover measurements JSON file. Lengths stay marked imported. ESX and FML are not read.</p>
+        <p className="meta">CSV, magicplan statistics CSV, DXF, SVG, or a Hover measurements JSON file. Lengths stay marked imported. A proprietary sketch file without an open schema is not imported.</p>
         <form className="row" onSubmit={async (event) => {
           event.preventDefault();
           setError(null);

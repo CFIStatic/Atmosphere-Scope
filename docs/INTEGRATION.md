@@ -30,7 +30,9 @@ The metric solver is `measure/`: a printed ChArUco sheet, CPU calibration, and p
 
 `buildScope` decides what work is supported, conditional, optional, or excluded. Wording from a future model cannot add a line the rules rejected.
 
-`PriceBook` is the pricing seam. The bundled book is named “Illustrative—not a customer quote.” Totals use `priceAll`: direct cost, one overhead pass, then either markup or margin, then tax. Conditional and optional amounts stay outside the supported total.
+The estimate is Atmosphere Scope's own catalog and rate book. See `docs/ESTIMATE.md`. Sketch quantities and contents map onto catalog lines. Materials use a sourced replacement offer. Labor and equipment use the regional rate table. A missing price stays blank. A finalized report keeps the catalog version and rate-book id it was built with.
+
+Sample jobs still carry an illustrative `PriceBook` named “Illustrative—not a customer quote.” That book is sample arithmetic for the older job file. It is not the estimate. `priceAll` on that path applies direct cost, one overhead pass, then either markup or margin, then tax. Conditional and optional amounts stay outside the supported total.
 
 ## Review
 

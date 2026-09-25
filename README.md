@@ -1,12 +1,14 @@
 # Atmosphere Scope
 
-The headline is a priced, evidence-linked contents list. After a walkthrough is processed, the app opens that list with the sketch beside it. Video measurement and an imported floor plan supply quantities. They are supporting inputs, not the landing screen.
+Atmosphere Scope is its own estimating system. After a walkthrough is processed, the app opens a priced, evidence-linked contents list with the sketch beside it. Video measurement and an imported floor plan supply quantities. They are supporting inputs, not the landing screen.
 
-Each line keeps its evidence. A price stays unverified until the product page is checked. The list stays a draft until an estimator approves it. Customer authorization is a separate step and names the exact version.
+The estimate is produced here. The draft scope and estimate screen maps findings and sketch quantities onto a versioned line-item catalog, then prices each component from a recorded source. Materials use the replacement-price check. Labor uses an editable regional rate table. Equipment uses an editable rate table. Overhead, profit, tax, and region are settings on that rate book. A component without a source and a date stays blank. A line with any blank component has no line total. Finalize estimate locks the report to the catalog version and rate book it used. Send report downloads that report as a web view, PDF, CSV, or JSON (`atmosphere.estimate.v1`). See [docs/ESTIMATE.md](docs/ESTIMATE.md).
+
+Each contents line keeps its evidence. A material price stays unverified until the product page is checked. The report stays a draft until it is finalized. Estimator approval and customer authorization remain separate steps and name the exact version.
 
 Room measurement does **not** claim 95% accuracy. The numbers below are what `npm run eval:accuracy` last recorded on synthetic rooms. See [Accuracy](/accuracy) in the running app, or `eval/report.json`.
 
-Floor plans from tools restorers already use can be imported when the format is openly documented. See [docs/IMPORTS.md](docs/IMPORTS.md). Imported lengths are marked imported. They are not a tape confirmation. If a video measurement of the same room exists, the two are compared and neither value is replaced. Xactimate ESX and DocuSketch FML are not parsed.
+Floor plans from tools restorers already use can be imported when the format is openly documented. See [docs/IMPORTS.md](docs/IMPORTS.md). Imported lengths are marked imported. They are not a tape confirmation. If a video measurement of the same room exists, the two are compared and neither value is replaced. A proprietary sketch file that does not publish an open schema is not imported.
 
 ## Measurement
 
@@ -111,9 +113,9 @@ To keep finished job media in Supabase instead, set `STORAGE=supabase`, `SUPABAS
 - Findings keep observed, reported, suspected, contradicted, and insufficient evidence apart. Staining does not become mold or an active leak.
 - 2D sketch editor with undo/redo, locked dimensions, and measurement / damage / scope overlays. Scale is claimed only when every required dimension is locked and consistent.
 - **3D map** extruded from that sketch. See below.
-- Deterministic quantities and an illustrative price book labeled “Illustrative—not a customer quote.” Markup and margin are never applied together.
+- A versioned mitigation and rebuild catalog, and a regional labor and equipment rate book. Sample jobs still include illustrative arithmetic labeled “Illustrative—not a customer quote.” That arithmetic is not the estimate.
 - Geometry edits preview quantity changes. Approved versions are not overwritten; a draft revision is opened instead.
-- PDF, CSV, SVG, and JSON export.
+- The estimate report is a web view plus PDF, CSV, and JSON (`atmosphere.estimate.v1`). A job file can also send its own PDF, CSV, SVG, and JSON.
 
 ## 3D map
 
@@ -130,14 +132,14 @@ The 3D map still extrudes the sketch. Metric room spans come from `measure/`, wh
 ## Limitations
 
 - Speech-to-text, vision, and replacement search run only when `OPENAI_API_KEY` is set. Samples still ship transcripts and frame notes. A missing key or a failed call leaves narration, objects, and prices blank.
-- The demo price book is fictional. There is no Xactimate or regional price feed.
+- Materials price only when a sourced offer exists. Labor and equipment stay unpriced until an admin enters a rate, with a source and a date. A finalized report does not recompute when those rates change. Sample jobs can still show illustrative arithmetic. That arithmetic is not the estimate.
 - The app has no login. Media paths are unlisted, not a production access-control model.
 - Depth files in `atmosphere-depth-v1` (see `samples/atmosphere-depth-v1.json`) import as inferred geometry. Other depth formats are stored only. See `docs/INTEGRATION.md` for the seams a later Atmosphere port would replace.
 - This is not a certified survey, moisture map, or structural opinion.
 
 ## Layout
 
-- `src/domain` — geometry, quantities, pricing, scope, review. No React.
+- `src/domain` — geometry, quantities, catalog, estimate engine, scope, review. No React.
 - `src/analysis` — evidence rules and the staged pipeline.
 - `src/spatial` — 3D schematic built from the sketch.
 - `src/app` — demo UI and HTTP routes.

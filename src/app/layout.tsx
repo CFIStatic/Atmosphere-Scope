@@ -8,7 +8,7 @@ const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], variabl
 
 export const metadata: Metadata = {
   title: "Atmosphere Scope",
-  description: "Priced, evidence-linked contents from a residential walkthrough, with the sketch beside the list.",
+  description: "Atmosphere Scope writes its own residential estimate from a walkthrough, a line-item catalog, and recorded prices.",
   manifest: "/manifest.webmanifest",
   applicationName: "Atmosphere Scope",
   appleWebApp: { capable: true, title: "Scope" },
