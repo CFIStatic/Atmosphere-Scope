@@ -13,7 +13,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       ? "This link is expired or invalid. Request another reset email."
       : null;
   return (
-    <AuthCard title="Sign in" lede="Use the email and password for your Atmosphere Scope account.">
+    <AuthCard title="Sign in">
       <LoginForm devFallback={authMode() !== "supabase"} nextPath={safeNext(params.next)} notice={notice} />
     </AuthCard>
   );

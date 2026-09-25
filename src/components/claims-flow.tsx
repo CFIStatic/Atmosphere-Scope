@@ -5,86 +5,54 @@ import { gapsFromSnapshot, loadWalkthrough, saveWalkthrough, type WalkthroughSna
 import { DraftEstimate } from "@/components/draft-estimate";
 import { PlanView } from "@/components/plan-view";
 
-type Row = {
-  kind: string;
-  truthFt: number;
-  valueFt: number | null;
-  actualPercent: number | null;
-  errorPercent: number | null;
-  meetsAccuracyTarget: boolean;
-};
+const STEPS = ["Check", "Sketch", "Estimate"] as const;
 
-const STEPS = ["Capture", "Gaps", "Review", "Draft scope & estimate"] as const;
-
-export function ClaimsFlow({ walls, height }: { walls: Row[]; height: Row | null }) {
-  const [step, setStep] = useState<(typeof STEPS)[number]>("Capture");
+export function ClaimsFlow() {
+  const [step, setStep] = useState<(typeof STEPS)[number]>("Estimate");
   const [snapshot, setSnapshot] = useState<WalkthroughSnapshot | null>(null);
-  useEffect(() => setSnapshot(loadWalkthrough()), []);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const saved = loadWalkthrough();
+    setSnapshot(saved);
+    setStep(saved ? "Estimate" : "Check");
+    setReady(true);
+  }, []);
   const gaps = snapshot ? gapsFromSnapshot(snapshot) : [];
+
+  if (!ready) return null;
+  if (!snapshot) {
+    return (
+      <div className="empty">
+        <p>Walk a room to start an estimate.</p>
+        <a className="btn" href="/walk">Walk</a>
+      </div>
+    );
+  }
 
   return (
     <div className="flow">
-      <p className="kicker">Capture, gaps, review, then the scope and estimate. Finalize locks the catalog and rate book. Estimator approval is a later sign-in. Customer authorization is a separate sign-in.</p>
+      {snapshot.source === "recorded-preview" && <p className="meta">Sample. Not a customer recording.</p>}
       <div className="tabs" role="tablist">
         {STEPS.map((item) => (
           <button key={item} type="button" role="tab" aria-selected={step === item} onClick={() => setStep(item)}>{item}</button>
         ))}
       </div>
-      {!snapshot && <p className="banner">No walkthrough is saved in this browser. Measure a room, or open the recorded preview on Measure. Nothing was filled in.</p>}
-      {snapshot?.source === "recorded-preview" && <p className="banner">Recorded preview. Not a customer recording.</p>}
-      {step === "Capture" && (
-        <section className="phone">
-          <div className="phone-top"><span>{snapshot ? "Saved" : "Empty"}</span><span>Transcript</span></div>
-          <p>{snapshot?.transcript ?? "No transcript yet."}</p>
-          <p className="meta">{snapshot?.transcriptNote ?? "A spoken length stays provisional until it is locked on the plan."}</p>
-          <a className="btn" href="/measure">Open guided capture</a>
+      {step === "Check" && (
+        <section className="grid">
+          <p>{snapshot.transcript ?? "No transcript yet."}</p>
+          {gaps.length === 0 ? <p className="meta">No open measurements.</p> : gaps.map((gap) => <p key={gap}>{gap}</p>)}
         </section>
       )}
-      {step === "Gaps" && (
-        <section className="panel">
-          <p className="kicker">{gaps.length ? `${gaps.length} open` : "No open measurements"} before this goes further</p>
-          {gaps.length === 0 && <p className="meta">Nothing unmeasured was found on the saved plan.</p>}
-          {gaps.map((gap) => <p key={gap}>{gap}</p>)}
-        </section>
-      )}
-      {step === "Review" && snapshot && (
+      {step === "Sketch" && (
         <PlanView plan={snapshot.plan} onChange={(plan) => {
           const next = { ...snapshot, plan };
           setSnapshot(next);
           saveWalkthrough(next);
         }} />
       )}
-      {step === "Draft scope & estimate" && snapshot && (
+      {step === "Estimate" && (
         <DraftEstimate snapshot={snapshot} onSnapshot={(next) => { setSnapshot(next); saveWalkthrough(next); }} />
       )}
-      <section className="panel">
-        <p className="kicker">Synthetic harness, not this walkthrough</p>
-        <p className="meta">These rows are the ChArUco solve on rendered rooms. A miss is not shown as confirmed.</p>
-        <table className="stack">
-          <thead><tr><th>Truth</th><th>Solved</th><th>Actual error</th><th>Bound</th><th></th></tr></thead>
-          <tbody>
-            {walls.map((row) => (
-              <tr key={`${row.truthFt}-${row.valueFt}`}>
-                <td data-label="Truth">{row.truthFt} ft</td>
-                <td data-label="Solved">{row.valueFt ?? "?"} ft</td>
-                <td data-label="Actual error">{row.actualPercent == null ? "?" : `${row.actualPercent}%`}</td>
-                <td data-label="Bound">{row.errorPercent == null ? "?" : `±${row.errorPercent}%`}</td>
-                <td data-label="Target">{row.meetsAccuracyTarget ? <span className="chip blue">Meets ±5%</span> : <span className="chip orange">Does not meet ±5%</span>}</td>
-              </tr>
-            ))}
-            {height && (
-              <tr>
-                <td data-label="Truth">Ceiling {height.truthFt} ft</td>
-                <td data-label="Solved">{height.valueFt == null ? "?" : `${height.valueFt} ft`}</td>
-                <td data-label="Actual error">{height.actualPercent == null ? "?" : `${height.actualPercent}%`}</td>
-                <td data-label="Bound">{height.errorPercent == null ? "?" : `±${height.errorPercent}%`}</td>
-                <td data-label="Target">{height.meetsAccuracyTarget ? <span className="chip blue">Meets ±5%</span> : <span className="chip orange">Does not meet ±5%</span>}</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        <a className="btn secondary" href="/account">Sign in to approve or authorize a job</a>
-      </section>
     </div>
   );
 }

@@ -10,7 +10,7 @@ export function SampleLauncher({ scenarioId }: { scenarioId: string }) {
   return (
     <div>
       <button
-        className="btn"
+        className="btn secondary"
         disabled={pending}
         onClick={async () => {
           setPending(true);

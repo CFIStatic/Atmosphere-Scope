@@ -44,6 +44,8 @@ export function LoginForm({ devFallback, nextPath, notice }: { devFallback: bool
         <button className="btn" type="submit" disabled={pending}>Sign in</button>
       </form>
       <p className="meta"><Link href="/forgot">Forgot password</Link></p>
+      <details className="quiet">
+      <summary>Resend confirmation</summary>
       <form className="grid" onSubmit={async (event) => {
         event.preventDefault();
         setConfirmNote(null);
@@ -56,13 +58,13 @@ export function LoginForm({ devFallback, nextPath, notice }: { devFallback: bool
         const body = await response.json();
         setConfirmNote(body.error ?? body.message ?? CONFIRM_SENT);
       }}>
-        <p className="kicker">Resend confirmation</p>
         <label className="field">Email
           <input name="email" type="email" autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} required />
         </label>
         <button className="btn secondary" type="submit">Resend confirmation</button>
         {confirmNote && <p className="meta" role="status">{confirmNote}</p>}
       </form>
+      </details>
       {devFallback && (
         <details className="dev-signin">
           <summary>Dev-only sign-in, no password</summary>

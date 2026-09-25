@@ -43,15 +43,16 @@ test("admin invite page and account password fields are present", async ({ page 
   await expect(page.getByRole("textbox", { name: /^New password/ })).toHaveAttribute("autocomplete", "new-password");
 });
 
-test("the phone tab shortens Underwriting", async ({ page }) => {
+test("phone tabs stay on one line", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/contents");
-  const link = page.getByRole("link", { name: "Underwriting" });
-  await expect(link.locator(".nav-short")).toBeVisible();
-  await expect(link.locator(".nav-full")).toBeHidden();
-  await expect(link.locator(".nav-short")).toHaveText("Cover");
-  const box = await link.boundingBox();
-  expect(box?.height ?? 0).toBeLessThan(56);
+  await page.goto("/");
+  for (const name of ["Jobs", "Walk", "Results", "Estimate", "Account"]) {
+    const link = page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name, exact: true });
+    await expect(link).toBeVisible();
+    const box = await link.boundingBox();
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    expect(box?.height ?? 0).toBeLessThan(56);
+  }
 });
 
 test("dev sign-in cannot grant admin", async ({ request }) => {
