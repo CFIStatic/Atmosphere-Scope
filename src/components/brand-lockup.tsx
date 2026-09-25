@@ -1,6 +1,3 @@
 export function BrandLockup() {
-  return (
-    // The transparent lockup is the supplied file for a near-black page. It is not redrawn.
-    <img className="brand-lockup" src="/brand/lockup-transparent-for-dark-bg.png" alt="Atmosphere Scope" />
-  );
+  return <img className="brand-lockup" src="/brand/lockup-dark.svg" alt="Atmosphere Scope" width={1193} height={209} />;
 }

@@ -20,9 +20,9 @@ export function AccountChip() {
     <div className="account-chip">
       {session ? (
         <>
-          <span>{session.name} · {session.role}</span>
+          <span className="account-name">{session.name}</span>
+          <span className="account-role">{session.role}</span>
           {session.role === "admin" && <Link href="/admin/users">Users</Link>}
-          <Link href="/account">Account</Link>
         </>
       ) : (
         <Link href="/login">Sign in</Link>
