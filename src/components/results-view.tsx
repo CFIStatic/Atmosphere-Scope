@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { inventoryFromWalkthrough } from "@/analysis/inventory";
 import type { IdentifiedObject } from "@/analysis/frames";
 import type { FloorPlan } from "@/domain/plan-from-measurement";
+import { priceChip } from "@/domain/labels";
 import { buildResultLines, chooseReplacement, overrideQuantity, overrideReplacement, resultTotals, withManualOffer, withObjectQuantity, withSelectedOffer, type ResultLine, type ResultOffer } from "@/domain/results";
 
 export function ResultsView({ plan, objects, offers, onChange }: {
@@ -40,7 +41,7 @@ export function ResultsView({ plan, objects, offers, onChange }: {
               <article key={line.id} className="item-card">
                 <div className="item-card-top">
                   <strong>{line.item}</strong>
-                  {verified ? <span className="chip blue">Verified</span> : choice?.unitPrice == null ? <span className="chip">Unpriced</span> : <span className="chip orange">Not verified</span>}
+                  <span className={verified ? "chip blue" : choice?.unitPrice == null ? "chip" : "chip orange"}>{priceChip(verified ? "verified" : choice?.unitPrice == null ? "unpriced" : "unverified")}</span>
                 </div>
                 <p className="item-card-qty">{line.quantity == null ? "Quantity —" : `${line.quantity} ${line.unit}`}</p>
                 <p className="item-card-price">{choice?.unitPrice == null ? "Price —" : `${choice.currency ?? "USD"} ${choice.unitPrice}`}</p>
@@ -50,10 +51,10 @@ export function ResultsView({ plan, objects, offers, onChange }: {
               </article>
             );
           })}
-          <p className="meta">Room total {totals.rooms.find((item) => item.room === room)?.total ?? "—"}{totals.rooms.find((item) => item.room === room)?.unverified ? " · includes an unverified price" : ""}</p>
+          <p className="meta">Room total {totals.rooms.find((item) => item.room === room)?.total ?? "—"}{totals.rooms.find((item) => item.room === room)?.unverified ? " · Not verified" : ""}</p>
         </section>
       ))}
-      <p className="banner">{totals.job == null ? totals.note : `Job total ${totals.job}. ${totals.note}`}</p>
+      <p>{totals.job == null ? <span className="chip">Needs price</span> : <><span className={totals.rooms.some((room) => room.unverified) ? "chip orange" : "chip blue"}>{totals.rooms.some((room) => room.unverified) ? "Not verified" : "Verified"}</span> {totals.job}</>}</p>
       {editing && <EditSheet line={editing} onClose={() => setEditingId(null)} onAnother={() => {
         const nextIndex = ((picks[editing.id] ?? editing.selected) + 1) % editing.replacements.length;
         const choice = editing.replacements[nextIndex];
@@ -94,7 +95,7 @@ function EditSheet({ line, onClose, onAnother, onSave }: {
       }}>
         <p className="kicker">Edit item</p>
         <h2>{line.item}</h2>
-        <p className="meta">A blank price stays unpriced. This quantity is for the list. It does not redraw the sketch.</p>
+        <p className="meta">A blank price stays unpriced.</p>
         <label className="field">Quantity
           <input name="quantity" inputMode="decimal" defaultValue={line.quantity ?? ""} aria-label={`Quantity for ${line.item}`} />
         </label>

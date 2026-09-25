@@ -7,7 +7,7 @@ export function ShareJob({ jobId }: { jobId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <form className="panel grid share-job" onSubmit={async (event) => {
+    <form className="grid share-job" onSubmit={async (event) => {
       event.preventDefault();
       setError(null);
       setMessage(null);

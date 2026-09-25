@@ -17,7 +17,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
       initialJob={loaded.job}
       extra={
         <>
-          {session?.role === "customer" && <p className="banner">This job was shared with you. A customer account can read it and cannot change it.</p>}
+          {session?.role === "customer" && <p className="meta">Shared with you.</p>}
           {canShare && <ShareJob jobId={id} />}
         </>
       }

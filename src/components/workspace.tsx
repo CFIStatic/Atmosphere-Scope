@@ -3,12 +3,11 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
-import { bannerFor } from "@/domain/review";
+import { jobStatusChip } from "@/domain/labels";
 import type { Job } from "@/domain/types";
 import type { SketchOp } from "@/domain/sketch-ops";
 import { SketchEditor } from "./sketch-editor";
 import { AppFrame } from "@/components/app-frame";
-import { BrandLockup } from "@/components/brand-lockup";
 import { buildSpaceModel } from "@/spatial/model";
 
 const SpaceMap = dynamic(() => import("./space-map").then((mod) => mod.SpaceMap), { ssr: false, loading: () => <p>Loading 3D view…</p> });
@@ -39,22 +38,28 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
   }
 
   return (
-    <AppFrame>
+    <AppFrame current="/">
     <main className="shell">
       <header className="topbar">
         <div>
-          <BrandLockup />
-          <Link href="/" className="meta">All jobs</Link>
+          <Link href="/" className="meta">Jobs</Link>
           <h1 className="page-title">{job.property.address}</h1>
-          <p className="meta">{job.customer.name} · {job.property.city}, {job.property.region} · {job.concern}</p>
+          <p className="meta">{job.customer.name}</p>
         </div>
+        <Link className="btn" href="/walk">Walk the room</Link>
       </header>
-      {extra}
-      <p className={version?.status === "customer_authorized" ? "banner ok" : "banner"}>{bannerFor(version)}</p>
+      <p><span className={version?.status === "customer_authorized" ? "chip blue" : "chip"}>{jobStatusChip(version?.status)}</span></p>
+      <div className="row">
+        <Link className="btn secondary" href="/results">Results</Link>
+        <Link className="btn secondary" href="/estimate">Estimate</Link>
+      </div>
       {error && <p className="error">{error}</p>}
+      <details className="quiet">
+      <summary>Job file</summary>
+      {extra}
       <div className="tabs" role="tablist">
         {TABS.map((item) => (
-          <button key={item} type="button" role="tab" aria-selected={tab === item} onClick={() => setTab(item)}>{item}</button>
+          <button key={item} type="button" role="tab" aria-selected={tab === item} onClick={() => setTab(item)}>{item[0].toUpperCase() + item.slice(1)}</button>
         ))}
       </div>
       <div className="row" style={{ margin: "8px 0 14px" }}>
@@ -98,8 +103,7 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
             },
           });
         }}>
-          <p className="kicker">Price settings — markup or margin, not both</p>
-          <p className="meta">Sample jobs can still show illustrative arithmetic. The estimate you finalize is on Claims, from the catalog and rate book.</p>
+          <p className="kicker">Price settings</p>
           <label className="field">Mode<select name="mode" defaultValue={version.settings.mode}><option value="markup">Markup on cost</option><option value="margin">Target margin</option></select></label>
           <label className="field">Markup %<input name="markup" type="number" step="0.1" defaultValue={version.settings.markupPercent * 100} /></label>
           <label className="field">Margin %<input name="margin" type="number" step="0.1" defaultValue={version.settings.marginPercent * 100} /></label>
@@ -115,16 +119,17 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
       {tab === "review" && <Review job={job} onAct={act} />}
       {tab === "export" && (
         <section className="panel grid">
-          <p>Send this job’s report from Atmosphere Scope. The files are the sketch, the scope, and the assumptions on this job. The catalog estimate is finalized on Claims.</p>
+          <p>Send this job’s report.</p>
           <div className="row">
             <a className="btn" href={`/api/jobs/${job.id}/export/pdf`}>Send report (PDF)</a>
             <a className="btn-secondary" href={`/api/jobs/${job.id}/export/csv`}>Send report (CSV)</a>
             <a className="btn-secondary" href={`/api/jobs/${job.id}/export/svg`}>Sketch SVG</a>
             <a className="btn-secondary" href={`/api/jobs/${job.id}/export/json`}>Send report (JSON)</a>
-            <a className="btn-secondary" href="/claims">Finalize estimate</a>
+            <a className="btn-secondary" href="/estimate">Finalize estimate</a>
           </div>
         </section>
       )}
+      </details>
     </main>
     </AppFrame>
   );

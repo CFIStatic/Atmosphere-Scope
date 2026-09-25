@@ -12,10 +12,24 @@ const CHECKS = ["Water heater label", "Electrical panel", "Roof", "Smoke alarms"
 export function UnderwritingFlow() {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Checklist");
   const [snapshot, setSnapshot] = useState<WalkthroughSnapshot | null>(null);
+  const [ready, setReady] = useState(false);
   const [deductible, setDeductible] = useState(2500);
-  useEffect(() => setSnapshot(loadWalkthrough()), []);
+  useEffect(() => {
+    setSnapshot(loadWalkthrough());
+    setReady(true);
+  }, []);
   const gaps = snapshot ? gapsFromSnapshot(snapshot) : [];
   const totals = useMemo(() => snapshot ? resultTotals(buildResultLines(inventoryFromWalkthrough(snapshot.objects, snapshot.plan), snapshot.offers)) : null, [snapshot]);
+
+  if (!ready) return null;
+  if (!snapshot) {
+    return (
+      <div className="empty">
+        <p>Walk a room before this report.</p>
+        <a className="btn" href="/walk">Walk</a>
+      </div>
+    );
+  }
 
   return (
     <div className="flow">
@@ -24,15 +38,14 @@ export function UnderwritingFlow() {
           <button key={item} type="button" role="tab" aria-selected={tab === item} onClick={() => setTab(item)}>{item}</button>
         ))}
       </div>
-      {!snapshot && <p className="banner">No walkthrough is saved in this browser. Checklist items stay Not verified.</p>}
-      {snapshot?.source === "recorded-preview" && <p className="banner">Recorded preview. Not an inspection.</p>}
+      {snapshot.source === "recorded-preview" && <p className="meta">Sample. Not an inspection.</p>}
       {tab === "Checklist" && (
         <section className="phone">
           <div className="phone-top"><span>Inspection</span><span>Not verified</span></div>
           {CHECKS.map((item) => (
             <p key={item} className="row"><span>{item}</span><span className="chip">Not verified</span></p>
           ))}
-          <p className="meta">No inspection photo is attached. A missing label is not filled in. This is not a coverage decision.</p>
+          <p className="meta">Not a coverage decision.</p>
         </section>
       )}
       {tab === "Gaps" && (
@@ -49,7 +62,7 @@ export function UnderwritingFlow() {
             <thead><tr><th>Component</th><th>Status</th><th>Amount</th></tr></thead>
             <tbody>
               <tr><td data-label="Component">Dwelling</td><td data-label="Status"><span className="chip">Not measured</span></td><td data-label="Amount">—</td></tr>
-              <tr><td data-label="Component">Contents from this walkthrough</td><td data-label="Status">{totals?.job == null ? <span className="chip">Unpriced</span> : <span className="chip orange">See the total note</span>}</td><td data-label="Amount">{totals?.job ?? "—"}</td></tr>
+              <tr><td data-label="Component">Contents from this walkthrough</td><td data-label="Status">{totals?.job == null ? <span className="chip">Needs price</span> : <span className="chip orange">Not verified</span>}</td><td data-label="Amount">{totals?.job ?? "—"}</td></tr>
             </tbody>
           </table>
           {totals && <p className="meta">{totals.note}</p>}
@@ -78,11 +91,11 @@ export function UnderwritingFlow() {
           )}
         </section>
       )}
-      {tab === "Contents" && (snapshot ? <ResultsView plan={snapshot.plan} objects={snapshot.objects} offers={snapshot.offers} onChange={({ offers, objects }) => {
+      {tab === "Contents" && <ResultsView plan={snapshot.plan} objects={snapshot.objects} offers={snapshot.offers} onChange={({ offers, objects }) => {
         const next = { ...snapshot, offers, objects };
         setSnapshot(next);
         saveWalkthrough(next);
-      }} /> : <p className="meta">Contents stay blank until a walkthrough is saved.</p>)}
+      }} />}
       {tab === "Baseline" && (
         <section className="panel">
           <p className="kicker">Baseline</p>
