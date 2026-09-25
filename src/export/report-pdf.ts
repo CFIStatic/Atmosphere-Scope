@@ -6,11 +6,11 @@ export async function reportPdf(report: EstimateReport): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   let page = pdf.addPage([612, 792]);
-  let y = await paintLightLockup(pdf, page);
+  let y = await paintLightLockup(pdf, page, { font, size: 16 });
   const write = async (text: string, size = 11) => {
     if (y < 48) {
       page = pdf.addPage([612, 792]);
-      y = await paintLightLockup(pdf, page);
+      y = await paintLightLockup(pdf, page, { font, size });
     }
     page.drawText(text.slice(0, 110), { x: 40, y, size, font, color: rgb(0.09, 0.1, 0.11) });
     y -= size + 6;

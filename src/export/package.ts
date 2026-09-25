@@ -92,13 +92,13 @@ export async function jobPdf(job: Job): Promise<Uint8Array> {
   const version = job.estimates.find((item) => item.id === job.activeEstimateId) ?? job.estimates.at(-1) ?? null;
   const pageSize: [number, number] = [612, 792];
   let page = pdf.addPage(pageSize);
-  let y = await paintLightLockup(pdf, page);
+  let y = await paintLightLockup(pdf, page, { font: bold, size: 18 });
   const draw = async (text: string, size = 10, useBold = false) => {
     const chunks = wrap(text, 90);
     for (const chunk of chunks) {
       if (y < 48) {
         page = pdf.addPage(pageSize);
-        y = await paintLightLockup(pdf, page);
+        y = await paintLightLockup(pdf, page, { font: useBold ? bold : font, size });
       }
       page.drawText(chunk, { x: 40, y, size, font: useBold ? bold : font, color: rgb(0.09, 0.1, 0.11) });
       y -= size + 4;
