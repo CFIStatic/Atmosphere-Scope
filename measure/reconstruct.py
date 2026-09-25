@@ -532,11 +532,11 @@ def measure_frames(frames: list[np.ndarray], scale: str = "charuco") -> dict:
                     )
                 )
             a, b = refined
-            corners = []
-            for oa in a["offsets"]:
-                for ob in b["offsets"]:
-                    matrix = np.stack([a["axis"], b["axis"]])
-                    corners.append(np.linalg.solve(matrix, np.array([oa, ob])))
+            matrix = np.stack([a["axis"], b["axis"]])
+            oa, ob = a["offsets"], b["offsets"]
+            # Walk the boundary. Pairing the offsets in nested order crosses the quad.
+            ring = ((oa[0], ob[0]), (oa[1], ob[0]), (oa[1], ob[1]), (oa[0], ob[1]))
+            corners = [np.linalg.solve(matrix, np.array([u, v])) for u, v in ring]
             polygon = [{"x": round(float(p[0] / METERS_PER_FOOT), 3), "y": round(float(p[1] / METERS_PER_FOOT), 3)} for p in corners]
 
     if scale == "door":

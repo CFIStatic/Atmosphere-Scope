@@ -66,9 +66,10 @@ export function setEdgeLength(polygon: Point[], edgeIndex: number, lengthFt: num
   if (axisAligned && next.length === 4) {
     for (let k = 0; k < next.length; k += 1) {
       if (k === i) continue;
-      const sameRow = Math.abs(uy) < 1e-6 && Math.abs(next[k].y - b.y) < 1e-6 && Math.abs(next[k].x - b.x) < 1e-6;
-      const sameCol = Math.abs(ux) < 1e-6 && Math.abs(next[k].x - b.x) < 1e-6 && Math.abs(next[k].y - b.y) < 1e-6;
-      if (k === j || sameRow || sameCol) {
+      const sharesFarWall =
+        (Math.abs(uy) < 1e-6 && Math.abs(next[k].x - b.x) < 1e-6) ||
+        (Math.abs(ux) < 1e-6 && Math.abs(next[k].y - b.y) < 1e-6);
+      if (k === j || sharesFarWall) {
         next[k] = { x: next[k].x + ux * delta, y: next[k].y + uy * delta };
       }
     }
