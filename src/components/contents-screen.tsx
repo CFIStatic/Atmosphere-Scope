@@ -74,14 +74,14 @@ export function ContentsScreen() {
       </details>
       {!snapshot && (
         <div className="empty">
-          <p>Walk a room to see the sketch and items.</p>
+          <p>No walkthrough.</p>
           <Link className="btn" href="/walk">Walk</Link>
         </div>
       )}
       {snapshot?.importNotes?.map((note) => <p key={note} className="meta">{note}</p>)}
       {snapshot?.crossCheck && snapshot.crossCheck.length > 0 && (
         <section className="panel">
-          <p className="kicker">Compared with the video</p>
+          <p className="meta">Video comparison</p>
           <table className="stack">
             <thead><tr><th>Room</th><th>Item</th><th>Imported</th><th>Video</th><th></th></tr></thead>
             <tbody>

@@ -27,16 +27,17 @@ export default async function HomePage() {
               id: job.id,
               address: job.property.address,
               customer: job.customer.name,
-              concern: job.concern,
+              concern: jobType(job.concern),
               updatedAt: job.updatedAt,
               status: version?.status ?? null,
               unpriced: version?.pricedLines.filter((line) => line.unitPrice == null || line.unpricedReason).length ?? 0,
+              total: version?.totals.supportedTotal ?? null,
             };
           })}
         />
         {!customer && (
           <details className="quiet">
-            <summary>Try a sample</summary>
+            <summary>Samples</summary>
             <div className="list">
               {SCENARIOS.map((scenario) => (
                 <div key={scenario.id} className="job-row">
@@ -50,4 +51,12 @@ export default async function HomePage() {
       </main>
     </AppFrame>
   );
+}
+
+function jobType(concern: string): string {
+  const text = concern.trim();
+  if (!text) return "Claim";
+  const hit = text.match(/\b(water|fire|theft|wind|contents)\b/i);
+  if (hit) return `${hit[1][0].toUpperCase()}${hit[1].slice(1).toLowerCase()}`;
+  return text.length > 22 ? "Claim" : text;
 }

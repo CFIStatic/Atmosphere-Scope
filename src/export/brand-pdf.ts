@@ -15,8 +15,8 @@ export async function paintLightLockup(pdf: PDFDocument, page: PDFPage, next: { 
   const image = await pdf.embedPng(bytes);
   const width = 200;
   const height = width * (image.height / image.width);
-  const imageBottom = page.getHeight() - 36 - height;
-  page.drawImage(image, { x: 40, y: imageBottom, width, height });
+  const imageBottom = page.getHeight() - 40 - height;
+  page.drawImage(image, { x: 54, y: imageBottom, width, height });
   const ascent = next.font.heightAtSize(next.size, { descender: false });
   return imageBottom - 16 - ascent;
 }

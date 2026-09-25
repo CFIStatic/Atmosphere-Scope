@@ -4,6 +4,9 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { jobStatusChip } from "@/domain/labels";
+import { formatPct, formatQty } from "@/domain/format";
+import { polygonArea } from "@/domain/geometry";
+import { Amount } from "@/components/amount";
 import type { Job } from "@/domain/types";
 import type { SketchOp } from "@/domain/sketch-ops";
 import { SketchEditor } from "./sketch-editor";
@@ -38,6 +41,12 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
     setJob(payload);
   }
 
+  const area = job.sketch.geometry.rooms.reduce((sum, room) => sum + polygonArea(room.polygon), 0);
+  const pricedLines = version?.pricedLines ?? [];
+  const unpriced = pricedLines.filter((line) => line.unitPrice == null || line.unpricedReason).length;
+  const pricedPct = pricedLines.length ? ((pricedLines.length - unpriced) / pricedLines.length) * 100 : null;
+  const needs = unpriced + job.questions.filter((question) => question.status === "open").length;
+
   return (
     <AppFrame current="/">
     <main className="shell">
@@ -47,9 +56,16 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
           <h1 className="page-title">{job.property.address}</h1>
           <p className="meta">{job.customer.name}</p>
         </div>
-        <Link className="btn" href="/walk">Walk the room</Link>
+        <Link className="btn" href="/walk">Walk</Link>
       </header>
-      <p><span className={version?.status === "customer_authorized" ? "chip blue" : "chip"}>{jobStatusChip(version?.status)}</span></p>
+      <div className="kpi" aria-label="Job summary">
+        <div><span>Total</span><strong><Amount value={version && unpriced === 0 ? version.totals.supportedTotal : null} /></strong></div>
+        <div><span>Priced</span><strong>{pricedPct == null ? "—" : formatPct(pricedPct)}</strong></div>
+        <div><span>Items</span><strong>{job.scopeItems.length}</strong></div>
+        <div><span>Needs attention</span><strong>{needs}</strong></div>
+        <div><span>Area</span><strong>{area > 0 ? `${formatQty(area)} sf` : "—"}</strong></div>
+      </div>
+      <p className="meta">{jobStatusChip(version?.status)}</p>
       <div className="row">
         <Link className="btn secondary" href="/review">Review</Link>
         <Link className="btn secondary" href="/estimate">Estimate</Link>
@@ -82,7 +98,7 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
       {tab === "map" && (
         <section className="grid">
           <SpaceMap model={model} />
-          <p className="meta">The map uses the same rooms, openings, and heights as the sketch. Lock measurements on the sketch tab and the volume updates. A single tape reading does not make the model to scale.</p>
+          <p className="meta">Sketch geometry.</p>
         </section>
       )}
       {tab === "assessment" && <Assessment job={job} findings={findings} onSave={(findingId, title, interpretation) => act({ type: "correct_finding", findingId, title, interpretation })} onOpen={(id) => { setFindingId(id); setTab("evidence"); }} />}
@@ -121,13 +137,13 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
       {tab === "review" && <Review job={job} onAct={act} />}
       {tab === "export" && (
         <section className="panel grid">
-          <p>Send this job’s report.</p>
+          <p>Report</p>
           <div className="row">
-            <a className="btn" href={`/api/jobs/${job.id}/export/pdf`}>Send report (PDF)</a>
-            <a className="btn-secondary" href={`/api/jobs/${job.id}/export/csv`}>Send report (CSV)</a>
-            <a className="btn-secondary" href={`/api/jobs/${job.id}/export/svg`}>Sketch SVG</a>
-            <a className="btn-secondary" href={`/api/jobs/${job.id}/export/json`}>Send report (JSON)</a>
-            <a className="btn-secondary" href="/estimate">Finalize estimate</a>
+            <a className="btn" href={`/api/jobs/${job.id}/export/pdf`}>PDF</a>
+            <a className="btn-secondary" href={`/api/jobs/${job.id}/export/csv`}>CSV</a>
+            <a className="btn-secondary" href={`/api/jobs/${job.id}/export/svg`}>SVG</a>
+            <a className="btn-secondary" href={`/api/jobs/${job.id}/export/json`}>JSON</a>
+            <a className="btn-secondary" href="/estimate">Finalize</a>
           </div>
         </section>
       )}
@@ -142,20 +158,20 @@ function Capture({ job, onProcess, onRetry, onUploaded }: { job: Job; onProcess:
   return (
     <section className="split">
       <div className="panel grid">
-        <p className="kicker">Walk the property like this</p>
+        <p className="kicker">Walk</p>
         <ol>
-          <li>Say the room name out loud.</li>
-          <li>Start wide, then show corners, walls, ceiling, floor, doors, and windows.</li>
-          <li>Show the doorway as you move into the next room.</li>
-          <li>Show affected areas wide and close, and say what you measured.</li>
-          <li>Read instrument values and where they were taken.</li>
-          <li>Desired repairs stay requests until an estimator confirms them.</li>
+          <li>Name the room.</li>
+          <li>Show corners, walls, ceiling, floor, doors, and windows.</li>
+          <li>Show each doorway.</li>
+          <li>Show affected areas and state the measurement.</li>
+          <li>Read instrument values and the location.</li>
+          <li>Repair requests stay pending until an estimator confirms them.</li>
         </ol>
-        <label className="field">Narration, one line per moment
-          <textarea rows={6} value={transcript} onChange={(event) => setTranscript(event.target.value)} placeholder="This is the kitchen. The ceiling stain is dry. The wall is 12 ft." />
+        <label className="field">Narration
+          <textarea rows={6} value={transcript} onChange={(event) => setTranscript(event.target.value)} placeholder="Kitchen. Ceiling stain is dry. Wall is 12 ft." />
         </label>
         <div className="row">
-          <button className="btn" type="button" onClick={() => onProcess(transcript, false)}>Build draft scope</button>
+          <button className="btn" type="button" onClick={() => onProcess(transcript, false)}>Build scope</button>
           {job.processing.status === "failed" && <button className="btn-secondary" type="button" onClick={onRetry}>Retry failed stage</button>}
         </div>
         {job.processing.lastError && <p className="error">{job.processing.lastError}</p>}
@@ -181,7 +197,7 @@ function Upload({ jobId, notes, media, onUploaded }: { jobId: string; notes: str
           return;
         }
         onUploaded(payload.job);
-        setMessage("File stored privately on this server.");
+        setMessage("Stored.");
       }}>
         <input name="file" type="file" accept="video/*,image/*,.json,.ply" required />
         <button className="btn" type="submit">Upload</button>
@@ -211,10 +227,10 @@ function Recorder() {
         recorder.ondataavailable = (event) => chunks.push(event.data);
         recorder.onstop = () => {
           stream.getTracks().forEach((track) => track.stop());
-          setState(`Recorded ${chunks.reduce((sum, chunk) => sum + chunk.size, 0)} bytes. Upload the clip to keep it.`);
+          setState(`Recorded ${chunks.reduce((sum, chunk) => sum + chunk.size, 0)} bytes.`);
         };
         recorder.start();
-        setState("Recording… stopping in 4 seconds.");
+        setState("Recording. 4 seconds.");
         setTimeout(() => recorder.stop(), 4000);
       }}
     >
@@ -242,7 +258,7 @@ function Evidence({ job, findings, findingId, onSelect }: { job: Job; findings: 
       </div>
       <aside className="panel grid">
         {media?.storageKey && <video controls src={`/api/jobs/${job.id}/media/${media.id}`} />}
-        {!media?.storageKey && <p className="meta">No binary video for this clip. Transcript and frame notes are the evidence.</p>}
+        {!media?.storageKey && <p className="meta">No video file. Transcript and frames are the record.</p>}
         {finding && (
           <>
             <h2>{finding.title}</h2>
@@ -329,19 +345,19 @@ function Estimate({ job, phase, setPhase, lines, version, onAffected, onApply, o
         <button className={phase === "rebuild" ? "btn" : "btn-secondary"} type="button" onClick={() => setPhase("rebuild")}>Rebuild</button>
       </div>
       {version && (
-        <div className="totals">
-          <div className="total">Mitigation<b>${version.totals.mitigationSubtotal.toFixed(2)}</b></div>
-          <div className="total">Rebuild<b>${version.totals.rebuildSubtotal.toFixed(2)}</b></div>
-          <div className="total">Supported ({version.totals.label})<b>${version.totals.supportedTotal.toFixed(2)}</b></div>
-          <div className="total">Conditional<b>${version.totals.conditionalAllowance.toFixed(2)}</b></div>
-          <div className="total">Optional<b>${version.totals.optionalAllowance.toFixed(2)}</b></div>
+        <div className="kpi" aria-label="Estimate totals">
+          <div><span>Mitigation</span><strong><Amount value={version.totals.mitigationSubtotal} /></strong></div>
+          <div><span>Rebuild</span><strong><Amount value={version.totals.rebuildSubtotal} /></strong></div>
+          <div><span>Supported</span><strong><Amount value={version.totals.supportedTotal} /></strong></div>
+          <div><span>Conditional</span><strong><Amount value={version.totals.conditionalAllowance} /></strong></div>
+          <div><span>Optional</span><strong><Amount value={version.totals.optionalAllowance} /></strong></div>
         </div>
       )}
-      <p className="meta">{version?.priceBookLabel}. Conditional and optional amounts sit outside the supported total.</p>
+      <p className="meta">{version?.totals.label === "complete" ? "Complete." : "Partial. Unpriced lines excluded."}</p>
       {job.pendingQuantityChanges.length > 0 && (
         <div className="banner">
-          Geometry changed {job.pendingQuantityChanges.length} quantities. They are not applied yet.
-          <button className="btn" type="button" onClick={onApply}>Apply preview</button>
+          {job.pendingQuantityChanges.length} quantities changed. Not applied.
+          <button className="btn" type="button" onClick={onApply}>Apply</button>
         </div>
       )}
       <form className="row" onSubmit={(event) => {
@@ -351,29 +367,30 @@ function Estimate({ job, phase, setPhase, lines, version, onAffected, onApply, o
         <input name="sqft" type="number" step="0.1" min="0" placeholder="Affected sqft for filtered room" aria-label="Affected area" />
         <button className="btn-secondary" type="submit">Set affected area</button>
       </form>
-      <table className="stack">
-        <thead><tr><th>Class</th><th>Line</th><th>Qty</th><th>Amount</th></tr></thead>
+      <table className="data">
+        <thead><tr><th>Class</th><th>Line</th><th className="num">Qty</th><th>Unit</th><th className="num">Amount</th></tr></thead>
         <tbody>
           {lines.map((item) => {
             const priced = version?.pricedLines.find((line) => line.scopeItemId === item.id);
+            const amount = priced?.unpricedReason || priced?.extendedPrice == null ? null : priced.extendedPrice;
             return (
               <tr key={item.id}>
-                <td data-label="Class"><span className="badge">{item.scopeClass}</span></td>
+                <td data-label="Class">{item.scopeClass}</td>
                 <td data-label="Line">
                   <button type="button" className="btn-secondary" onClick={() => item.roomId && onSelectRoom(item.roomId)}>{item.location}</button>
                   <div>{item.description}</div>
-                  <div className="meta">{item.reason}</div>
                 </td>
-                <td data-label="Qty">
-                  {item.quantity.value ?? "—"} {item.quantity.unit} · {item.quantity.status}
+                <td className="num" data-label="Qty">
+                  {item.quantity.value == null ? "—" : item.quantity.value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   <form onSubmit={(event) => {
                     event.preventDefault();
                     onEdit(item.id, Number(new FormData(event.currentTarget).get("qty")));
                   }}>
-                    <input name="qty" type="number" step="0.1" aria-label={`Quantity for ${item.description}`} placeholder="edit qty" />
+                    <input name="qty" type="number" step="0.1" aria-label={`Quantity for ${item.description}`} placeholder="Qty" />
                   </form>
                 </td>
-                <td data-label="Amount">{priced?.extendedPrice ?? "unpriced"}{priced?.unpricedReason ? ` · ${priced.unpricedReason}` : ""}</td>
+                <td data-label="Unit">{item.quantity.unit}</td>
+                <td className="num" data-label="Amount"><Amount value={amount} /></td>
               </tr>
             );
           })}
@@ -388,7 +405,7 @@ function Review({ job, onAct }: { job: Job; onAct: (body: unknown) => void }) {
     <section className="grid">
       <div className="panel grid">
         <p className="kicker">Estimator</p>
-        <p className="meta">Sign in as an estimator on Account. A customer sign-in cannot approve this version.</p>
+        <p className="meta">Estimator approval and customer authorization are separate.</p>
         <a className="btn secondary" href="/account">Account</a>
         <form className="row" onSubmit={(event) => { event.preventDefault(); onAct({ type: "mark_reviewed", actorName: String(new FormData(event.currentTarget).get("name")) }); }}>
           <input name="name" placeholder="Estimator name" required aria-label="Estimator name" />
@@ -401,7 +418,7 @@ function Review({ job, onAct }: { job: Job; onAct: (body: unknown) => void }) {
       </div>
       <div className="panel grid">
         <p className="kicker">Customer authorization</p>
-        <p className="meta">Sign in as the customer. This step does not approve the estimate. It names the exact version.</p>
+        <p className="meta">Names the accepted version.</p>
         <form className="grid" onSubmit={(event) => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);

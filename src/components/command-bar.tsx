@@ -92,19 +92,30 @@ export function CommandBar({ snapshot, onSnapshot }: { snapshot: WalkthroughSnap
   return (
     <section className="grid">
       <form className="command-bar" onSubmit={(event) => { event.preventDefault(); void ask(prompt); }}>
-        <input aria-label="Ask or tell Atmosphere" placeholder="Ask or tell Atmosphere" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
-        <button className="btn secondary" type="button" aria-label="Microphone" onClick={() => void listen()}>{listening ? "Listening" : "Mic"}</button>
-        <button className="btn secondary" type="submit" disabled={pending || !prompt.trim()}>Ask</button>
+        <input aria-label="Instruction" placeholder="Instruction" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
+        <button className="btn secondary icon-btn" type="button" aria-label="Microphone" onClick={() => void listen()}>
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="6" y="1" width="4" height="8" rx="2" fill="none" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+          </svg>
+        </button>
+        <button className="sr-submit" type="submit" disabled={pending || !prompt.trim()}>Submit</button>
       </form>
       {notice && <p className="meta">{notice}</p>}
       {proposal && diffs.length > 0 && (
         <div className="grid">
-          {diffs.map((diff) => (
-            <p key={`${diff.summary}-${diff.before}`} className="diff">
-              <strong>{diff.summary}</strong>
-              <span className="meta">{diff.before} → {diff.after}</span>
-            </p>
-          ))}
+          <table className="data">
+            <thead><tr><th>Change</th><th>Before</th><th>After</th></tr></thead>
+            <tbody>
+              {diffs.map((diff) => (
+                <tr key={`${diff.summary}-${diff.before}`}>
+                  <td data-label="Change">{diff.summary}</td>
+                  <td data-label="Before">{diff.before || "—"}</td>
+                  <td data-label="After">{diff.after || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
           {proposal.answer && <p>{proposal.answer}</p>}
           {proposal.unknown && <p className="meta">{proposal.unknown}</p>}
           <div className="row">

@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, Fragment } from "react";
 import { inventoryFromWalkthrough } from "@/analysis/inventory";
 import type { IdentifiedObject } from "@/analysis/frames";
 import type { FloorPlan } from "@/domain/plan-from-measurement";
 import { priceChip } from "@/domain/labels";
+import { formatQty } from "@/domain/format";
+import { Amount } from "@/components/amount";
 import { buildResultLines, chooseReplacement, overrideQuantity, overrideReplacement, resultTotals, withManualOffer, withObjectQuantity, withSelectedOffer, type ResultLine, type ResultOffer } from "@/domain/results";
 
 export function ResultsView({ plan, objects, offers, onChange }: {
@@ -31,30 +33,55 @@ export function ResultsView({ plan, objects, offers, onChange }: {
 
   return (
     <div className="grid">
-      {rooms.map((room) => (
-        <section key={room} className="grid">
-          <p className="kicker">{room}</p>
-          {lines.filter((line) => line.room === room).map((line) => {
-            const choice = line.replacements[line.selected];
-            const verified = choice?.status === "verified";
+      <table className="data">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th className="num">Qty</th>
+            <th>Unit</th>
+            <th className="num">Amount</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rooms.map((room) => {
+            const roomLines = lines.filter((line) => line.room === room);
+            const roomTotal = totals.rooms.find((item) => item.room === room);
             return (
-              <article key={line.id} className="item-card">
-                <div className="item-card-top">
-                  <strong>{line.item}</strong>
-                  <span className={verified ? "chip blue" : choice?.unitPrice == null ? "chip" : "chip orange"}>{priceChip(verified ? "verified" : choice?.unitPrice == null ? "unpriced" : "unverified")}</span>
-                </div>
-                <p className="item-card-qty">{line.quantity == null ? "Quantity —" : `${line.quantity} ${line.unit}`}</p>
-                <p className="item-card-price">{choice?.unitPrice == null ? "Price —" : `${choice.currency ?? "USD"} ${choice.unitPrice}`}</p>
-                <p className="meta">{line.lineTotal == null ? "Line —" : `Line ${line.lineTotal}`} · {choice?.title ?? "No replacement"}{choice?.retailer ? ` · ${choice.retailer}` : ""}</p>
-                <p className="meta">{line.evidence}{line.links[0] ? ` · ${line.links[0].frame}${line.links[0].timeMs == null ? "" : ` @ ${(line.links[0].timeMs / 1000).toFixed(1)}s`}` : ""}</p>
-                <button className="btn secondary" type="button" onClick={() => setEditingId(line.id)}>Edit</button>
-              </article>
+              <Fragment key={room}>
+                <tr>
+                  <td colSpan={6} data-label="Room">{room}</td>
+                </tr>
+                {roomLines.map((line) => {
+                  const choice = line.replacements[line.selected];
+                  const verified = choice?.status === "verified";
+                  return (
+                    <tr key={line.id}>
+                      <td data-label="Item">{line.item}</td>
+                      <td className="num" data-label="Qty">{line.quantity == null ? "—" : formatQty(line.quantity)}</td>
+                      <td data-label="Unit">{line.unit}</td>
+                      <td className="num" data-label="Amount"><Amount value={line.lineTotal} /></td>
+                      <td data-label="Status"><span className="tag">{priceChip(verified ? "verified" : choice?.unitPrice == null ? "unpriced" : "unverified")}</span></td>
+                      <td data-label=""><button className="btn secondary" type="button" onClick={() => setEditingId(line.id)}>Edit</button></td>
+                    </tr>
+                  );
+                })}
+                <tr className="subtotal">
+                  <td colSpan={3} data-label="Subtotal">{room}</td>
+                  <td className="num" data-label="Amount"><Amount value={roomTotal?.unverified ? null : roomTotal?.total ?? null} /></td>
+                  <td colSpan={2}></td>
+                </tr>
+              </Fragment>
             );
           })}
-          <p className="meta">Room total {totals.rooms.find((item) => item.room === room)?.total ?? "—"}{totals.rooms.find((item) => item.room === room)?.unverified ? " · Not verified" : ""}</p>
-        </section>
-      ))}
-      <p>{totals.job == null ? <span className="chip">Needs price</span> : <><span className={totals.rooms.some((room) => room.unverified) ? "chip orange" : "chip blue"}>{totals.rooms.some((room) => room.unverified) ? "Not verified" : "Verified"}</span> {totals.job}</>}</p>
+          <tr className="grand">
+            <td colSpan={3} data-label="Total">Total</td>
+            <td className="num" data-label="Amount"><Amount value={totals.rooms.some((room) => room.unverified) ? null : totals.job} /></td>
+            <td colSpan={2} data-label="Status"><span className="tag">{totals.rooms.some((room) => room.unverified) || totals.job == null ? "Not verified" : "Verified"}</span></td>
+          </tr>
+        </tbody>
+      </table>
       {editing && <EditSheet line={editing} onClose={() => setEditingId(null)} onAnother={() => {
         const nextIndex = ((picks[editing.id] ?? editing.selected) + 1) % editing.replacements.length;
         const choice = editing.replacements[nextIndex];
@@ -93,7 +120,6 @@ function EditSheet({ line, onClose, onAnother, onSave }: {
         if (quantity != null && !Number.isFinite(quantity)) return;
         onSave({ title: String(form.get("title") ?? ""), unitPrice, quantity });
       }}>
-        <p className="kicker">Edit item</p>
         <h2>{line.item}</h2>
         <p className="meta">A blank price stays unpriced.</p>
         <label className="field">Quantity
