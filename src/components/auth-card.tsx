@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Wordmark } from "@/components/wordmark";
 
-export function AuthCard({ title, lede, children }: { title: string; lede?: string; children: ReactNode }) {
+export function AuthCard({ title, lede, children, after }: { title: string; lede?: string; children: ReactNode; after?: ReactNode }) {
   return (
     <main className="auth-shell">
       <div className="auth-chrome">
@@ -16,6 +16,7 @@ export function AuthCard({ title, lede, children }: { title: string; lede?: stri
         {children}
       </section>
       <p className="auth-footnote">Passwords are encrypted, never stored in plain text, and never seen by this page.</p>
+      {after}
     </main>
   );
 }

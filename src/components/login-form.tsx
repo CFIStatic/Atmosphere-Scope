@@ -6,9 +6,8 @@ import { PasswordField } from "@/components/password-field";
 import { CONFIRM_SENT, MIN_PASSWORD_LENGTH, passwordProblem, safeNext } from "@/auth/gate";
 import { applyStartScreenForEmail } from "@/auth/start-screen";
 
-export function LoginForm({ devFallback, nextPath, notice }: { devFallback: boolean; nextPath: string; notice: string | null }) {
+export function LoginForm({ nextPath, notice }: { nextPath: string; notice: string | null }) {
   const [error, setError] = useState<string | null>(notice);
-  const [confirmNote, setConfirmNote] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [invite, setInvite] = useState(false);
 
@@ -55,26 +54,35 @@ export function LoginForm({ devFallback, nextPath, notice }: { devFallback: bool
       <hr className="auth-rule" />
       <p className="auth-switch">Don&apos;t have an account? <button type="button" className="text-link" onClick={() => setInvite(true)}>Create an account</button></p>
       {invite && <p className="meta">Accounts are invite-only. Ask an admin for an invite.</p>}
+    </div>
+  );
+}
+
+export function LoginExtras({ devFallback, nextPath }: { devFallback: boolean; nextPath: string }) {
+  const [confirmNote, setConfirmNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="auth-extra">
       <details className="quiet">
-      <summary>Resend confirmation</summary>
-      <form className="grid" onSubmit={async (event) => {
-        event.preventDefault();
-        setConfirmNote(null);
-        const email = String(new FormData(event.currentTarget).get("email") ?? "");
-        const response = await fetch("/api/auth/resend", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
-        const body = await response.json();
-        setConfirmNote(body.error ?? body.message ?? CONFIRM_SENT);
-      }}>
-        <label className="field">Email
-          <input name="email" type="email" autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} required />
-        </label>
-        <button className="btn secondary" type="submit">Resend confirmation</button>
-        {confirmNote && <p className="meta" role="status">{confirmNote}</p>}
-      </form>
+        <summary>Resend confirmation</summary>
+        <form className="grid" onSubmit={async (event) => {
+          event.preventDefault();
+          setConfirmNote(null);
+          const email = String(new FormData(event.currentTarget).get("email") ?? "");
+          const response = await fetch("/api/auth/resend", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
+          const body = await response.json();
+          setConfirmNote(body.error ?? body.message ?? CONFIRM_SENT);
+        }}>
+          <label className="field">Email
+            <input name="email" type="email" autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} required />
+          </label>
+          <button className="btn secondary" type="submit">Resend confirmation</button>
+          {confirmNote && <p className="meta" role="status">{confirmNote}</p>}
+        </form>
       </details>
       {devFallback && (
         <details className="dev-signin">
@@ -105,6 +113,7 @@ export function LoginForm({ devFallback, nextPath, notice }: { devFallback: bool
                 <option value="customer">Customer</option>
               </select>
             </label>
+            {error && <p className="error" role="alert">{error}</p>}
             <button className="btn secondary" type="submit">Use dev sign-in</button>
           </form>
         </details>

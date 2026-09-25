@@ -1,5 +1,5 @@
 import { AuthCard } from "@/components/auth-card";
-import { LoginForm } from "@/components/login-form";
+import { LoginExtras, LoginForm } from "@/components/login-form";
 import { authMode } from "@/auth/access";
 import { safeNext } from "@/auth/gate";
 
@@ -13,8 +13,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       ? "This link is expired or invalid. Request another reset email."
       : null;
   return (
-    <AuthCard title="Welcome back" lede="Sign in to your Atmosphere workspace.">
-      <LoginForm devFallback={authMode() !== "supabase"} nextPath={safeNext(params.next)} notice={notice} />
+    <AuthCard
+      title="Welcome back"
+      lede="Sign in to your Atmosphere workspace."
+      after={<LoginExtras devFallback={authMode() !== "supabase"} nextPath={safeNext(params.next)} />}
+    >
+      <LoginForm nextPath={safeNext(params.next)} notice={notice} />
     </AuthCard>
   );
 }

@@ -303,6 +303,7 @@ label.btn input { display: none; }
 .auth-switch { text-align: center; margin: 0; font-size: 14px; font-weight: 450; }
 .text-link { border: 0; background: none; color: var(--accent); font-weight: 650; padding: 0; min-height: 0; font-size: inherit; }
 .auth-footnote { margin: 22px auto 0; max-width: 340px; text-align: center; color: #78716c; font-size: 13px; line-height: 1.45; }
+.auth-extra { width: min(420px, 100%); margin-top: 8px; }
 .field-label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .field-label a { color: var(--accent); font-size: 13px; font-weight: 650; text-decoration: none; }
 .password-row { position: relative; display: block; }
