@@ -27,7 +27,7 @@ const media = (label: string): MediaAsset => ({
   label,
   createdAt: new Date().toISOString(),
   durationMs: 45000,
-  note: "Sample clip. No binary video is shipped; transcript and frame notes are the evidence.",
+  note: "",
 });
 
 export function scenarioBundle(scenario: Scenario): { media: MediaAsset[]; transcripts: TranscriptSegment[]; frames: FrameObservation[] } {

@@ -7,7 +7,7 @@ const viewports = [
   { name: "ipad-air", width: 820, height: 1180 },
 ];
 
-const pages = ["/", "/record", "/jobs", "/review", "/results", "/estimate", "/estimate?report=underwriting", "/account", "/jobs/new", "/login", "/forgot", "/auth/reset", "/admin/users", "/admin/system"];
+const pages = ["/", "/dashboard", "/record", "/jobs", "/review", "/results", "/estimate", "/estimate?report=underwriting", "/account", "/jobs/new", "/login", "/forgot", "/auth/reset", "/admin/users", "/admin/system"];
 
 for (const viewport of viewports) {
   test.describe(viewport.name, () => {
