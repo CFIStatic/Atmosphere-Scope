@@ -1,12 +1,12 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { authMode, localSession, parseSessionCookie, publicSession, signInWithSupabase, type StoredSession } from "@/auth/access";
+import { authMode, localSession, parseSessionCookie, publicSession, serializeSessionCookie, signInWithSupabase, type StoredSession } from "@/auth/access";
 
 const COOKIE = "scope_session";
 
 export async function GET() {
   const jar = await cookies();
-  const session = parseSessionCookie(jar.get(COOKIE)?.value);
+  const session = await parseSessionCookie(jar.get(COOKIE)?.value);
   return NextResponse.json({ mode: authMode(), session: session ? publicSession(session) : null });
 }
 
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
       ? await signInWithSupabase({ email: body.email ?? "", password: body.password ?? "" }, process.env, fetch)
       : localSession(body);
     const jar = await cookies();
-    jar.set(COOKIE, JSON.stringify(session), { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 12 });
+    jar.set(COOKIE, serializeSessionCookie(session), { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 12 });
     return NextResponse.json({ mode: authMode(), session: publicSession(session) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Sign-in failed.";

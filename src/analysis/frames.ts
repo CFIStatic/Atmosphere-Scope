@@ -12,6 +12,7 @@ export type IdentifiedObject = {
   confidence: "low" | "medium" | "high";
   frames: string[];
   links?: EvidenceLink[];
+  quantity?: number | null;
 };
 
 /** Sample time for frame_00.jpg at the capture rate of 2 fps. */

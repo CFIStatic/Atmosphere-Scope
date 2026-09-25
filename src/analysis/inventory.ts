@@ -37,7 +37,7 @@ export function inventoryFromWalkthrough(objects: IdentifiedObject[], plan: Floo
       name: object.name,
       room: object.room,
       count: 1,
-      quantity: cabinet ? null : 1,
+      quantity: object.quantity !== undefined ? object.quantity : cabinet ? null : 1,
       unit: cabinet ? "lf" as const : "each" as const,
       source: "vision" as const,
       evidence: object.evidence,

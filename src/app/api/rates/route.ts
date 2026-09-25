@@ -1,4 +1,6 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { parseSessionCookie } from "@/auth/access";
 import type { RateBook } from "@/domain/estimate-engine";
 import { currentRates, saveRates } from "@/storage/catalog-store";
 
@@ -7,7 +9,12 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  const session = await parseSessionCookie((await cookies()).get("scope_session")?.value);
+  if (!session) return NextResponse.json({ error: "Sign in before changing the catalog or rate book." }, { status: 401 });
+  if (session.role !== "estimator") return NextResponse.json({ error: "Sign in as an estimator. A customer sign-in cannot publish the catalog or rate book." }, { status: 403 });
   const body = (await request.json()) as Partial<RateBook>;
+  const invalid = invalidPricedRow(body.labor, "hourlyUsd") ?? invalidPricedRow(body.equipment, "rateUsd");
+  if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
   const current = await currentRates();
   const next = await saveRates({
     region: body.region?.trim() || current.region,
@@ -24,4 +31,14 @@ export async function PUT(request: Request) {
 
 function numberOr(value: number | undefined, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
+function invalidPricedRow(rows: { source?: string; asOf?: string | null; hourlyUsd?: number | null; rateUsd?: number | null; trade?: string; equipment?: string }[] | undefined, amountKey: "hourlyUsd" | "rateUsd"): string | null {
+  for (const row of rows ?? []) {
+    const amount = row[amountKey];
+    if (amount == null) continue;
+    const label = row.trade ? `${row.trade} labor` : row.equipment || "This rate";
+    if (!row.source?.trim() || row.source.trim() === "No rate entered" || !row.asOf) return `${label} needs a source and a date before it can be saved.`;
+  }
+  return null;
 }

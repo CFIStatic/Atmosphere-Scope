@@ -6,7 +6,7 @@ import { chunkCount, getCapture, listPendingCaptures, putCapture, saveChunk } fr
 import { captureStatusLabel } from "@/capture/plan";
 import { resumeCapture } from "@/capture/resume-client";
 import { fuseDimension, type FusedDimension, type Reading, type ScaleSource } from "@/domain/fusion";
-import { saveWalkthrough } from "@/capture/snapshot";
+import { loadWalkthrough, saveWalkthrough } from "@/capture/snapshot";
 import { floorPlanFromMeasurement, recordedSyntheticRoom, type FloorPlan, type MeasuredRoomInput } from "@/domain/plan-from-measurement";
 import type { IdentifiedObject } from "@/analysis/frames";
 import type { ResultOffer } from "@/domain/results";
@@ -155,13 +155,17 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
   const [plan, setPlan] = useState<FloorPlan | null>(null);
   const [previewObjects, setPreviewObjects] = useState<IdentifiedObject[]>([]);
   const [previewOffers, setPreviewOffers] = useState<ResultOffer[]>([]);
+  const edits = useRef<{ offers: ResultOffer[]; objects: IdentifiedObject[] } | null>(null);
+  useEffect(() => {
+    edits.current = null;
+  }, [result]);
   useEffect(() => {
     if (!plan) return;
-    const objects: IdentifiedObject[] = (result?.ai?.objects ?? previewObjects).map((object) => {
+    const objects: IdentifiedObject[] = edits.current?.objects ?? (result?.ai?.objects ?? previewObjects).map((object) => {
       const confidence: IdentifiedObject["confidence"] = object.confidence === "high" || object.confidence === "medium" ? object.confidence : "low";
       return { ...object, confidence };
     });
-    const offers = (result?.ai?.offers ?? previewOffers).map((offer) => ({
+    const offers = edits.current?.offers ?? (result?.ai?.offers ?? previewOffers).map((offer) => ({
       query: offer.query,
       title: offer.title,
       retailer: offer.retailer,
@@ -655,7 +659,12 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
         {plan ? (
           <FieldPair
             sketch={<PlanView plan={plan} onChange={setPlan} />}
-            items={<ResultsView plan={plan} objects={(result?.ai?.objects ?? previewObjects).map((object) => ({ ...object, confidence: object.confidence === "high" || object.confidence === "medium" ? object.confidence : "low" }))} offers={(result?.ai?.offers ?? previewOffers).map((offer) => ({ query: offer.query, title: offer.title, retailer: offer.retailer, price: offer.price, currency: offer.currency, url: offer.url, status: offer.status, note: offer.note }))} />}
+            items={<ResultsView plan={plan} objects={(result?.ai?.objects ?? previewObjects).map((object) => ({ ...object, confidence: object.confidence === "high" || object.confidence === "medium" ? object.confidence : "low" }))} offers={(result?.ai?.offers ?? previewOffers).map((offer) => ({ query: offer.query, title: offer.title, retailer: offer.retailer, price: offer.price, currency: offer.currency, url: offer.url, status: offer.status, note: offer.note }))} onChange={(next) => {
+              edits.current = next;
+              const existing = loadWalkthrough();
+              if (!existing) return;
+              saveWalkthrough({ ...existing, offers: next.offers, objects: next.objects });
+            }} />}
           />
         ) : <p className="meta">No outline yet. A measured wall is drawn only after the solver returns a length.</p>}
       </section>

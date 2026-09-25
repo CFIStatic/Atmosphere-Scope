@@ -27,6 +27,8 @@ describe("own estimate", () => {
     expect(lines.some((line) => line.code === "REB-FLOOR" && line.quantity === 120)).toBe(true);
     expect(lines.some((line) => line.code === "MIT-EXTRACT")).toBe(false);
     expect(lines.some((line) => line.description.includes("Floor lamp"))).toBe(true);
+    const counted = draftScope({ plan, objects: [{ name: "Floor lamp", room: "Kitchen", evidence: "Seen.", confidence: "low", frames: [], quantity: 3 }], catalog: STARTER_CATALOG, loss: "none" });
+    expect(counted.find((line) => line.description.includes("Floor lamp"))?.quantity).toBe(3);
     const report = priceDraft(lines, STARTER_CATALOG, STARTER_RATES, []);
     expect(report.lines.every((line) => line.lineTotal == null)).toBe(true);
     expect(report.note).toMatch(/not filled in/);
@@ -58,5 +60,15 @@ describe("own estimate", () => {
     expect(revised.catalogVersionId).not.toBe(finalReport.catalogVersionId);
     expect(reportCsv(finalReport)).toContain("catalog-starter-1");
     expect(reportCsv(finalReport)).toContain("REB-FLOOR");
+  });
+
+  it("uses each room id when two rooms share a display name", () => {
+    const shared = floorPlanFromMeasurement([
+      { id: "kitchen-1", name: "Kitchen", dimensions: [{ kind: "wall_length", label: "width", valueFt: 10, importedFrom: "CSV" }, { kind: "wall_length", label: "depth", valueFt: 12, importedFrom: "CSV" }] },
+      { id: "kitchen-2", name: "Kitchen", dimensions: [{ kind: "wall_length", label: "width", valueFt: 8, importedFrom: "CSV" }, { kind: "wall_length", label: "depth", valueFt: 8, importedFrom: "CSV" }] },
+    ]);
+    const lines = draftScope({ plan: shared, objects: [], catalog: STARTER_CATALOG, loss: "none" });
+    const floors = lines.filter((line) => line.code === "REB-FLOOR").map((line) => line.quantity).sort((left, right) => (left ?? 0) - (right ?? 0));
+    expect(floors).toEqual([64, 120]);
   });
 });

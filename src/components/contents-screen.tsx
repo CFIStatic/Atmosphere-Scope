@@ -99,7 +99,11 @@ export function ContentsScreen() {
             setSnapshot(next);
             saveWalkthrough(next);
           }} />}
-          items={<ResultsView plan={snapshot.plan} objects={snapshot.objects} offers={snapshot.offers} />}
+          items={<ResultsView plan={snapshot.plan} objects={snapshot.objects} offers={snapshot.offers} onChange={({ offers, objects }) => {
+            const next = { ...snapshot, offers, objects };
+            setSnapshot(next);
+            saveWalkthrough(next);
+          }} />}
         />
       )}
     </div>

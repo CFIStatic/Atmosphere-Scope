@@ -8,7 +8,8 @@ export function PlanView({ plan, onChange }: { plan: FloorPlan; onChange: (plan:
   const [roomId, setRoomId] = useState(plan.rooms[0]?.roomId ?? "");
   const [edgeIndex, setEdgeIndex] = useState(0);
   const [lengthFt, setLengthFt] = useState("");
-  const [lock, setLock] = useState(false);
+  const [lockWall, setLockWall] = useState(false);
+  const [lockHeight, setLockHeight] = useState(false);
   const [heightFt, setHeightFt] = useState("");
   const box = useMemo(() => boundsOf(plan.rooms), [plan.rooms]);
   const pad = 2.4;
@@ -80,7 +81,7 @@ export function PlanView({ plan, onChange }: { plan: FloorPlan; onChange: (plan:
           event.preventDefault();
           const value = Number(lengthFt);
           if (!roomId || !Number.isFinite(value) || value <= 0) return;
-          onChange(correctPlanEdge(plan, roomId, edgeIndex, value, lock));
+          onChange(correctPlanEdge(plan, roomId, edgeIndex, value, lockWall));
         }}>
           <label className="field">Wall
             <select value={`${roomId}:${edgeIndex}`} onChange={(event) => {
@@ -94,16 +95,17 @@ export function PlanView({ plan, onChange }: { plan: FloorPlan; onChange: (plan:
           <label className="field">Corrected length, feet
             <input value={lengthFt} onChange={(event) => setLengthFt(event.target.value)} inputMode="decimal" />
           </label>
-          <label className="row"><input type="checkbox" checked={lock} onChange={(event) => setLock(event.target.checked)} /> Lock this wall as confirmed</label>
+          <label className="row"><input type="checkbox" checked={lockWall} onChange={(event) => setLockWall(event.target.checked)} /> Lock this wall as confirmed</label>
           <button className="btn" type="submit">Apply wall</button>
         </form>
         <form className="grid" onSubmit={(event) => {
           event.preventDefault();
-          onChange(correctPlanHeight(plan, roomId, heightFt.trim() === "" ? null : Number(heightFt), lock));
+          onChange(correctPlanHeight(plan, roomId, heightFt.trim() === "" ? null : Number(heightFt), lockHeight));
         }}>
           <label className="field">Ceiling height, feet
             <input value={heightFt} onChange={(event) => setHeightFt(event.target.value)} inputMode="decimal" placeholder="Blank clears it" />
           </label>
+          <label className="row"><input type="checkbox" checked={lockHeight} onChange={(event) => setLockHeight(event.target.checked)} /> Lock this ceiling as confirmed</label>
           <button className="btn secondary" type="submit">Apply height</button>
         </form>
       </aside>

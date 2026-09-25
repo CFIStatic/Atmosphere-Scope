@@ -4,9 +4,14 @@ import { useMemo, useState } from "react";
 import { inventoryFromWalkthrough } from "@/analysis/inventory";
 import type { IdentifiedObject } from "@/analysis/frames";
 import type { FloorPlan } from "@/domain/plan-from-measurement";
-import { buildResultLines, chooseReplacement, overrideQuantity, overrideReplacement, resultTotals, type ResultLine, type ResultOffer } from "@/domain/results";
+import { buildResultLines, chooseReplacement, overrideQuantity, overrideReplacement, resultTotals, withManualOffer, withObjectQuantity, withSelectedOffer, type ResultLine, type ResultOffer } from "@/domain/results";
 
-export function ResultsView({ plan, objects, offers }: { plan: FloorPlan; objects: IdentifiedObject[]; offers: ResultOffer[] }) {
+export function ResultsView({ plan, objects, offers, onChange }: {
+  plan: FloorPlan;
+  objects: IdentifiedObject[];
+  offers: ResultOffer[];
+  onChange?: (next: { offers: ResultOffer[]; objects: IdentifiedObject[] }) => void;
+}) {
   const built = useMemo(() => buildResultLines(inventoryFromWalkthrough(objects, plan), offers), [plan, objects, offers]);
   const [picks, setPicks] = useState<Record<string, number>>({});
   const [manuals, setManuals] = useState<Record<string, { title: string; unitPrice: number | null }>>({});
@@ -49,9 +54,18 @@ export function ResultsView({ plan, objects, offers }: { plan: FloorPlan; object
         </section>
       ))}
       <p className="banner">{totals.job == null ? totals.note : `Job total ${totals.job}. ${totals.note}`}</p>
-      {editing && <EditSheet line={editing} onClose={() => setEditingId(null)} onAnother={() => setPicks((current) => ({ ...current, [editing.id]: ((current[editing.id] ?? editing.selected) + 1) % editing.replacements.length }))} onSave={(entry) => {
+      {editing && <EditSheet line={editing} onClose={() => setEditingId(null)} onAnother={() => {
+        const nextIndex = ((picks[editing.id] ?? editing.selected) + 1) % editing.replacements.length;
+        const choice = editing.replacements[nextIndex];
+        setPicks((current) => ({ ...current, [editing.id]: nextIndex }));
+        if (choice) onChange?.({ offers: withSelectedOffer(offers, editing.item, { title: choice.title, unitPrice: choice.unitPrice }), objects });
+      }} onSave={(entry) => {
         setQuantities((current) => ({ ...current, [editing.id]: entry.quantity }));
         setManuals((current) => ({ ...current, [editing.id]: { title: entry.title, unitPrice: entry.unitPrice } }));
+        onChange?.({
+          offers: withManualOffer(offers, editing.item, { title: entry.title, unitPrice: entry.unitPrice }),
+          objects: withObjectQuantity(objects, editing.room, editing.item, entry.quantity),
+        });
         setEditingId(null);
       }} />}
     </div>

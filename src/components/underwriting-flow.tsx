@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { gapsFromSnapshot, loadWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
+import { gapsFromSnapshot, loadWalkthrough, saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
 import { ResultsView } from "@/components/results-view";
 import { buildResultLines, resultTotals } from "@/domain/results";
 import { inventoryFromWalkthrough } from "@/analysis/inventory";
@@ -78,7 +78,11 @@ export function UnderwritingFlow() {
           )}
         </section>
       )}
-      {tab === "Contents" && (snapshot ? <ResultsView plan={snapshot.plan} objects={snapshot.objects} offers={snapshot.offers} /> : <p className="meta">Contents stay blank until a walkthrough is saved.</p>)}
+      {tab === "Contents" && (snapshot ? <ResultsView plan={snapshot.plan} objects={snapshot.objects} offers={snapshot.offers} onChange={({ offers, objects }) => {
+        const next = { ...snapshot, offers, objects };
+        setSnapshot(next);
+        saveWalkthrough(next);
+      }} /> : <p className="meta">Contents stay blank until a walkthrough is saved.</p>)}
       {tab === "Baseline" && (
         <section className="panel">
           <p className="kicker">Baseline</p>

@@ -105,25 +105,13 @@ function WalkthroughActions({
     <div className="grid">
       <p className="kicker">Saved walkthrough</p>
       <p className="meta">{approval ? `Status: ${approval.status}` : "Not stored on the server yet."}{snapshot.videoKey ? ` Video: ${snapshot.videoKey}` : " No video file is attached."}{snapshot.finalReport ? ` Report ${snapshot.finalReport.id}` : " The estimate is not finalized."}</p>
-      <button className="btn" type="button" onClick={async () => {
-        onError(null);
-        const response = await fetch("/api/walkthroughs", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ id: snapshot.recordId, snapshot, videoKey: snapshot.videoKey ?? null }),
-        });
-        const body = await response.json();
-        if (!response.ok) {
-          onError(body.error ?? "The walkthrough was not saved.");
-          return;
-        }
-        const next = { ...snapshot, recordId: body.record.id };
-        saveWalkthrough(next);
-        onSnapshot(next);
-        onApproval(body.record.approval);
-      }}>Save on the server</button>
+      <button className="btn" type="button" onClick={() => void persistWalkthrough(snapshot, onSnapshot, onApproval, onError)}>Save on the server</button>
       {session.role === "estimator" && snapshot.recordId && (
-        <button className="btn secondary" type="button" onClick={() => act(snapshot.recordId!, { type: "approve" }, onApproval, onError)}>Approve and lock the numbers</button>
+        <button className="btn secondary" type="button" onClick={async () => {
+          const id = await persistWalkthrough(snapshot, onSnapshot, onApproval, onError);
+          if (!id) return;
+          await act(id, { type: "approve" }, onApproval, onError);
+        }}>Approve and lock the numbers</button>
       )}
       {session.role === "customer" && snapshot.recordId && (
         <form className="grid" onSubmit={(event) => {
@@ -140,6 +128,30 @@ function WalkthroughActions({
       {approval?.statement && <p className="meta">Customer statement: {approval.statement}</p>}
     </div>
   );
+}
+
+async function persistWalkthrough(
+  snapshot: WalkthroughSnapshot,
+  onSnapshot: (snapshot: WalkthroughSnapshot) => void,
+  onApproval: (approval: Approval | null) => void,
+  onError: (message: string | null) => void,
+): Promise<string | null> {
+  onError(null);
+  const response = await fetch("/api/walkthroughs", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id: snapshot.recordId, snapshot, videoKey: snapshot.videoKey ?? null }),
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    onError(body.error ?? "The walkthrough was not saved.");
+    return null;
+  }
+  const next = { ...snapshot, recordId: body.record.id };
+  saveWalkthrough(next);
+  onSnapshot(next);
+  onApproval(body.record.approval);
+  return body.record.id as string;
 }
 
 async function act(id: string, body: { type: string; statement?: string }, onApproval: (approval: Approval | null) => void, onError: (message: string | null) => void) {

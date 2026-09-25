@@ -1,3 +1,4 @@
+import type { IdentifiedObject } from "@/analysis/frames";
 import type { InventoryLine } from "@/analysis/inventory";
 
 export type ResultOffer = {
@@ -70,6 +71,46 @@ export function overrideQuantity(lines: ResultLine[], id: string, quantity: numb
     if (line.id !== id) return line;
     const next = quantity != null && Number.isFinite(quantity) && quantity >= 0 ? quantity : null;
     return finish({ ...line, quantity: next });
+  });
+}
+
+export function withManualOffer(offers: ResultOffer[], query: string, entry: { title: string; unitPrice: number | null }): ResultOffer[] {
+  const price = entry.unitPrice != null && Number.isFinite(entry.unitPrice) && entry.unitPrice >= 0 ? round2(entry.unitPrice) : null;
+  const manual: ResultOffer = {
+    query,
+    title: entry.title.trim() || null,
+    retailer: null,
+    price,
+    currency: "USD",
+    url: null,
+    status: price == null ? "unpriced" : "unverified",
+    note: "Entered by hand. Not checked against a retailer page.",
+  };
+  const key = normalize(query);
+  const kept = offers.filter((offer) => !(normalize(offer.query) === key && offer.note.startsWith("Entered by hand.")));
+  const same = kept.filter((offer) => normalize(offer.query) === key);
+  const rest = kept.filter((offer) => normalize(offer.query) !== key);
+  return [manual, ...same, ...rest];
+}
+
+export function withSelectedOffer(offers: ResultOffer[], query: string, selected: { title: string | null; unitPrice: number | null }): ResultOffer[] {
+  const key = normalize(query);
+  const index = offers.findIndex((offer) => normalize(offer.query) === key && offer.price === selected.unitPrice && (offer.title ?? null) === (selected.title ?? null));
+  if (index < 0) return offers;
+  const chosen = offers[index];
+  const rest = offers.filter((_, offerIndex) => offerIndex !== index);
+  const insertAt = rest.findIndex((offer) => normalize(offer.query) === key);
+  if (insertAt < 0) return [chosen, ...rest];
+  return [...rest.slice(0, insertAt), chosen, ...rest.slice(insertAt)];
+}
+
+export function withObjectQuantity(objects: IdentifiedObject[], room: string, item: string, quantity: number | null): IdentifiedObject[] {
+  const next = quantity != null && Number.isFinite(quantity) && quantity >= 0 ? quantity : null;
+  let used = false;
+  return objects.map((object) => {
+    if (used || object.name !== item || (object.room ?? "Room not assigned") !== room) return object;
+    used = true;
+    return { ...object, quantity: next };
   });
 }
 

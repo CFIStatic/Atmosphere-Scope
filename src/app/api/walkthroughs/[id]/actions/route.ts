@@ -7,7 +7,7 @@ import { getWalkthrough, putWalkthrough } from "@/storage/walkthrough-store";
 const COOKIE = "scope_session";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const session = parseSessionCookie((await cookies()).get(COOKIE)?.value);
+  const session = await parseSessionCookie((await cookies()).get(COOKIE)?.value);
   if (!session) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const { id } = await context.params;
   const current = await getWalkthrough(id);

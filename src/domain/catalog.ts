@@ -100,9 +100,7 @@ export const STARTER_CATALOG: CatalogVersion = {
 
 export function draftScope(input: { plan: FloorPlan; objects: IdentifiedObject[]; catalog: CatalogVersion; loss: LossType }): DraftLine[] {
   const lines: DraftLine[] = [];
-  for (const roomName of Object.values(input.plan.names)) {
-    const roomId = Object.entries(input.plan.names).find(([, name]) => name === roomName)?.[0];
-    if (!roomId) continue;
+  for (const [roomId, roomName] of Object.entries(input.plan.names)) {
     for (const entry of input.catalog.items) {
       if (!entry.triggers.includes("sketch") && !(input.loss === "water" && entry.triggers.includes("water")) && !(input.loss === "fire" && entry.triggers.includes("fire"))) continue;
       if (entry.triggers.includes("contents")) continue;
@@ -128,7 +126,7 @@ export function draftScope(input: { plan: FloorPlan; objects: IdentifiedObject[]
         room: object.room ?? "Room not assigned",
         description: `${contents.description}: ${object.name}`,
         basis: "each",
-        quantity: 1,
+        quantity: object.quantity !== undefined ? object.quantity : 1,
         unit: "each",
         quantityNote: "Counted once from the walkthrough. Not measured.",
         materialQuery: object.name,

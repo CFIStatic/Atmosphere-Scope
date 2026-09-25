@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { inventoryFromWalkthrough } from "@/analysis/inventory";
 import { floorPlanFromMeasurement, recordedSyntheticRoom } from "@/domain/plan-from-measurement";
-import { buildResultLines, chooseReplacement, overrideQuantity, overrideReplacement, resultTotals, type ResultOffer } from "@/domain/results";
+import { buildResultLines, chooseReplacement, overrideQuantity, overrideReplacement, resultTotals, withManualOffer, withSelectedOffer, type ResultOffer } from "@/domain/results";
 
 const offer: ResultOffer = {
   query: "AA alkaline batteries",
@@ -48,5 +48,15 @@ describe("priced results", () => {
     expect(withQuantity[0]?.quantity).toBe(2);
     expect(withQuantity[0]?.lineTotal).toBe(480);
     expect(overrideQuantity(withQuantity, withQuantity[0].id, Number.NaN)[0]?.quantity).toBeNull();
+  });
+
+  it("puts a hand-entered price ahead of the search offer for that item", () => {
+    const next = withManualOffer([offer, { ...offer, title: "Other pack", price: 9.5 }], "AA alkaline batteries", { title: "Store brand", unitPrice: 4 });
+    expect(next[0]?.price).toBe(4);
+    expect(next[0]?.status).toBe("unverified");
+    expect(next[0]?.note).toMatch(/Entered by hand/);
+    expect(next.map((item) => item.price)).toEqual([4, 12.99, 9.5]);
+    const selected = withSelectedOffer(next, "AA alkaline batteries", { title: "Other pack", unitPrice: 9.5 });
+    expect(selected.find((item) => item.query === "AA alkaline batteries")?.price).toBe(9.5);
   });
 });

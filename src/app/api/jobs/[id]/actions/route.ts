@@ -11,7 +11,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const action = (await request.json()) as JobAction;
     const jar = await cookies();
-    const session = parseSessionCookie(jar.get("scope_session")?.value);
+    const session = await parseSessionCookie(jar.get("scope_session")?.value);
     const denied = actionAllowed(action.type, session?.role ?? null);
     if (denied) return NextResponse.json({ error: denied }, { status: 401 });
     const next = await saveJob(applyJobAction(job, action));
