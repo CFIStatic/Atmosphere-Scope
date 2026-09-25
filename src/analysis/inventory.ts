@@ -1,5 +1,5 @@
 import type { FloorPlan } from "@/domain/plan-from-measurement";
-import { frameTimeMs, type IdentifiedObject } from "@/analysis/openai/vision";
+import { frameTimeMs, type IdentifiedObject } from "@/analysis/frames";
 
 export type InventoryLine = {
   name: string;

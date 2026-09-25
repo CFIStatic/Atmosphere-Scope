@@ -6,7 +6,10 @@ import { captureStatusLabel } from "@/capture/plan";
 import { resumeCapture } from "@/capture/resume-client";
 import { fuseDimension, type FusedDimension, type Reading, type ScaleSource } from "@/domain/fusion";
 import { floorPlanFromMeasurement, recordedSyntheticRoom, type FloorPlan, type MeasuredRoomInput } from "@/domain/plan-from-measurement";
+import type { IdentifiedObject } from "@/analysis/frames";
+import type { ResultOffer } from "@/domain/results";
 import { PlanView } from "@/components/plan-view";
+import { ResultsView } from "@/components/results-view";
 
 type SolverDimension = {
   id: string;
@@ -89,6 +92,20 @@ function blurScore(data: ImageData): number {
   return sumSq / Math.max(count, 1) - mean * mean;
 }
 
+const recordedObjects: IdentifiedObject[] = [{
+  name: "AA alkaline batteries",
+  room: "Recorded fixture",
+  evidence: "Recorded model response. Not a photo from this phone.",
+  confidence: "low",
+  frames: ["frame_02.jpg"],
+  links: [{ frame: "frame_02.jpg", timeMs: 1000 }],
+}];
+
+const recordedOffers: ResultOffer[] = [
+  { query: "AA alkaline batteries", title: "AA alkaline batteries", retailer: "Example", price: 12.99, currency: "USD", url: "https://shop.example/batteries", status: "unverified", note: "Recorded model response. The retailer page was not fetched." },
+  { query: "AA alkaline batteries", title: "Other pack", retailer: "Example", price: 9.5, currency: "USD", url: "https://shop.example/other", status: "unverified", note: "Second recorded candidate. The retailer page was not fetched." },
+];
+
 function planFromResult(result: SolverResult): FloorPlan {
   if (result.rooms?.length) return floorPlanFromMeasurement(result.rooms);
   return floorPlanFromMeasurement([{
@@ -124,6 +141,8 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SolverResult | null>(null);
   const [plan, setPlan] = useState<FloorPlan | null>(null);
+  const [previewObjects, setPreviewObjects] = useState<IdentifiedObject[]>([]);
+  const [previewOffers, setPreviewOffers] = useState<ResultOffer[]>([]);
   const [tapeLabel, setTapeLabel] = useState("span_a");
   const [tapeValue, setTapeValue] = useState("");
   const [online, setOnline] = useState(true);
@@ -468,8 +487,10 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
         <p className="kicker">Floor plan</p>
         <div className="row">
           <button className="btn secondary" type="button" onClick={() => setPlan(floorPlanFromMeasurement([recordedSyntheticRoom], "Synthetic pinhole harness. Not a recording from this phone."))}>Preview recorded synthetic room</button>
+          <button className="btn secondary" type="button" onClick={() => { setPreviewObjects(recordedObjects); setPreviewOffers(recordedOffers); }}>Preview recorded price</button>
         </div>
         {plan ? <PlanView plan={plan} onChange={setPlan} /> : <p className="meta">No outline yet. A measured wall is drawn only after the solver returns a length.</p>}
+        {plan && <ResultsView plan={plan} objects={(result?.ai?.objects ?? previewObjects).map((object) => ({ ...object, confidence: object.confidence === "high" || object.confidence === "medium" ? object.confidence : "low" }))} offers={(result?.ai?.offers ?? previewOffers).map((offer) => ({ query: offer.query, title: offer.title, retailer: offer.retailer, price: offer.price, currency: offer.currency, url: offer.url, status: offer.status, note: offer.note }))} />}
       </section>
       <section className="panel">
         <p className="kicker">Dimensions</p>
