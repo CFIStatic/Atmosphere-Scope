@@ -1,0 +1,9 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "{\"objects\":[{\"name\":\"Floor lamp\",\"room\":\"Living room\",\"evidence\":\"A lamp with a shade is visible.\",\"confidence\":\"high\"}]}"
+      }
+    }
+  ]
+}
