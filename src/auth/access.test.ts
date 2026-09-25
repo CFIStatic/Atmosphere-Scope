@@ -5,6 +5,8 @@ describe("accounts", () => {
   it("keeps estimator approval and customer authorization on different roles", () => {
     expect(actionAllowed("approve", "customer")).toMatch(/estimator/);
     expect(actionAllowed("authorize", "estimator")).toMatch(/customer/);
+    expect(actionAllowed("approve", "admin")).toMatch(/estimator/);
+    expect(actionAllowed("authorize", "admin")).toMatch(/customer/);
     expect(actionAllowed("approve", "estimator")).toBeNull();
     expect(actionAllowed("authorize", "customer")).toBeNull();
     expect(actionAllowed("sketch", null)).toBeNull();
@@ -18,6 +20,7 @@ describe("accounts", () => {
     const stored = sessionFromSupabaseUser({ email: "a@example.com", app_metadata: { role: "estimator" }, user_metadata: { name: "Ada", role: "customer" } }, "secret-token");
     expect(stored.role).toBe("estimator");
     expect(() => sessionFromSupabaseUser({ email: "a@example.com", user_metadata: { role: "estimator" } }, "secret-token")).toThrow(/app metadata/);
+    expect(sessionFromSupabaseUser({ email: "a@example.com", app_metadata: { role: "admin" } }, "secret-token").role).toBe("admin");
     expect(publicSession(stored)).toEqual({ email: "a@example.com", name: "Ada", role: "estimator" });
     expect(JSON.stringify(publicSession(stored))).not.toContain("secret-token");
     expect(() => localSession({ name: "Ada", email: "a@example.com", role: "admin" })).toThrow(/estimator or customer/);
@@ -39,7 +42,7 @@ describe("accounts", () => {
   });
 
   it("rejects an unsigned cookie and reads the Supabase role from the access token", async () => {
-    const env = { SUPABASE_URL: "https://abc.supabase.co", SUPABASE_ANON_KEY: "anon", SESSION_SECRET: "test-secret" };
+    const env = { STORAGE: "supabase", SUPABASE_URL: "https://abc.supabase.co", SUPABASE_ANON_KEY: "anon", SESSION_SECRET: "test-secret" };
     expect(await parseSessionCookie(JSON.stringify({ email: "a@example.com", name: "Ada", role: "estimator", accessToken: "tok" }), env, fetch)).toBeNull();
     const stored = sessionFromSupabaseUser({ email: "a@example.com", app_metadata: { role: "customer" }, user_metadata: { name: "Ada", role: "estimator" } }, "tok");
     const raw = serializeSessionCookie({ ...stored, role: "estimator" }, env);

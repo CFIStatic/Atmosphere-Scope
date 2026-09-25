@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { bannerFor } from "@/domain/review";
 import type { Job } from "@/domain/types";
 import type { SketchOp } from "@/domain/sketch-ops";
@@ -15,7 +15,7 @@ const SpaceMap = dynamic(() => import("./space-map").then((mod) => mod.SpaceMap)
 
 const TABS = ["capture", "evidence", "sketch", "map", "assessment", "questions", "estimate", "review", "export"] as const;
 
-export function Workspace({ initialJob }: { initialJob: Job }) {
+export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: ReactNode }) {
   const [job, setJob] = useState(initialJob);
   const [tab, setTab] = useState<(typeof TABS)[number]>("map");
   const [roomId, setRoomId] = useState<string | null>(initialJob.rooms[0]?.id ?? null);
@@ -49,6 +49,7 @@ export function Workspace({ initialJob }: { initialJob: Job }) {
           <p className="meta">{job.customer.name} · {job.property.city}, {job.property.region} · {job.concern}</p>
         </div>
       </header>
+      {extra}
       <p className={version?.status === "customer_authorized" ? "banner ok" : "banner"}>{bannerFor(version)}</p>
       {error && <p className="error">{error}</p>}
       <div className="tabs" role="tablist">

@@ -1,13 +1,10 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { parseSessionCookie } from "@/auth/access";
+import { getRequestSession } from "@/auth/request-session";
 import { approveRecord, authorizeRecord } from "@/domain/records";
 import { getWalkthrough, putWalkthrough } from "@/storage/walkthrough-store";
 
-const COOKIE = "scope_session";
-
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const session = await parseSessionCookie((await cookies()).get(COOKIE)?.value);
+  const { session } = await getRequestSession();
   if (!session) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const { id } = await context.params;
   const current = await getWalkthrough(id);

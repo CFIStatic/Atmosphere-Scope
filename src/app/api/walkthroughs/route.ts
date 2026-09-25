@@ -1,13 +1,10 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { parseSessionCookie } from "@/auth/access";
+import { getRequestSession } from "@/auth/request-session";
 import type { WalkthroughSnapshot } from "@/capture/snapshot";
 import { storeWalkthrough } from "@/storage/walkthrough-store";
 
-const COOKIE = "scope_session";
-
 export async function POST(request: Request) {
-  const session = await parseSessionCookie((await cookies()).get(COOKIE)?.value);
+  const { session } = await getRequestSession();
   if (!session) return NextResponse.json({ error: "Sign in before saving this walkthrough." }, { status: 401 });
   const body = (await request.json()) as { id?: string; snapshot?: WalkthroughSnapshot; videoKey?: string | null };
   if (!body.snapshot?.plan?.rooms || !Array.isArray(body.snapshot.plan.quantities)) {

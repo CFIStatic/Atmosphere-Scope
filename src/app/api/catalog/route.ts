@@ -1,6 +1,5 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { parseSessionCookie } from "@/auth/access";
+import { getRequestSession } from "@/auth/request-session";
 import type { CatalogItem } from "@/domain/catalog";
 import { currentCatalog, publishCatalog, readEstimateStore } from "@/storage/catalog-store";
 
@@ -10,7 +9,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const session = await parseSessionCookie((await cookies()).get("scope_session")?.value);
+  const { session } = await getRequestSession();
   if (!session) return NextResponse.json({ error: "Sign in before changing the catalog or rate book." }, { status: 401 });
   if (session.role !== "estimator") return NextResponse.json({ error: "Sign in as an estimator. A customer sign-in cannot publish the catalog or rate book." }, { status: 403 });
   const body = (await request.json()) as { items?: CatalogItem[] };

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { listJobs } from "@/storage/job-store";
+import { getRequestSession } from "@/auth/request-session";
+import { listVisibleJobs } from "@/storage/visible-jobs";
 import { SCENARIOS } from "@/samples/scenarios";
 import { SampleLauncher } from "@/components/sample-launcher";
 import { bannerFor } from "@/domain/review";
@@ -10,7 +11,9 @@ import { BrandLockup } from "@/components/brand-lockup";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const jobs = await listJobs();
+  const { session } = await getRequestSession();
+  const jobs = await listVisibleJobs();
+  const customer = session?.role === "customer";
   return (
     <AppFrame current="/">
     <main className="shell">
@@ -22,18 +25,18 @@ export default async function HomePage() {
         <div className="row">
           <div className="row">
             <Link className="btn" href="/contents">Contents</Link>
-            <Link className="btn secondary" href="/jobs/new">New job</Link>
+            {!customer && <Link className="btn secondary" href="/jobs/new">New job</Link>}
           </div>
         </div>
       </header>
-      <nav className="cards" style={{ marginBottom: 16 }}>
+      {!customer && <nav className="cards" style={{ marginBottom: 16 }}>
         <Link className="card" href="/contents"><strong>Contents</strong><span className="meta">Sketch beside the priced list. Evidence and unverified prices stay visible.</span></Link>
         <Link className="card" href="/measure"><strong>Measure</strong><span className="meta">Supporting capture. The sheet sets scale. It is not the landing screen.</span></Link>
         <Link className="card" href="/claims"><strong>Claims review</strong><span className="meta">Draft scope and estimate from the catalog and rate book.</span></Link>
         <Link className="card" href="/underwriting"><strong>Underwriting</strong><span className="meta">Checklist through the same contents list.</span></Link>
         <Link className="card" href="/accuracy"><strong>Accuracy harness</strong><span className="meta">Synthetic results by method. 95% is not claimed.</span></Link>
-      </nav>
-      <section className="panel" style={{ marginBottom: 16 }}>
+      </nav>}
+      {!customer && <section className="panel" style={{ marginBottom: 16 }}>
         <p className="kicker">Keys</p>
         <p className="meta">The walkthrough needs only OPENAI_API_KEY. Measurement and local storage run without it. SerpAPI, a GPU host, and Supabase stay optional.</p>
         <table className="stack">
@@ -50,8 +53,8 @@ export default async function HomePage() {
             ))}
           </tbody>
         </table>
-      </section>
-      <section className="panel" style={{ marginBottom: 16 }}>
+      </section>}
+      {!customer && <section className="panel" style={{ marginBottom: 16 }}>
         <p className="kicker">Sample walkthroughs</p>
         <div className="cards">
           {SCENARIOS.map((scenario) => (
@@ -62,7 +65,7 @@ export default async function HomePage() {
             </article>
           ))}
         </div>
-      </section>
+      </section>}
       <section>
         <p className="kicker">Jobs</p>
         <div className="cards">

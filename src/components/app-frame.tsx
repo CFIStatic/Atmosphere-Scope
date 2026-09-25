@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { AccountChip } from "@/components/account-chip";
 import { BrandLockup } from "@/components/brand-lockup";
 import { SiteNav } from "@/components/site-nav";
 
@@ -12,7 +13,10 @@ export function AppFrame({ current, children }: { current?: string; children: Re
         </Link>
         <SiteNav current={current} />
       </aside>
-      <div className="app-main">{children}</div>
+      <div className="app-main">
+        <AccountChip />
+        {children}
+      </div>
     </div>
   );
 }

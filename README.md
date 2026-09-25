@@ -99,7 +99,7 @@ Set variables on the Railway service. Do not use `NEXT_PUBLIC_` for any key, and
 | `PRICE_FETCH_MAX_BYTES` | no | Default `500000`. |
 | `PRICING_PROVIDER`, `SERPAPI_API_KEY` | no | SerpAPI only when both are set. |
 | `STORAGE`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | for hosted jobs, walkthroughs, catalog, and video | See below. `SUPABASE_SECRET_KEY` may replace the service role key. |
-| `SUPABASE_ANON_KEY` | for Supabase sign-in | Server only, with `SUPABASE_URL`. The role is `app_metadata.role`: `estimator` or `customer`. Without the anon key, sign-in stays local and says so. |
+| `SUPABASE_ANON_KEY`, `SITE_URL` | for Supabase sign-in | Server only. Required with `STORAGE=supabase`. See `docs/AUTH.md`. |
 
 Add a volume mounted at `/data` and set `DATA_DIR=/data`. Railway's container disk is ephemeral. The volume holds in-progress capture chunks. With local storage it also holds job JSON, media, walkthroughs, and the catalog. The phone still has its copy of a capture in IndexedDB and can upload again.
 
@@ -112,7 +112,7 @@ These are the variables to set on the Railway service before a hosted deploy. Va
 | Measurement only | `DATA_DIR=/data`, and a volume at `/data` |
 | Transcription, objects, and prices | `OPENAI_API_KEY` |
 | Supabase database and private video | `STORAGE=supabase`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_SECRET_KEY` |
-| Supabase sign-in | `SUPABASE_ANON_KEY` plus `SUPABASE_URL`. Each user needs `app_metadata.role` of `estimator` or `customer`. |
+| Supabase sign-in | `SUPABASE_ANON_KEY`, `SITE_URL`, redirect URLs, and custom SMTP. The first admin is `scripts/create-admin.mjs`. See `docs/AUTH.md`. |
 
 ## What is implemented
 
@@ -143,7 +143,7 @@ The 3D map still extrudes the sketch. Metric room spans come from `measure/`, wh
 
 - Speech-to-text, vision, and replacement search run only when `OPENAI_API_KEY` is set. Samples still ship transcripts and frame notes. A missing key or a failed call leaves narration, objects, and prices blank.
 - Materials price only when a sourced offer exists. Labor and equipment stay unpriced until an admin enters a rate, with a source and a date. A finalized report does not recompute when those rates change. Sample jobs can still show illustrative arithmetic. That arithmetic is not the estimate.
-- Account sign-in is local unless Supabase Auth is configured. Media paths are unlisted. Supabase tables have row level security and no browser policy; the server uses the secret key.
+- With `STORAGE=supabase`, sign-in is email and password. Customers see only jobs shared with them. The passwordless dev sign-in is absent in that mode. Media paths are unlisted. See `docs/AUTH.md` and `docs/STORAGE.md`.
 - Depth files in `atmosphere-depth-v1` (see `samples/atmosphere-depth-v1.json`) import as inferred geometry. Other depth formats are stored only. See `docs/INTEGRATION.md` for the seams a later Atmosphere port would replace.
 - This is not a certified survey, moisture map, or structural opinion.
 

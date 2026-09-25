@@ -1,15 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { PasswordField } from "@/components/password-field";
 import { loadWalkthrough, saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
+import { MIN_PASSWORD_LENGTH, passwordProblem } from "@/auth/gate";
 
-type PublicSession = { email: string; name: string; role: "estimator" | "customer" };
+type PublicSession = { email: string; name: string; role: "admin" | "estimator" | "customer" };
 type Approval = { status: string; approvedBy: string | null; authorizedBy: string | null; statement: string | null };
 
-export function AccountForm() {
+export function AccountForm({ notice }: { notice: string | null }) {
   const [mode, setMode] = useState<"local" | "supabase" | null>(null);
   const [session, setSession] = useState<PublicSession | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(notice);
+  const [saved, setSaved] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<WalkthroughSnapshot | null>(null);
   const [approval, setApproval] = useState<Approval | null>(null);
 
@@ -19,10 +23,10 @@ export function AccountForm() {
       setMode(body.mode);
       setSession(body.session);
     });
-    const saved = loadWalkthrough();
-    setSnapshot(saved);
-    if (saved?.recordId) {
-      void fetch(`/api/walkthroughs/${saved.recordId}`).then(async (response) => {
+    const savedWalkthrough = loadWalkthrough();
+    setSnapshot(savedWalkthrough);
+    if (savedWalkthrough?.recordId) {
+      void fetch(`/api/walkthroughs/${savedWalkthrough.recordId}`).then(async (response) => {
         if (!response.ok) return;
         const body = await response.json();
         setApproval(body.record?.approval ?? null);
@@ -32,54 +36,55 @@ export function AccountForm() {
 
   return (
     <section className="panel grid">
-      <p className="kicker">{mode === "supabase" ? "Supabase account" : "Local sign-in"}</p>
+      <p className="kicker">Account</p>
       {session ? (
-        <>
-          <p>{session.name} · {session.email} · {session.role}</p>
-          <p className="meta">{session.role === "estimator" ? "An estimator can review and approve. That does not authorize the customer." : "A customer can authorize an approved version. That does not approve it."}</p>
-          <button className="btn secondary" type="button" onClick={async () => {
-            await fetch("/api/auth/session", { method: "DELETE" });
-            setSession(null);
-          }}>Sign out</button>
-          <WalkthroughActions session={session} snapshot={snapshot} approval={approval} onSnapshot={setSnapshot} onApproval={setApproval} onError={setError} />
-          {error && <p className="error">{error}</p>}
-        </>
+        <p>{session.name} · {session.email} · {session.role}</p>
       ) : (
-        <form className="grid" onSubmit={async (event) => {
-          event.preventDefault();
-          setError(null);
-          const form = new FormData(event.currentTarget);
-          const response = await fetch("/api/auth/session", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              name: form.get("name"),
-              email: form.get("email"),
-              role: form.get("role"),
-              password: form.get("password"),
-            }),
-          });
-          const body = await response.json();
-          if (!response.ok) {
-            setError(body.error ?? "Sign-in failed.");
-            return;
-          }
-          setSession(body.session);
-        }}>
-          <p className="meta">{mode === "supabase" ? "The password is sent to Supabase and is not stored in this app." : "Local sign-in is for this server only. It is not a Supabase account."}</p>
-          <label className="field">Name <input name="name" required /></label>
-          <label className="field">Email <input name="email" type="email" required /></label>
-          {mode === "supabase" ? <label className="field">Password <input name="password" type="password" required /></label> : (
-            <label className="field">Role
-              <select name="role" defaultValue="estimator">
-                <option value="estimator">Estimator</option>
-                <option value="customer">Customer</option>
-              </select>
-            </label>
-          )}
-          {error && <p className="error">{error}</p>}
-          <button className="btn" type="submit">Sign in</button>
-        </form>
+        <p className="meta">You are not signed in. <Link href="/login">Sign in</Link>.</p>
+      )}
+      {session?.role === "admin" && <p className="meta"><Link href="/admin/users">Invite and manage users</Link></p>}
+      {session && <p className="meta">{session.role === "estimator" ? "An estimator can review and approve. That does not authorize the customer." : session.role === "customer" ? "A customer can authorize an approved version. That does not approve it." : "An admin invites people, changes roles, and deactivates users. Approval and authorization stay on the estimator and the customer."}</p>}
+      <form className="grid" onSubmit={async (event) => {
+        event.preventDefault();
+        setError(null);
+        setSaved(null);
+        const form = new FormData(event.currentTarget);
+        const password = String(form.get("password") ?? "");
+        const problem = passwordProblem(password);
+        if (problem) {
+          setError(problem);
+          return;
+        }
+        const response = await fetch("/api/auth/password", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ currentPassword: form.get("currentPassword"), password }),
+        });
+        const body = await response.json();
+        if (!response.ok) {
+          setError(body.error ?? "The password was not changed.");
+          return;
+        }
+        setSaved("Password updated.");
+        event.currentTarget.reset();
+      }}>
+        <p className="kicker">Change password</p>
+        <PasswordField name="currentPassword" label="Current password" autoComplete="current-password" />
+        <PasswordField name="password" label="New password" autoComplete="new-password" minLength={MIN_PASSWORD_LENGTH} />
+        {error && <p className="error" role="alert">{error}</p>}
+        {saved && <p className="meta" role="status">{saved}</p>}
+        {mode === "local" && <p className="meta">Password changes go through Supabase. This server is in local mode.</p>}
+        <button className="btn" type="submit">Update password</button>
+      </form>
+      {session && (
+        <button className="btn secondary" type="button" onClick={async () => {
+          await fetch("/api/auth/session", { method: "DELETE" });
+          setSession(null);
+          window.location.assign("/login");
+        }}>Sign out</button>
+      )}
+      {session && (
+        <WalkthroughActions session={session} snapshot={snapshot} approval={approval} onSnapshot={setSnapshot} onApproval={setApproval} onError={setError} />
       )}
     </section>
   );

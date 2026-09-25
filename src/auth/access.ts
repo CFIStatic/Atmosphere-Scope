@@ -1,8 +1,9 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { EstimateStatus } from "@/domain/types";
 import type { Env } from "@/analysis/config";
+import { authModeFromStorage, isAccountRole, roleFromAppMetadata, type AccountRole } from "@/auth/gate";
 
-export type AccountRole = "estimator" | "customer";
+export type { AccountRole };
 
 export type PublicSession = {
   email: string;
@@ -15,7 +16,7 @@ export type StoredSession = PublicSession & { accessToken?: string };
 const LOCKED_EDITS = new Set(["sketch", "undo", "redo", "edit_scope", "apply_quantities", "set_affected", "add_named_room", "settings"]);
 
 export function authMode(env: Env = process.env): "supabase" | "local" {
-  return env.SUPABASE_URL?.trim() && env.SUPABASE_ANON_KEY?.trim() ? "supabase" : "local";
+  return authModeFromStorage(env.STORAGE);
 }
 
 export function localSession(input: { name?: string; email?: string; role?: string }): StoredSession {
@@ -27,14 +28,15 @@ export function localSession(input: { name?: string; email?: string; role?: stri
 }
 
 export function sessionFromSupabaseUser(
-  user: { email?: string; app_metadata?: { role?: string }; user_metadata?: { name?: string; role?: string } },
+  user: { email?: string | null; app_metadata?: object; user_metadata?: object },
   accessToken: string,
 ): StoredSession {
   const email = user.email?.trim() ?? "";
   if (!email || !accessToken) throw new Error("Supabase did not return a session.");
-  const role = user.app_metadata?.role;
-  if (role !== "estimator" && role !== "customer") throw new Error("This account has no estimator or customer role in app metadata.");
-  return { email, name: user.user_metadata?.name?.trim() || email, role, accessToken };
+  const role = roleFromAppMetadata(user.app_metadata);
+  if (!role) throw new Error("This account has no role in app metadata.");
+  const name = user.user_metadata && "name" in user.user_metadata ? String((user.user_metadata as { name?: unknown }).name ?? "") : "";
+  return { email, name: name.trim() || email, role, accessToken };
 }
 
 export function publicSession(session: StoredSession): PublicSession {
@@ -71,7 +73,7 @@ function readSignedSession(raw: string, env: Env): StoredSession | null {
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as StoredSession;
     if (!parsed.email || !parsed.name) return null;
-    if (parsed.role !== "estimator" && parsed.role !== "customer") return null;
+    if (!isAccountRole(parsed.role) || parsed.role === "admin") return null;
     return parsed;
   } catch {
     return null;
@@ -132,7 +134,7 @@ export async function signInWithSupabase(
     headers: { apikey: anon, Authorization: `Bearer ${anon}`, "Content-Type": "application/json" },
     body: JSON.stringify({ email: input.email, password: input.password }),
   });
-  if (!response.ok) throw new Error("Sign-in failed. The password was not stored here.");
+  if (!response.ok) throw new Error("Sign-in failed.");
   const body = (await response.json()) as {
     access_token?: string;
     user?: { email?: string; app_metadata?: { role?: string }; user_metadata?: { name?: string; role?: string } };

@@ -1,12 +1,26 @@
 import { notFound } from "next/navigation";
+import { ShareJob } from "@/components/share-job";
 import { Workspace } from "@/components/workspace";
-import { getJob } from "@/storage/job-store";
+import { getRequestSession } from "@/auth/request-session";
+import { loadVisibleJob } from "@/storage/visible-jobs";
 
 export const dynamic = "force-dynamic";
 
 export default async function JobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const job = await getJob(id);
-  if (!job) notFound();
-  return <Workspace initialJob={job} />;
+  const loaded = await loadVisibleJob(id);
+  if ("error" in loaded) notFound();
+  const { session } = await getRequestSession();
+  const canShare = session?.role === "admin" || session?.role === "estimator";
+  return (
+    <Workspace
+      initialJob={loaded.job}
+      extra={
+        <>
+          {session?.role === "customer" && <p className="banner">This job was shared with you. A customer account can read it and cannot change it.</p>}
+          {canShare && <ShareJob jobId={id} />}
+        </>
+      }
+    />
+  );
 }
