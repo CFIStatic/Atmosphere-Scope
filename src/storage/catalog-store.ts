@@ -2,11 +2,16 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { STARTER_CATALOG, nextCatalogVersion, type CatalogItem, type CatalogVersion } from "@/domain/catalog";
 import { STARTER_RATES, type RateBook } from "@/domain/estimate-engine";
+import { assertStorageReady } from "@/analysis/config";
 import { dataRoot } from "./paths";
+import { readSupabaseDocument, writeSupabaseDocument } from "./supabase-store";
 
 type Stored = { catalogs: CatalogVersion[]; rates: RateBook };
 
 export async function readEstimateStore(): Promise<Stored> {
+  if (assertStorageReady().mode === "supabase") {
+    return (await readSupabaseDocument<Stored>("estimate_store", "current", process.env, fetch)) ?? fresh();
+  }
   try {
     const raw = await readFile(file(), "utf8");
     const parsed = JSON.parse(raw) as Stored;
@@ -52,6 +57,10 @@ function file(): string {
 }
 
 async function write(stored: Stored): Promise<void> {
+  if (assertStorageReady().mode === "supabase") {
+    await writeSupabaseDocument("estimate_store", "current", stored, new Date().toISOString(), process.env, fetch);
+    return;
+  }
   const target = file();
   await mkdir(path.dirname(target), { recursive: true });
   await writeFile(target, JSON.stringify(stored, null, 2));

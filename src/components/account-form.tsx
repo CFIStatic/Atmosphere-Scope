@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { loadWalkthrough, saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
 
 type PublicSession = { email: string; name: string; role: "estimator" | "customer" };
+type Approval = { status: string; approvedBy: string | null; authorizedBy: string | null; statement: string | null };
 
 export function AccountForm() {
   const [mode, setMode] = useState<"local" | "supabase" | null>(null);
   const [session, setSession] = useState<PublicSession | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<WalkthroughSnapshot | null>(null);
+  const [approval, setApproval] = useState<Approval | null>(null);
 
   useEffect(() => {
     void fetch("/api/auth/session").then(async (response) => {
@@ -15,6 +19,15 @@ export function AccountForm() {
       setMode(body.mode);
       setSession(body.session);
     });
+    const saved = loadWalkthrough();
+    setSnapshot(saved);
+    if (saved?.recordId) {
+      void fetch(`/api/walkthroughs/${saved.recordId}`).then(async (response) => {
+        if (!response.ok) return;
+        const body = await response.json();
+        setApproval(body.record?.approval ?? null);
+      });
+    }
   }, []);
 
   return (
@@ -28,6 +41,8 @@ export function AccountForm() {
             await fetch("/api/auth/session", { method: "DELETE" });
             setSession(null);
           }}>Sign out</button>
+          <WalkthroughActions session={session} snapshot={snapshot} approval={approval} onSnapshot={setSnapshot} onApproval={setApproval} onError={setError} />
+          {error && <p className="error">{error}</p>}
         </>
       ) : (
         <form className="grid" onSubmit={async (event) => {
@@ -68,4 +83,76 @@ export function AccountForm() {
       )}
     </section>
   );
+}
+
+function WalkthroughActions({
+  session,
+  snapshot,
+  approval,
+  onSnapshot,
+  onApproval,
+  onError,
+}: {
+  session: PublicSession;
+  snapshot: WalkthroughSnapshot | null;
+  approval: Approval | null;
+  onSnapshot: (snapshot: WalkthroughSnapshot) => void;
+  onApproval: (approval: Approval | null) => void;
+  onError: (message: string | null) => void;
+}) {
+  if (!snapshot) return <p className="meta">No walkthrough is saved in this browser. Nothing was stored on the server.</p>;
+  return (
+    <div className="grid">
+      <p className="kicker">Saved walkthrough</p>
+      <p className="meta">{approval ? `Status: ${approval.status}` : "Not stored on the server yet."}{snapshot.videoKey ? ` Video: ${snapshot.videoKey}` : " No video file is attached."}{snapshot.finalReport ? ` Report ${snapshot.finalReport.id}` : " The estimate is not finalized."}</p>
+      <button className="btn" type="button" onClick={async () => {
+        onError(null);
+        const response = await fetch("/api/walkthroughs", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: snapshot.recordId, snapshot, videoKey: snapshot.videoKey ?? null }),
+        });
+        const body = await response.json();
+        if (!response.ok) {
+          onError(body.error ?? "The walkthrough was not saved.");
+          return;
+        }
+        const next = { ...snapshot, recordId: body.record.id };
+        saveWalkthrough(next);
+        onSnapshot(next);
+        onApproval(body.record.approval);
+      }}>Save on the server</button>
+      {session.role === "estimator" && snapshot.recordId && (
+        <button className="btn secondary" type="button" onClick={() => act(snapshot.recordId!, { type: "approve" }, onApproval, onError)}>Approve and lock the numbers</button>
+      )}
+      {session.role === "customer" && snapshot.recordId && (
+        <form className="grid" onSubmit={(event) => {
+          event.preventDefault();
+          const statement = String(new FormData(event.currentTarget).get("statement") ?? "");
+          void act(snapshot.recordId!, { type: "authorize", statement }, onApproval, onError);
+        }}>
+          <label className="field">Authorization statement
+            <textarea name="statement" required placeholder="I accept this version of the estimate." />
+          </label>
+          <button className="btn secondary" type="submit">Authorize this version</button>
+        </form>
+      )}
+      {approval?.statement && <p className="meta">Customer statement: {approval.statement}</p>}
+    </div>
+  );
+}
+
+async function act(id: string, body: { type: string; statement?: string }, onApproval: (approval: Approval | null) => void, onError: (message: string | null) => void) {
+  onError(null);
+  const response = await fetch(`/api/walkthroughs/${id}/actions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    onError(payload.error ?? "The version was not changed.");
+    return;
+  }
+  onApproval(payload.record.approval);
 }

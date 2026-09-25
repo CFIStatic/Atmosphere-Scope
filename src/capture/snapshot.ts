@@ -25,6 +25,8 @@ export type WalkthroughSnapshot = {
   objects: IdentifiedObject[];
   offers: ResultOffer[];
   finalReport?: EstimateReport | null;
+  videoKey?: string | null;
+  recordId?: string | null;
 };
 
 export function gapsFromSnapshot(snapshot: WalkthroughSnapshot): string[] {

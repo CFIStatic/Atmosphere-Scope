@@ -50,6 +50,7 @@ type SolverResult = {
   rooms?: MeasuredRoomInput[];
   dimensions: SolverDimension[];
   error?: string;
+  videoKey?: string | null;
   ai?: {
     transcription: { status: string; text: string | null; note: string };
     objects: { name: string; room: string | null; evidence: string; confidence: string; frames: string[]; links?: { frame: string; timeMs: number | null }[] }[];
@@ -171,6 +172,7 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
       videoPlan: result ? plan : null,
       objects,
       offers,
+      videoKey: result?.videoKey ?? null,
     });
   }, [plan, result, previewObjects, previewOffers]);
   const [tapeLabel, setTapeLabel] = useState("span_a");
@@ -362,6 +364,7 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
             videoPlan: plan,
             objects: (measured.ai?.objects ?? []).map((object) => ({ ...object, confidence: object.confidence === "high" || object.confidence === "medium" || object.confidence === "low" ? object.confidence : "low" })),
             offers: (measured.ai?.offers ?? []).map((offer) => ({ query: offer.query, title: offer.title, retailer: offer.retailer, price: offer.price, currency: offer.currency, url: offer.url, status: offer.status, note: offer.note })),
+            videoKey: measured.videoKey ?? null,
           });
           router.push("/contents");
         }

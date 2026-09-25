@@ -15,7 +15,9 @@ describe("accounts", () => {
     expect(editBlocked("edit_scope", "customer_authorized")).toMatch(/locked/);
     expect(editBlocked("approve", "estimator_approved")).toBeNull();
     expect(editBlocked("sketch", "ai_draft")).toBeNull();
-    const stored = sessionFromSupabaseUser({ email: "a@example.com", user_metadata: { name: "Ada", role: "estimator" } }, "secret-token");
+    const stored = sessionFromSupabaseUser({ email: "a@example.com", app_metadata: { role: "estimator" }, user_metadata: { name: "Ada", role: "customer" } }, "secret-token");
+    expect(stored.role).toBe("estimator");
+    expect(() => sessionFromSupabaseUser({ email: "a@example.com", user_metadata: { role: "estimator" } }, "secret-token")).toThrow(/app metadata/);
     expect(publicSession(stored)).toEqual({ email: "a@example.com", name: "Ada", role: "estimator" });
     expect(JSON.stringify(publicSession(stored))).not.toContain("secret-token");
     expect(() => localSession({ name: "Ada", email: "a@example.com", role: "admin" })).toThrow(/estimator or customer/);
@@ -28,7 +30,7 @@ describe("accounts", () => {
       expect(String(input)).toBe("https://abc.supabase.co/auth/v1/token?grant_type=password");
       const headers = init?.headers as Record<string, string>;
       expect(headers.apikey).toBe("anon");
-      return Response.json({ access_token: "tok", user: { email: "a@example.com", user_metadata: { role: "customer", name: "Pat" } } });
+      return Response.json({ access_token: "tok", user: { email: "a@example.com", app_metadata: { role: "customer" }, user_metadata: { name: "Pat", role: "estimator" } } });
     }) as typeof fetch);
     expect(session.role).toBe("customer");
     expect(seen).toContain("pw");

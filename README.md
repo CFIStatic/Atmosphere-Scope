@@ -98,16 +98,26 @@ Set variables on the Railway service. Do not use `NEXT_PUBLIC_` for any key, and
 | `PRICE_FETCH_TIMEOUT_MS` | no | Default `8000`. |
 | `PRICE_FETCH_MAX_BYTES` | no | Default `500000`. |
 | `PRICING_PROVIDER`, `SERPAPI_API_KEY` | no | SerpAPI only when both are set. |
-| `STORAGE`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | no | See below. |
-| `SUPABASE_ANON_KEY` | no | With `SUPABASE_URL`, Account uses Supabase Auth. The role is `user_metadata.role`: `estimator` or `customer`. Without the anon key, sign-in stays local and says so. |
+| `STORAGE`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | for hosted jobs, walkthroughs, catalog, and video | See below. `SUPABASE_SECRET_KEY` may replace the service role key. |
+| `SUPABASE_ANON_KEY` | for Supabase sign-in | Server only, with `SUPABASE_URL`. The role is `app_metadata.role`: `estimator` or `customer`. Without the anon key, sign-in stays local and says so. |
 
-Add a volume mounted at `/data`. That directory holds job JSON, job media, and in-progress capture chunks. Railway's container disk is ephemeral, so a redeploy without the volume drops those files. The phone still has its copy of a capture in IndexedDB and can upload again.
+Add a volume mounted at `/data` and set `DATA_DIR=/data`. Railway's container disk is ephemeral. The volume holds in-progress capture chunks. With local storage it also holds job JSON, media, walkthroughs, and the catalog. The phone still has its copy of a capture in IndexedDB and can upload again.
 
-To keep finished job media in Supabase instead, set `STORAGE=supabase`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`) and run the SQL in `docs/STORAGE.md`. The bucket stays private. Chunks for a capture that is still uploading remain under `DATA_DIR/uploads` until the server finishes them, so the volume is still the right place for that scratch space. The service role key stays a service variable. It is not sent to the browser.
+To keep finished jobs, walkthroughs, the catalog, and video in Supabase, set `STORAGE=supabase` plus the URL and secret key, and run the SQL in `docs/STORAGE.md`. The bucket stays private. Chunks for a capture that is still uploading remain under `DATA_DIR/uploads` until the server stores the finished video, so the volume is still the scratch space. The service role key stays a service variable. It is not sent to the browser.
+
+These are the variables to set on the Railway service before a hosted deploy. Values are not listed here.
+
+| Needed for | Variables |
+| --- | --- |
+| Measurement only | `DATA_DIR=/data`, and a volume at `/data` |
+| Transcription, objects, and prices | `OPENAI_API_KEY` |
+| Supabase database and private video | `STORAGE=supabase`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_SECRET_KEY` |
+| Supabase sign-in | `SUPABASE_ANON_KEY` plus `SUPABASE_URL`. Each user needs `app_metadata.role` of `estimator` or `customer`. |
 
 ## What is implemented
 
 - Job file with property, customer, concern, floors, rooms, media, findings, sketch, questions, scope, and estimate versions.
+- A saved walkthrough keeps its video, finalized report, and approval. Estimator approval locks the numbers. Customer authorization is a separate sign-in.
 - Sample walkthroughs: multi-room water loss, no visible damage, incomplete footage, and an interrupted pipeline you can retry.
 - Narration is screened for instruction-like language and stored as evidence. It cannot approve an estimate or set a price.
 - Findings keep observed, reported, suspected, contradicted, and insufficient evidence apart. Staining does not become mold or an active leak.
@@ -133,7 +143,7 @@ The 3D map still extrudes the sketch. Metric room spans come from `measure/`, wh
 
 - Speech-to-text, vision, and replacement search run only when `OPENAI_API_KEY` is set. Samples still ship transcripts and frame notes. A missing key or a failed call leaves narration, objects, and prices blank.
 - Materials price only when a sourced offer exists. Labor and equipment stay unpriced until an admin enters a rate, with a source and a date. A finalized report does not recompute when those rates change. Sample jobs can still show illustrative arithmetic. That arithmetic is not the estimate.
-- The app has no login. Media paths are unlisted, not a production access-control model.
+- Account sign-in is local unless Supabase Auth is configured. Media paths are unlisted. Supabase tables have row level security and no browser policy; the server uses the secret key.
 - Depth files in `atmosphere-depth-v1` (see `samples/atmosphere-depth-v1.json`) import as inferred geometry. Other depth formats are stored only. See `docs/INTEGRATION.md` for the seams a later Atmosphere port would replace.
 - This is not a certified survey, moisture map, or structural opinion.
 

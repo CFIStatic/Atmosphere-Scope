@@ -69,6 +69,24 @@ export async function readSupabaseMedia(storageKey: string, env: Env, fetchImpl:
   return Buffer.from(await response.arrayBuffer());
 }
 
+export async function readSupabaseDocument<T>(table: string, id: string, env: Env, fetchImpl: typeof fetch): Promise<T | null> {
+  const { url, key } = required(env);
+  const response = await fetchImpl(`${url}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}&select=document`, { headers: restHeaders(key) });
+  if (!response.ok) throw new Error(`Supabase ${table} read failed (${response.status}).`);
+  const rows = (await response.json()) as { document: T }[];
+  return rows[0]?.document ?? null;
+}
+
+export async function writeSupabaseDocument(table: string, id: string, document: unknown, updatedAt: string, env: Env, fetchImpl: typeof fetch): Promise<void> {
+  const { url, key } = required(env);
+  const response = await fetchImpl(`${url}/rest/v1/${table}`, {
+    method: "POST",
+    headers: restHeaders(key, { Prefer: "resolution=merge-duplicates,return=minimal" }),
+    body: JSON.stringify({ id, document, updated_at: updatedAt }),
+  });
+  if (!response.ok) throw new Error(`Supabase ${table} save failed (${response.status}).`);
+}
+
 function required(env: Env): { url: string; key: string } {
   const url = env.SUPABASE_URL?.trim().replace(/\/$/, "") ?? "";
   const key = supabaseKey(env);

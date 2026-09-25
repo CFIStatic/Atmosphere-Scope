@@ -25,11 +25,14 @@ export function localSession(input: { name?: string; email?: string; role?: stri
   return { name, email, role: input.role };
 }
 
-export function sessionFromSupabaseUser(user: { email?: string; user_metadata?: { name?: string; role?: string } }, accessToken: string): StoredSession {
+export function sessionFromSupabaseUser(
+  user: { email?: string; app_metadata?: { role?: string }; user_metadata?: { name?: string; role?: string } },
+  accessToken: string,
+): StoredSession {
   const email = user.email?.trim() ?? "";
   if (!email || !accessToken) throw new Error("Supabase did not return a session.");
-  const role = user.user_metadata?.role;
-  if (role !== "estimator" && role !== "customer") throw new Error("This account has no estimator or customer role in user metadata.");
+  const role = user.app_metadata?.role;
+  if (role !== "estimator" && role !== "customer") throw new Error("This account has no estimator or customer role in app metadata.");
   return { email, name: user.user_metadata?.name?.trim() || email, role, accessToken };
 }
 
@@ -79,6 +82,9 @@ export async function signInWithSupabase(
     body: JSON.stringify({ email: input.email, password: input.password }),
   });
   if (!response.ok) throw new Error("Sign-in failed. The password was not stored here.");
-  const body = (await response.json()) as { access_token?: string; user?: { email?: string; user_metadata?: { name?: string; role?: string } } };
+  const body = (await response.json()) as {
+    access_token?: string;
+    user?: { email?: string; app_metadata?: { role?: string }; user_metadata?: { name?: string; role?: string } };
+  };
   return sessionFromSupabaseUser(body.user ?? {}, body.access_token ?? "");
 }
