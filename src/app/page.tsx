@@ -3,6 +3,7 @@ import { listJobs } from "@/storage/job-store";
 import { SCENARIOS } from "@/samples/scenarios";
 import { SampleLauncher } from "@/components/sample-launcher";
 import { bannerFor } from "@/domain/review";
+import { providerStatus } from "@/analysis/provider-status";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,29 @@ export default async function HomePage() {
         </div>
         <Link className="btn" href="/jobs/new">New job</Link>
       </header>
+      <nav className="cards" style={{ marginBottom: 16 }}>
+        <Link className="card" href="/measure"><strong>Measure a room</strong><span className="meta">Calibration sheet, guided capture, error bounds.</span></Link>
+        <Link className="card" href="/claims"><strong>Claims review</strong><span className="meta">Gaps, sketch spans, and what is not confirmed.</span></Link>
+        <Link className="card" href="/underwriting"><strong>Underwriting</strong><span className="meta">Checklist through scenarios. Illustrative dollars stay labeled.</span></Link>
+        <Link className="card" href="/accuracy"><strong>Accuracy harness</strong><span className="meta">Synthetic results by method. 95% is not claimed.</span></Link>
+      </nav>
+      <section className="panel" style={{ marginBottom: 16 }}>
+        <p className="kicker">Keys</p>
+        <table>
+          <thead><tr><th>Stage</th><th>Env</th><th>Provider</th><th>Cost</th><th>Status</th></tr></thead>
+          <tbody>
+            {providerStatus().map((row) => (
+              <tr key={row.stage}>
+                <td>{row.stage}</td>
+                <td>{row.env ?? "—"}</td>
+                <td>{row.provider}</td>
+                <td>{row.cost}</td>
+                <td>{row.ready ? "ready" : "missing"} · {row.note}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
       <section className="panel" style={{ marginBottom: 16 }}>
         <p className="kicker">Sample walkthroughs</p>
         <div className="cards">

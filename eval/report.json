@@ -1,0 +1,509 @@
+{
+  "targetPercent": 5.0,
+  "claim": "The harness does not support a 95% accuracy claim for real rooms. These figures are synthetic pinhole renders plus ablations. No tape-measured real video was scored.",
+  "methodsNotRun": [
+    "COLMAP and learned multi-view models (DUSt3R, MASt3R, VGGT) were not run. This machine has no GPU and those models are multi-gigabyte. Metric scale here comes from the ChArUco sheet, not from an unscaled point cloud.",
+    "WebXR depth was not run. No supporting Android device is attached. The browser path degrades to 'unsupported' and does not invent a measurement.",
+    "Web Bluetooth laser meters were not run. No Bosch or Leica meter is attached. A lock from that path is not claimed.",
+    "Monocular relative depth is not a metric method and is not scored."
+  ],
+  "results": [
+    {
+      "case": "synthetic-no-target",
+      "kind": "synthetic_pinhole",
+      "method": "no_target",
+      "notes": [
+        "Usable board views: 0. At least 4 views with the sheet readable are required before any dimension can meet the 5% target."
+      ],
+      "calibrationRmsPx": null,
+      "rows": [
+        {
+          "truthId": "width",
+          "kind": "wall_length",
+          "truthFt": 12.0,
+          "valueFt": null,
+          "actualPercent": null,
+          "errorPercent": null,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [],
+          "barCoversTruth": false,
+          "safe": true
+        },
+        {
+          "truthId": "depth",
+          "kind": "wall_length",
+          "truthFt": 14.0,
+          "valueFt": null,
+          "actualPercent": null,
+          "errorPercent": null,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [],
+          "barCoversTruth": false,
+          "safe": true
+        },
+        {
+          "truthId": "height",
+          "kind": "ceiling_height",
+          "truthFt": 8.0,
+          "valueFt": null,
+          "actualPercent": null,
+          "errorPercent": null,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [],
+          "barCoversTruth": false,
+          "safe": true
+        },
+        {
+          "truthId": "area",
+          "kind": "floor_area",
+          "truthFt": 168.0,
+          "valueFt": null,
+          "actualPercent": null,
+          "errorPercent": null,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [],
+          "barCoversTruth": false,
+          "safe": true
+        }
+      ],
+      "safe": true
+    },
+    {
+      "case": "synthetic-rect-charuco",
+      "kind": "synthetic_pinhole",
+      "method": "charuco_multiview",
+      "notes": [
+        "Intrinsics calibrated from the sheet. Reprojection RMS 0.16 px. Ground-truth intrinsics were not used."
+      ],
+      "calibrationRmsPx": 0.159,
+      "rows": [
+        {
+          "truthId": "width",
+          "kind": "wall_length",
+          "truthFt": 12.0,
+          "valueFt": 11.981,
+          "actualPercent": 0.16,
+          "errorPercent": 2.6,
+          "meetsAccuracyTarget": true,
+          "confirmed": false,
+          "sources": [
+            "charuco"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "depth",
+          "kind": "wall_length",
+          "truthFt": 14.0,
+          "valueFt": 13.913,
+          "actualPercent": 0.62,
+          "errorPercent": 2.6,
+          "meetsAccuracyTarget": true,
+          "confirmed": false,
+          "sources": [
+            "charuco"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "height",
+          "kind": "ceiling_height",
+          "truthFt": 8.0,
+          "valueFt": 7.987,
+          "actualPercent": 0.16,
+          "errorPercent": 3.26,
+          "meetsAccuracyTarget": true,
+          "confirmed": false,
+          "sources": [
+            "charuco"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "area",
+          "kind": "floor_area",
+          "truthFt": 168.0,
+          "valueFt": 166.693,
+          "actualPercent": 0.78,
+          "errorPercent": 5.2,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "charuco"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        }
+      ],
+      "safe": true
+    },
+    {
+      "case": "synthetic-rect-charuco",
+      "kind": "synthetic_pinhole",
+      "method": "door",
+      "notes": [
+        "Intrinsics calibrated from the sheet. Reprojection RMS 0.16 px. Ground-truth intrinsics were not used."
+      ],
+      "calibrationRmsPx": 0.159,
+      "rows": [
+        {
+          "truthId": "width",
+          "kind": "wall_length",
+          "truthFt": 12.0,
+          "valueFt": 11.981,
+          "actualPercent": 0.16,
+          "errorPercent": 8.0,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "door_prior"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "depth",
+          "kind": "wall_length",
+          "truthFt": 14.0,
+          "valueFt": 13.913,
+          "actualPercent": 0.62,
+          "errorPercent": 8.0,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "door_prior"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "height",
+          "kind": "ceiling_height",
+          "truthFt": 8.0,
+          "valueFt": 7.987,
+          "actualPercent": 0.16,
+          "errorPercent": 8.0,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "door_prior"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "area",
+          "kind": "floor_area",
+          "truthFt": 168.0,
+          "valueFt": 166.693,
+          "actualPercent": 0.78,
+          "errorPercent": 16.0,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "door_prior"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        }
+      ],
+      "safe": true
+    },
+    {
+      "case": "synthetic-room-b",
+      "kind": "synthetic_pinhole",
+      "method": "charuco_multiview",
+      "notes": [
+        "Intrinsics calibrated from the sheet. Reprojection RMS 0.16 px. Ground-truth intrinsics were not used."
+      ],
+      "calibrationRmsPx": 0.157,
+      "rows": [
+        {
+          "truthId": "width",
+          "kind": "wall_length",
+          "truthFt": 10.5,
+          "valueFt": 10.583,
+          "actualPercent": 0.79,
+          "errorPercent": 2.6,
+          "meetsAccuracyTarget": true,
+          "confirmed": false,
+          "sources": [
+            "charuco"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "depth",
+          "kind": "wall_length",
+          "truthFt": 11.75,
+          "valueFt": 11.771,
+          "actualPercent": 0.18,
+          "errorPercent": 2.6,
+          "meetsAccuracyTarget": true,
+          "confirmed": false,
+          "sources": [
+            "charuco"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "height",
+          "kind": "ceiling_height",
+          "truthFt": 9.0,
+          "valueFt": null,
+          "actualPercent": null,
+          "errorPercent": null,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "charuco"
+          ],
+          "barCoversTruth": false,
+          "safe": true
+        },
+        {
+          "truthId": "area",
+          "kind": "floor_area",
+          "truthFt": 123.375,
+          "valueFt": 124.579,
+          "actualPercent": 0.98,
+          "errorPercent": 5.2,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "charuco"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        }
+      ],
+      "safe": true
+    },
+    {
+      "case": "synthetic-room-b",
+      "kind": "synthetic_pinhole",
+      "method": "door",
+      "notes": [
+        "Intrinsics calibrated from the sheet. Reprojection RMS 0.16 px. Ground-truth intrinsics were not used."
+      ],
+      "calibrationRmsPx": 0.157,
+      "rows": [
+        {
+          "truthId": "width",
+          "kind": "wall_length",
+          "truthFt": 10.5,
+          "valueFt": 10.583,
+          "actualPercent": 0.79,
+          "errorPercent": 8.0,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "door_prior"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "depth",
+          "kind": "wall_length",
+          "truthFt": 11.75,
+          "valueFt": 11.771,
+          "actualPercent": 0.18,
+          "errorPercent": 8.0,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "door_prior"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "height",
+          "kind": "ceiling_height",
+          "truthFt": 9.0,
+          "valueFt": null,
+          "actualPercent": null,
+          "errorPercent": null,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "door_prior"
+          ],
+          "barCoversTruth": false,
+          "safe": true
+        },
+        {
+          "truthId": "area",
+          "kind": "floor_area",
+          "truthFt": 123.375,
+          "valueFt": 124.579,
+          "actualPercent": 0.98,
+          "errorPercent": 16.0,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "door_prior"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        }
+      ],
+      "safe": true
+    },
+    {
+      "case": "synthetic-room-c",
+      "kind": "synthetic_pinhole",
+      "method": "charuco_multiview",
+      "notes": [
+        "Intrinsics calibrated from the sheet. Reprojection RMS 0.30 px. Ground-truth intrinsics were not used."
+      ],
+      "calibrationRmsPx": 0.299,
+      "rows": [
+        {
+          "truthId": "depth",
+          "kind": "wall_length",
+          "truthFt": 12.5,
+          "valueFt": 12.368,
+          "actualPercent": 1.06,
+          "errorPercent": 2.7,
+          "meetsAccuracyTarget": true,
+          "confirmed": false,
+          "sources": [
+            "charuco"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "width",
+          "kind": "wall_length",
+          "truthFt": 15.0,
+          "valueFt": 14.643,
+          "actualPercent": 2.38,
+          "errorPercent": 2.6,
+          "meetsAccuracyTarget": true,
+          "confirmed": false,
+          "sources": [
+            "charuco"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "height",
+          "kind": "ceiling_height",
+          "truthFt": 8.5,
+          "valueFt": 8.372,
+          "actualPercent": 1.51,
+          "errorPercent": 3.28,
+          "meetsAccuracyTarget": true,
+          "confirmed": false,
+          "sources": [
+            "charuco"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "area",
+          "kind": "floor_area",
+          "truthFt": 187.5,
+          "valueFt": 181.104,
+          "actualPercent": 3.41,
+          "errorPercent": 5.3,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "charuco"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        }
+      ],
+      "safe": true
+    },
+    {
+      "case": "synthetic-room-c",
+      "kind": "synthetic_pinhole",
+      "method": "door",
+      "notes": [
+        "Intrinsics calibrated from the sheet. Reprojection RMS 0.30 px. Ground-truth intrinsics were not used."
+      ],
+      "calibrationRmsPx": 0.299,
+      "rows": [
+        {
+          "truthId": "depth",
+          "kind": "wall_length",
+          "truthFt": 12.5,
+          "valueFt": 12.368,
+          "actualPercent": 1.06,
+          "errorPercent": 8.0,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "door_prior"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "width",
+          "kind": "wall_length",
+          "truthFt": 15.0,
+          "valueFt": 14.643,
+          "actualPercent": 2.38,
+          "errorPercent": 8.0,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "door_prior"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "height",
+          "kind": "ceiling_height",
+          "truthFt": 8.5,
+          "valueFt": 8.372,
+          "actualPercent": 1.51,
+          "errorPercent": 8.0,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "door_prior"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        },
+        {
+          "truthId": "area",
+          "kind": "floor_area",
+          "truthFt": 187.5,
+          "valueFt": 181.104,
+          "actualPercent": 3.41,
+          "errorPercent": 16.0,
+          "meetsAccuracyTarget": false,
+          "confirmed": false,
+          "sources": [
+            "door_prior"
+          ],
+          "barCoversTruth": true,
+          "safe": true
+        }
+      ],
+      "safe": true
+    }
+  ],
+  "safe": true
+}
