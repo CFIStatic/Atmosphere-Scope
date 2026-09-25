@@ -48,6 +48,6 @@ async function writeSupabaseShare(share: JobShare) {
     body: JSON.stringify({ job_id: share.jobId, email: share.email }),
   });
   if (!response.ok) {
-    throw new Error("The share was not saved. Run the job_shares SQL in docs/STORAGE.md, then try again.");
+    throw new Error("The share was not saved. Apply supabase/migrations/20260925160000_jobs_shares_rls.sql, then try again.");
   }
 }

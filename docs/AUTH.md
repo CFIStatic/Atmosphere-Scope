@@ -14,7 +14,7 @@ Roles live only in `app_metadata.role`: `admin`, `estimator`, or `customer`. `us
 - `/auth/reset` sets a new password of at least 8 characters. An expired or invalid link stays on this page with a link to request another.
 - `/account` changes the password and signs out. The header shows the signed-in name and role.
 - `/admin/users` is only for `admin`. Invite, change a role, or deactivate. Deactivate uses a long Supabase ban. An existing access token can keep working until it expires or the user signs out.
-- An estimator or admin shares a job by customer email. A customer sees only those jobs and the estimates inside them. The same rule is in the SQL in `docs/STORAGE.md`. Approval stays on the estimator. Authorization stays on the customer. An admin does not do either.
+- An estimator or admin shares a job by customer email. A customer sees only those jobs and the estimates inside them. The same rule is in `supabase/migrations/20260925160000_jobs_shares_rls.sql`. Approval stays on the estimator. Authorization stays on the customer. An admin does not do either.
 
 Passwords shorter than 8 characters are rejected in the app. Set the same minimum in the Supabase dashboard under Authentication → Providers → Email, so the project agrees with the app.
 
@@ -67,7 +67,7 @@ SITE_URL=https://your-domain.example
 
 `SUPABASE_SECRET_KEY` may replace `SUPABASE_SERVICE_ROLE_KEY`. `SITE_URL` is the origin used in reset and invite links. If it is unset, the app uses the request origin.
 
-Run the SQL in `docs/STORAGE.md` before sharing a job. A share against a missing `job_shares` table fails with a message to run that SQL.
+Apply `supabase/migrations/20260925160000_jobs_shares_rls.sql` before sharing a job. A share against a missing `job_shares` table fails with a message to run that migration.
 
 ## First admin
 
