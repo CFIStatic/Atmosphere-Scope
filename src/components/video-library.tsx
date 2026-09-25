@@ -56,10 +56,10 @@ export function VideoLibrary({ jobs, customer }: { jobs: LibraryJob[]; customer:
         <table className="lib-table">
           <thead>
             <tr>
-              <th style={{ width: 128 }}>Preview</th>
+              <th>Preview</th>
               <SortHead label="Job name" column="job" sortKey={sortKey} sortDir={sortDir} onSort={sort} />
               <SortHead label="Status" column="status" sortKey={sortKey} sortDir={sortDir} onSort={sort} />
-              <SortHead label="Recorded" column="recorded" sortKey={sortKey} sortDir={sortDir} onSort={sort} width={132} />
+              <SortHead label="Recorded" column="recorded" sortKey={sortKey} sortDir={sortDir} onSort={sort} />
               <SortHead label="Uploaded by" column="uploader" sortKey={sortKey} sortDir={sortDir} onSort={sort} />
             </tr>
           </thead>
@@ -92,18 +92,16 @@ function SortHead({
   sortKey,
   sortDir,
   onSort,
-  width,
 }: {
   label: string;
   column: SortKey;
   sortKey: SortKey;
   sortDir: "asc" | "desc";
   onSort: (key: SortKey) => void;
-  width?: number;
 }) {
   const active = sortKey === column;
   return (
-    <th style={width ? { width } : undefined} aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+    <th aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
       <button type="button" onClick={() => onSort(column)}>
         {label} <span className="sortcaret" aria-hidden="true">{active ? (sortDir === "asc" ? "↑" : "↓") : "↕"}</span>
       </button>
