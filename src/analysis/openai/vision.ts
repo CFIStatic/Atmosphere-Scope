@@ -5,13 +5,47 @@ export const MAX_VISION_FRAMES = 4;
 export const MAX_OBJECTS = 24;
 export const MAX_PRICED_OBJECTS = 8;
 
+export type EvidenceLink = {
+  frame: string;
+  timeMs: number | null;
+};
+
 export type IdentifiedObject = {
   name: string;
   room: string | null;
   evidence: string;
   confidence: "low" | "medium" | "high";
   frames: string[];
+  links?: EvidenceLink[];
 };
+
+/** Sample time for frame_00.jpg at the capture rate of 2 fps. */
+export function frameTimeMs(name: string): number | null {
+  const match = name.match(/frame_(\d+)/i);
+  if (!match) return null;
+  return Number(match[1]) * 500;
+}
+
+export function selectKeyframes<T extends { name: string; timeMs?: number | null }>(frames: T[], max = MAX_VISION_FRAMES): T[] {
+  const ordered = [...frames].sort((a, b) => timeOf(a) - timeOf(b));
+  const spaced: T[] = [];
+  let last = Number.NEGATIVE_INFINITY;
+  for (const frame of ordered) {
+    const time = frame.timeMs ?? frameTimeMs(frame.name);
+    if (time == null || time - last >= 400) {
+      spaced.push(frame);
+      if (time != null) last = time;
+    }
+  }
+  if (spaced.length <= max) return spaced;
+  const picked: T[] = [];
+  for (let index = 0; index < max; index += 1) picked.push(spaced[Math.round((index * (spaced.length - 1)) / (max - 1))]);
+  return [...new Set(picked)];
+}
+
+function timeOf(frame: { name: string; timeMs?: number | null }): number {
+  return frame.timeMs ?? frameTimeMs(frame.name) ?? 0;
+}
 
 export function dedupeObjects(items: IdentifiedObject[]): IdentifiedObject[] {
   const rank = { low: 0, medium: 1, high: 2 } as const;
@@ -27,8 +61,10 @@ export function dedupeObjects(items: IdentifiedObject[]): IdentifiedObject[] {
     map.set(key, {
       ...existing,
       frames: [...new Set([...existing.frames, ...item.frames])],
+      links: mergeLinks(existing.links, item.links),
       confidence: rank[item.confidence] > rank[existing.confidence] ? item.confidence : existing.confidence,
       room: existing.room ?? item.room,
+      evidence: existing.evidence || item.evidence,
     });
   }
   return [...map.values()].slice(0, MAX_OBJECTS);
@@ -47,9 +83,19 @@ export function parseVisionObjects(raw: unknown, frameNames: string[]): Identifi
     if (blocked) continue;
     const confidence = record.confidence === "high" || record.confidence === "medium" || record.confidence === "low" ? record.confidence : "low";
     const room = typeof record.room === "string" && record.room.trim() ? record.room.trim() : null;
-    parsed.push({ name, room, evidence, confidence, frames: frameNames });
+    parsed.push({ name, room, evidence, confidence, frames: frameNames, links: linksFromFrames(frameNames) });
   }
   return dedupeObjects(parsed);
+}
+
+export function mergeLinks(left: EvidenceLink[] | undefined, right: EvidenceLink[] | undefined): EvidenceLink[] {
+  const map = new Map<string, EvidenceLink>();
+  for (const link of [...(left ?? []), ...(right ?? [])]) map.set(`${link.frame}:${link.timeMs ?? ""}`, link);
+  return [...map.values()];
+}
+
+function linksFromFrames(frames: string[]): EvidenceLink[] {
+  return frames.map((frame) => ({ frame, timeMs: frameTimeMs(frame) }));
 }
 
 export function extractChatContent(body: unknown): string | null {
@@ -67,7 +113,7 @@ export async function identifyObjects(
   const env = options.env ?? process.env;
   const key = openaiKey(env);
   if (!key) return { objects: [], note: "OPENAI_API_KEY is not set. Objects were not invented." };
-  const chosen = frames.slice(0, MAX_VISION_FRAMES).filter((frame) => frame.bytes.byteLength > 0);
+  const chosen = selectKeyframes(frames.filter((frame) => frame.bytes.byteLength > 0));
   if (!chosen.length) return { objects: [], note: "No keyframes were available, so no objects were identified." };
   const fetchImpl = options.fetchImpl ?? fetch;
   try {

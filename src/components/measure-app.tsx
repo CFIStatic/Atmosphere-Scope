@@ -47,7 +47,7 @@ type SolverResult = {
   error?: string;
   ai?: {
     transcription: { status: string; text: string | null; note: string };
-    objects: { name: string; room: string | null; evidence: string; confidence: string; frames: string[] }[];
+    objects: { name: string; room: string | null; evidence: string; confidence: string; frames: string[]; links?: { frame: string; timeMs: number | null }[] }[];
     objectNote: string;
     offers: Offer[];
     pricing: { reason: string };
@@ -518,7 +518,7 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
                       <td>{object.name}</td>
                       <td>{object.room ?? "?"}</td>
                       <td>{object.confidence}</td>
-                      <td>{object.evidence || "—"} <span className="meta">{object.frames.join(", ")}</span></td>
+                      <td>{object.evidence || "—"} <span className="meta">{(object.links?.length ? object.links : object.frames.map((frame) => ({ frame, timeMs: null }))).map((link) => `${link.frame}${link.timeMs == null ? "" : ` @ ${(link.timeMs / 1000).toFixed(1)}s`}`).join(", ")}</span></td>
                     </tr>
                   ))}
                 </tbody>
