@@ -4,12 +4,23 @@ import type { ResultOffer } from "@/domain/results";
 
 export const WALKTHROUGH_KEY = "atmosphere-walkthrough";
 
+export type PlanCrossCheck = {
+  room: string;
+  item: string;
+  imported: number | null;
+  video: number | null;
+  note: string;
+};
+
 export type WalkthroughSnapshot = {
   savedAt: string;
-  source: "measurement" | "recorded-preview";
+  source: "measurement" | "recorded-preview" | "import";
   transcript: string | null;
   transcriptNote: string;
   plan: FloorPlan;
+  videoPlan?: FloorPlan | null;
+  importNotes?: string[];
+  crossCheck?: PlanCrossCheck[];
   objects: IdentifiedObject[];
   offers: ResultOffer[];
 };

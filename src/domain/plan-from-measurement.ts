@@ -11,6 +11,14 @@ export type MeasuredDimension = {
   confirmed?: boolean;
   sources?: string[];
   note?: string;
+  importedFrom?: string;
+};
+
+export type ImportedQuantities = {
+  from: string;
+  floorSqft?: number | null;
+  perimeterLf?: number | null;
+  wallSqft?: number | null;
 };
 
 export type MeasuredOpening = {
@@ -34,13 +42,14 @@ export type MeasuredRoomInput = {
   dimensions: MeasuredDimension[];
   openings?: MeasuredOpening[];
   markers?: PlanMarker[];
+  importedQuantities?: ImportedQuantities;
 };
 
 export type PlanEdge = {
   roomId: string;
   edgeIndex: number;
   valueFt: number | null;
-  status: "confirmed" | "estimated" | "unmeasured";
+  status: "confirmed" | "estimated" | "imported" | "unmeasured";
   stroke: "solid" | "dashed";
   label: string;
 };
@@ -52,7 +61,7 @@ export type PlanQuantity = {
   label: string;
   value: number | null;
   unit: "sqft" | "lf";
-  status: "confirmed" | "estimated" | "unmeasured";
+  status: "confirmed" | "estimated" | "imported" | "unmeasured";
   note: string;
 };
 
@@ -65,6 +74,7 @@ export type FloorPlan = {
   edges: PlanEdge[];
   quantities: PlanQuantity[];
   names: Record<string, string>;
+  overrides: Record<string, ImportedQuantities>;
   disclaimer: string;
 };
 
@@ -143,6 +153,7 @@ export function floorPlanFromMeasurement(inputs: MeasuredRoomInput[], note?: str
     edges: [],
     quantities: [],
     names,
+    overrides: Object.fromEntries(placed.filter((room) => room.importedQuantities).map((room) => [room.id, room.importedQuantities!])),
     disclaimer: note ? `${note} ${DISCLAIMER}` : DISCLAIMER,
   };
   return refresh(plan);
@@ -202,6 +213,9 @@ function edgesFor(room: SketchRoom, dimensions: SketchDimension[]): PlanEdge[] {
     if (dimension?.status === "confirmed" && dimension.locked) {
       return { roomId: room.roomId, edgeIndex, valueFt: value, status: "confirmed", stroke: "solid", label: `${value} ft confirmed` };
     }
+    if (dimension?.provenance === "imported") {
+      return { roomId: room.roomId, edgeIndex, valueFt: value, status: "imported", stroke: "solid", label: `${value} ft imported` };
+    }
     return { roomId: room.roomId, edgeIndex, valueFt: value, status: "estimated", stroke: "solid", label: `${value} ft estimated` };
   });
 }
@@ -212,16 +226,19 @@ function quantitiesFor(room: SketchRoom, plan: FloorPlan): PlanQuantity[] {
   const height = plan.ceilingHeights[room.roomId];
   const measured = edges.filter((edge) => edge.valueFt != null);
   const allConfirmed = edges.length > 0 && edges.every((edge) => edge.status === "confirmed");
-  const floorStatus = room.incomplete || measured.length < edges.length ? "unmeasured" : allConfirmed ? "confirmed" : "estimated";
-  const area = floorStatus === "unmeasured" ? null : round3(polygonArea(room.polygon));
-  const perimeter = floorStatus === "unmeasured" ? null : round3(edges.reduce((sum, edge) => sum + (edge.valueFt ?? 0), 0));
+  const allImported = edges.length > 0 && edges.every((edge) => edge.status === "imported");
+  const override = plan.overrides[room.roomId];
+  const drawn = room.incomplete || measured.length < edges.length ? "unmeasured" : allConfirmed ? "confirmed" : allImported ? "imported" : "estimated";
+  const floorStatus = drawn === "unmeasured" && override?.floorSqft != null ? "imported" : drawn;
+  const area = drawn !== "unmeasured" ? round3(polygonArea(room.polygon)) : override?.floorSqft != null ? round3(override.floorSqft) : null;
+  const perimeter = drawn !== "unmeasured" ? round3(edges.reduce((sum, edge) => sum + (edge.valueFt ?? 0), 0)) : override?.perimeterLf != null ? round3(override.perimeterLf) : null;
   const heightKnown = height?.valueFt != null && height.status !== "unresolved";
-  const wall = floorStatus === "unmeasured" || !heightKnown ? null : round3((perimeter ?? 0) * (height?.valueFt ?? 0));
-  const wallStatus = wall == null ? "unmeasured" : allConfirmed && height?.status === "confirmed" ? "confirmed" : "estimated";
+  const wall = override?.wallSqft != null && drawn === "unmeasured" ? round3(override.wallSqft) : floorStatus === "unmeasured" || !heightKnown ? null : round3((perimeter ?? 0) * (height?.valueFt ?? 0));
+  const wallStatus = wall == null ? "unmeasured" : allConfirmed && height?.status === "confirmed" ? "confirmed" : allImported || override?.wallSqft != null || height?.provenance === "imported" ? "imported" : "estimated";
   return [
-    { roomId: room.roomId, roomName: name, kind: "floor_area", label: "Floor", value: area, unit: "sqft", status: floorStatus, note: floorStatus === "unmeasured" ? "Floor area stays blank until every wall has a length." : "Area is the polygon. It is not a separate guess." },
-    { roomId: room.roomId, roomName: name, kind: "baseboard", label: "Baseboard", value: perimeter, unit: "lf", status: floorStatus, note: floorStatus === "unmeasured" ? "Baseboard length needs a closed measured outline." : "Linear feet are the sum of the wall lengths." },
-    { roomId: room.roomId, roomName: name, kind: "wall_area", label: "Walls / drywall", value: wall, unit: "sqft", status: wallStatus, note: wall == null ? "Wall area needs the outline and a ceiling height. Height was not guessed." : "Gross wall area. Openings were not deducted unless a width and height were measured." },
+    { roomId: room.roomId, roomName: name, kind: "floor_area", label: "Floor", value: area, unit: "sqft", status: floorStatus, note: quantityNote(floorStatus, override, "Floor area stays blank until every wall has a length.", drawn === "unmeasured" ? "Floor area was imported. Wall lengths were not in the file, so no outline was invented." : "Area follows the wall lengths.") },
+    { roomId: room.roomId, roomName: name, kind: "baseboard", label: "Baseboard", value: perimeter, unit: "lf", status: perimeter == null ? "unmeasured" : floorStatus, note: quantityNote(perimeter == null ? "unmeasured" : floorStatus, override, "Baseboard length needs a closed measured outline.", "Linear feet follow the wall lengths or the imported perimeter.") },
+    { roomId: room.roomId, roomName: name, kind: "wall_area", label: "Walls / drywall", value: wall, unit: "sqft", status: wallStatus, note: wall == null ? "Wall area needs the outline and a ceiling height. Height was not guessed." : wallStatus === "imported" ? `Imported from ${override?.from ?? "the floor plan file"}. Not a tape confirmation.` : "Gross wall area. Openings were not deducted unless a width and height were measured." },
   ];
 }
 
@@ -236,6 +253,10 @@ function syncUnlockedEdges(room: SketchRoom, dimensions: SketchDimension[]): Ske
 }
 
 function assignWalls(roomId: string, polygon: Point[], walls: MeasuredDimension[], dimensions: SketchDimension[]) {
+  if (walls.length === polygon.length && walls.every((wall) => wall.label.startsWith("edge_"))) {
+    walls.forEach((wall, edgeIndex) => dimensions.push(wallDimension(roomId, edgeIndex, wall)));
+    return;
+  }
   const uniquePairs = polygon.length === 4 ? [[0, 2], [1, 3]] : polygon.map((_, index) => [index]);
   const ranked = [...walls].sort((a, b) => (a.valueFt ?? 0) - (b.valueFt ?? 0));
   const pairOrder = [...uniquePairs].sort((a, b) => edgeLength(polygon, a[0]) - edgeLength(polygon, b[0]));
@@ -259,7 +280,25 @@ function assignWalls(roomId: string, polygon: Point[], walls: MeasuredDimension[
   }
 }
 
+function quantityNote(status: PlanQuantity["status"], override: ImportedQuantities | undefined, blank: string, filled: string): string {
+  if (status === "unmeasured") return blank;
+  if (status === "imported") return `${filled} Source: ${override?.from ?? "imported file"}. Not a tape confirmation.`;
+  if (status === "confirmed") return filled;
+  return `${filled} Estimated until a tape or laser locks it.`;
+}
+
 function wallDimension(roomId: string, edgeIndex: number, wall: MeasuredDimension): SketchDimension {
+  if (wall.importedFrom && wall.valueFt != null) {
+    return {
+      id: `dim_${roomId}_${edgeIndex}`,
+      target: { type: "edge", roomId, edgeIndex },
+      valueFt: wall.valueFt,
+      status: "inferred",
+      locked: false,
+      provenance: "imported",
+      sourceNote: `Imported from ${wall.importedFrom}. Measured by that tool, not confirmed here.`,
+    };
+  }
   const confirmed = wall.confirmed === true && wall.valueFt != null;
   return {
     id: `dim_${roomId}_${edgeIndex}`,
@@ -275,6 +314,9 @@ function wallDimension(roomId: string, edgeIndex: number, wall: MeasuredDimensio
 function heightRecord(height: MeasuredDimension | null): FloorPlan["ceilingHeights"][string] {
   if (!height || height.valueFt == null) {
     return { valueFt: null, status: "unresolved", provenance: "inferred", sourceNote: height?.note || "Ceiling height was not measured." };
+  }
+  if (height.importedFrom) {
+    return { valueFt: height.valueFt, status: "provisional", provenance: "imported", sourceNote: `Imported from ${height.importedFrom}. Measured by that tool, not confirmed here.` };
   }
   const confirmed = height.confirmed === true;
   return {

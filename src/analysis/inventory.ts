@@ -29,7 +29,7 @@ export function inventoryFromWalkthrough(objects: IdentifiedObject[], plan: Floo
     source: "sketch",
     evidence: "Sketch",
     links: [],
-    note: item.value == null ? item.note : `${item.note} ${item.status === "confirmed" ? "Confirmed." : "Estimated, not confirmed."}`,
+    note: item.value == null ? item.note : `${item.note} ${item.status === "confirmed" ? "Confirmed." : item.status === "imported" ? "Imported from a floor plan. Not a tape confirmation." : "Estimated, not confirmed."}`,
   }));
   const seen = objects.map((object) => {
     const cabinet = /cabinet/i.test(object.name);

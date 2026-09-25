@@ -2,6 +2,7 @@ import Link from "next/link";
 import { readFile } from "fs/promises";
 import path from "path";
 import { ClaimsFlow } from "@/components/claims-flow";
+import { SiteNav } from "@/components/site-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +29,9 @@ export default async function ClaimsPage() {
           <p className="brand"><span>Atmosphere Scope</span>Claims review</p>
           <p className="meta">Capture, gaps, and the draft read the walkthrough saved in this browser.</p>
         </div>
-        <Link className="btn secondary" href="/">Home</Link>
+        <Link className="btn secondary" href="/contents">Contents</Link>
       </header>
+      <SiteNav current="/claims" />
       <ClaimsFlow walls={walls} height={height} />
     </main>
   );

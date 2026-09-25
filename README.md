@@ -1,10 +1,12 @@
 # Atmosphere Scope
 
-Standalone prototype that turns a narrated residential walkthrough into an editable 2D sketch, a labeled 3D schematic, an evidence-backed assessment, and a draft mitigation / rebuild estimate.
+The headline is a priced, evidence-linked contents list. After a walkthrough is processed, the app opens that list with the sketch beside it. Video measurement and an imported floor plan supply quantities. They are supporting inputs, not the landing screen.
 
-AI output stays **Draft—requires estimator review** until a person marks it reviewed and then approves it. Customer authorization is a separate step and names the exact version.
+Each line keeps its evidence. A price stays unverified until the product page is checked. The list stays a draft until an estimator approves it. Customer authorization is a separate step and names the exact version.
 
-Room measurement is a separate, local pipeline. It does **not** claim 95% accuracy. The numbers below are what `npm run eval:accuracy` last recorded on synthetic rooms. See [Accuracy](/accuracy) in the running app, or `eval/report.json`.
+Room measurement does **not** claim 95% accuracy. The numbers below are what `npm run eval:accuracy` last recorded on synthetic rooms. See [Accuracy](/accuracy) in the running app, or `eval/report.json`.
+
+Floor plans from tools restorers already use can be imported when the format is openly documented. See [docs/IMPORTS.md](docs/IMPORTS.md). Imported lengths are marked imported. They are not a tape confirmation. If a video measurement of the same room exists, the two are compared and neither value is replaced. Xactimate ESX and DocuSketch FML are not parsed.
 
 ## Measurement
 

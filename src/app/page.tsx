@@ -4,6 +4,7 @@ import { SCENARIOS } from "@/samples/scenarios";
 import { SampleLauncher } from "@/components/sample-launcher";
 import { bannerFor } from "@/domain/review";
 import { providerStatus } from "@/analysis/provider-status";
+import { SiteNav } from "@/components/site-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -14,17 +15,21 @@ export default async function HomePage() {
       <header className="topbar">
         <div>
           <p className="brand"><span>Atmosphere</span>Scope</p>
-          <p className="meta">Residential interior walkthroughs, evidence, sketch, and draft estimate. AI output stays a draft until an estimator approves it.</p>
+          <p className="meta">Priced, evidence-linked contents from a walkthrough. The sketch sits beside the list. Measurement and an imported plan feed the quantities.</p>
         </div>
         <div className="row">
-          <Link className="btn secondary" href="/account">Account</Link>
-          <Link className="btn" href="/jobs/new">New job</Link>
+          <div className="row">
+            <Link className="btn" href="/contents">Contents</Link>
+            <Link className="btn secondary" href="/jobs/new">New job</Link>
+          </div>
         </div>
       </header>
+      <SiteNav current="/" />
       <nav className="cards" style={{ marginBottom: 16 }}>
-        <Link className="card" href="/measure"><strong>Measure a room</strong><span className="meta">Calibration sheet, guided capture, error bounds.</span></Link>
-        <Link className="card" href="/claims"><strong>Claims review</strong><span className="meta">Gaps, sketch spans, and what is not confirmed.</span></Link>
-        <Link className="card" href="/underwriting"><strong>Underwriting</strong><span className="meta">Checklist through contents, from the saved walkthrough.</span></Link>
+        <Link className="card" href="/contents"><strong>Contents</strong><span className="meta">Sketch beside the priced list. Evidence and unverified prices stay visible.</span></Link>
+        <Link className="card" href="/measure"><strong>Measure</strong><span className="meta">Supporting capture. The sheet sets scale. It is not the landing screen.</span></Link>
+        <Link className="card" href="/claims"><strong>Claims review</strong><span className="meta">Gaps and the draft, from the saved contents.</span></Link>
+        <Link className="card" href="/underwriting"><strong>Underwriting</strong><span className="meta">Checklist through the same contents list.</span></Link>
         <Link className="card" href="/accuracy"><strong>Accuracy harness</strong><span className="meta">Synthetic results by method. 95% is not claimed.</span></Link>
       </nav>
       <section className="panel" style={{ marginBottom: 16 }}>

@@ -71,7 +71,7 @@ export function PlanView({ plan, onChange }: { plan: FloorPlan; onChange: (plan:
                 <td>{item.roomName}</td>
                 <td>{item.label}</td>
                 <td>{item.value == null ? "—" : `${item.value} ${item.unit}`}</td>
-                <td>{item.status === "confirmed" ? <span className="chip blue">Confirmed</span> : item.status === "estimated" ? <span className="chip orange">Estimated</span> : <span className="chip">Unmeasured</span>}</td>
+                <td>{item.status === "confirmed" ? <span className="chip blue">Confirmed</span> : item.status === "imported" ? <span className="chip">Imported</span> : item.status === "estimated" ? <span className="chip orange">Estimated</span> : <span className="chip">Unmeasured</span>}</td>
               </tr>
             ))}
           </tbody>

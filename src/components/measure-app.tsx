@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { chunkCount, getCapture, listPendingCaptures, putCapture, saveChunk } from "@/capture/db";
 import { captureStatusLabel } from "@/capture/plan";
 import { resumeCapture } from "@/capture/resume-client";
@@ -134,6 +135,7 @@ function sliceBlob(blob: Blob, size = 256 * 1024): Blob[] {
 }
 
 export function MeasureApp({ setup }: { setup: { measurement: string; vision: string; pricing: string } }) {
+  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [sensors, setSensors] = useState<SensorState>({ webxr: "checking", bluetooth: "checking", laser: null });
   const [coach, setCoach] = useState("Print the sheet, put it on the floor, and start the camera.");
@@ -166,6 +168,7 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
       transcript: result?.ai?.transcription.text ?? null,
       transcriptNote: result?.ai?.transcription.note ?? "Recorded preview. Not a customer recording.",
       plan,
+      videoPlan: result ? plan : null,
       objects,
       offers,
     });
@@ -346,8 +349,22 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
       const body = await resumeCapture(record, { online: navigator.onLine, onStatus: setUploadStatus });
       if (body && typeof body === "object") {
         const measured = body as SolverResult;
+        const plan = planFromResult(measured);
         setResult(measured);
-        setPlan(planFromResult(measured));
+        setPlan(plan);
+        if (!measured.error && measured.dimensions) {
+          saveWalkthrough({
+            savedAt: new Date().toISOString(),
+            source: "measurement",
+            transcript: measured.ai?.transcription.text ?? null,
+            transcriptNote: measured.ai?.transcription.note ?? "No narration text was returned.",
+            plan,
+            videoPlan: plan,
+            objects: (measured.ai?.objects ?? []).map((object) => ({ ...object, confidence: object.confidence === "high" || object.confidence === "medium" || object.confidence === "low" ? object.confidence : "low" })),
+            offers: (measured.ai?.offers ?? []).map((offer) => ({ query: offer.query, title: offer.title, retailer: offer.retailer, price: offer.price, currency: offer.currency, url: offer.url, status: offer.status, note: offer.note })),
+          });
+          router.push("/contents");
+        }
       }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Upload failed.";
