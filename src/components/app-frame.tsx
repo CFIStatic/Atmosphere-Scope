@@ -14,6 +14,11 @@ export function AppFrame({ current, children }: { current?: string; children: Re
         <SiteNav current={current} />
       </aside>
       <div className="app-main">
+        <div className="mobile-brand">
+          <Link href="/" aria-label="Atmosphere Scope">
+            <BrandLockup />
+          </Link>
+        </div>
         <AccountChip />
         {children}
       </div>

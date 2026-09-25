@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { AccountForm } from "@/components/account-form";
 import { AppFrame } from "@/components/app-frame";
-import { BrandLockup } from "@/components/brand-lockup";
 
 export const dynamic = "force-dynamic";
 
@@ -16,12 +14,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     <AppFrame current="/account">
     <main className="shell">
       <header className="topbar">
-        <div>
-          <BrandLockup />
-          <h1 className="page-title">Account</h1>
-          <p className="meta">Change your password here. Estimator approval and customer authorization stay separate.</p>
-        </div>
-        <Link className="btn secondary" href="/">Home</Link>
+        <h1 className="page-title">Account</h1>
       </header>
       <AccountForm notice={notice} />
     </main>

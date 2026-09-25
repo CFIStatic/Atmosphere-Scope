@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { boundsOf } from "@/domain/geometry";
+import { dimensionLabel } from "@/domain/labels";
 import { correctPlanEdge, correctPlanHeight, type FloorPlan, type PlanEdge } from "@/domain/plan-from-measurement";
 
 export function PlanView({ plan, onChange }: { plan: FloorPlan; onChange: (plan: FloorPlan) => void }) {
@@ -70,9 +71,9 @@ export function PlanView({ plan, onChange }: { plan: FloorPlan; onChange: (plan:
             {plan.quantities.map((item) => (
               <tr key={`${item.roomId}-${item.kind}`}>
                 <td data-label="Room">{item.roomName}</td>
-                <td data-label="Item">{item.label}</td>
+                <td data-label="Item">{dimensionLabel(item.label)}</td>
                 <td data-label="Qty">{item.value == null ? "—" : `${item.value} ${item.unit}`}</td>
-                <td data-label="Status">{item.status === "confirmed" ? <span className="chip blue">Confirmed</span> : item.status === "imported" ? <span className="chip">Imported</span> : item.status === "estimated" ? <span className="chip orange">Estimated</span> : <span className="chip">Unmeasured</span>}</td>
+                <td data-label="Status">{item.status === "confirmed" ? <span className="chip blue">Verified</span> : item.status === "imported" ? <span className="chip">Imported</span> : item.status === "estimated" ? <span className="chip orange">Estimated</span> : <span className="chip orange">Not verified</span>}</td>
               </tr>
             ))}
           </tbody>
@@ -89,7 +90,7 @@ export function PlanView({ plan, onChange }: { plan: FloorPlan; onChange: (plan:
               setRoomId(nextRoom);
               setEdgeIndex(Number(nextEdge));
             }}>
-              {edges.map((edge) => <option key={edge.edgeIndex} value={`${edge.roomId}:${edge.edgeIndex}`}>Edge {edge.edgeIndex + 1} · {edge.label}</option>)}
+              {edges.map((edge) => <option key={edge.edgeIndex} value={`${edge.roomId}:${edge.edgeIndex}`}>{dimensionLabel(edge.label)}</option>)}
             </select>
           </label>
           <label className="field">Corrected length, feet
@@ -196,7 +197,7 @@ function Wall({ edge, x1, y1, x2, y2 }: { edge: PlanEdge; x1: number; y1: number
   return (
     <g>
       <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={edge.status === "unmeasured" ? 0.06 : 0.1} strokeDasharray={edge.stroke === "dashed" ? "0.28 0.16" : undefined} />
-      <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 0.22} fontSize={0.28} textAnchor="middle" fill={edge.status === "estimated" ? "#e07a2f" : color}>{edge.label}</text>
+      <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 0.22} fontSize={0.28} textAnchor="middle" fill={edge.status === "estimated" ? "#e07a2f" : color}>{dimensionLabel(edge.label)}</text>
     </g>
   );
 }

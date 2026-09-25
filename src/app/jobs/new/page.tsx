@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
 import { AppFrame } from "@/components/app-frame";
-import { BrandLockup } from "@/components/brand-lockup";
 
 export default function NewJobPage() {
   const router = useRouter();
@@ -12,10 +11,9 @@ export default function NewJobPage() {
   const [pending, setPending] = useState(false);
 
   return (
-    <AppFrame>
+    <AppFrame current="/">
     <main className="shell">
       <header className="topbar">
-        <BrandLockup />
         <h1 className="page-title">New job</h1>
       </header>
       <form
@@ -34,7 +32,6 @@ export default function NewJobPage() {
           router.push(`/jobs/${body.jobId}`);
         }}
       >
-        <p className="kicker">Residential interior</p>
         <div className="form-grid">
           <label className="field">Address<input name="address" required placeholder="418 Maple Street" /></label>
           <label className="field">City<input name="city" required placeholder="Madison" /></label>

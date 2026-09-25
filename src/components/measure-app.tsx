@@ -1,18 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { chunkCount, getCapture, listPendingCaptures, putCapture, saveChunk } from "@/capture/db";
 import { captureStatusLabel } from "@/capture/plan";
 import { resumeCapture } from "@/capture/resume-client";
 import { fuseDimension, type FusedDimension, type Reading, type ScaleSource } from "@/domain/fusion";
-import { loadWalkthrough, saveWalkthrough } from "@/capture/snapshot";
-import { floorPlanFromMeasurement, recordedSyntheticRoom, type FloorPlan, type MeasuredRoomInput } from "@/domain/plan-from-measurement";
-import type { IdentifiedObject } from "@/analysis/frames";
-import type { ResultOffer } from "@/domain/results";
-import { FieldPair } from "@/components/field-pair";
-import { PlanView } from "@/components/plan-view";
-import { ResultsView } from "@/components/results-view";
+import { saveWalkthrough } from "@/capture/snapshot";
+import { floorPlanFromMeasurement, type FloorPlan, type MeasuredRoomInput } from "@/domain/plan-from-measurement";
+import { dimensionLabel } from "@/domain/labels";
 
 type SolverDimension = {
   id: string;
@@ -62,12 +59,6 @@ type SolverResult = {
   };
 };
 
-type SensorState = {
-  webxr: "checking" | "supported" | "unsupported";
-  bluetooth: "checking" | "supported" | "unsupported";
-  laser: string | null;
-};
-
 function readSignal(): "online" | "weak" | "offline" {
   if (typeof navigator === "undefined" || navigator.onLine === false) return "offline";
   const connection = (navigator as Navigator & { connection?: { effectiveType?: string; rtt?: number } }).connection;
@@ -103,20 +94,6 @@ function blurScore(data: ImageData): number {
   return sumSq / Math.max(count, 1) - mean * mean;
 }
 
-const recordedObjects: IdentifiedObject[] = [{
-  name: "AA alkaline batteries",
-  room: "Recorded fixture",
-  evidence: "Recorded model response. Not a photo from this phone.",
-  confidence: "low",
-  frames: ["frame_02.jpg"],
-  links: [{ frame: "frame_02.jpg", timeMs: 1000 }],
-}];
-
-const recordedOffers: ResultOffer[] = [
-  { query: "AA alkaline batteries", title: "AA alkaline batteries", retailer: "Example", price: 12.99, currency: "USD", url: "https://shop.example/batteries", status: "unverified", note: "Recorded model response. The retailer page was not fetched." },
-  { query: "AA alkaline batteries", title: "Other pack", retailer: "Example", price: 9.5, currency: "USD", url: "https://shop.example/other", status: "unverified", note: "Second recorded candidate. The retailer page was not fetched." },
-];
-
 function planFromResult(result: SolverResult): FloorPlan {
   if (result.rooms?.length) return floorPlanFromMeasurement(result.rooms);
   return floorPlanFromMeasurement([{
@@ -143,59 +120,22 @@ function sliceBlob(blob: Blob, size = 256 * 1024): Blob[] {
   return parts;
 }
 
-export function MeasureApp({ setup }: { setup: { measurement: string; vision: string; pricing: string } }) {
+export function MeasureApp() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [sensors, setSensors] = useState<SensorState>({ webxr: "checking", bluetooth: "checking", laser: null });
-  const [coach, setCoach] = useState("Print the sheet, put it on the floor, and start the camera.");
+  const [coach, setCoach] = useState("Place the sheet, then record.");
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SolverResult | null>(null);
-  const [plan, setPlan] = useState<FloorPlan | null>(null);
-  const [previewObjects, setPreviewObjects] = useState<IdentifiedObject[]>([]);
-  const [previewOffers, setPreviewOffers] = useState<ResultOffer[]>([]);
-  const edits = useRef<{ offers: ResultOffer[]; objects: IdentifiedObject[] } | null>(null);
-  useEffect(() => {
-    edits.current = null;
-  }, [result]);
-  useEffect(() => {
-    if (!plan) return;
-    const objects: IdentifiedObject[] = edits.current?.objects ?? (result?.ai?.objects ?? previewObjects).map((object) => {
-      const confidence: IdentifiedObject["confidence"] = object.confidence === "high" || object.confidence === "medium" ? object.confidence : "low";
-      return { ...object, confidence };
-    });
-    const offers = edits.current?.offers ?? (result?.ai?.offers ?? previewOffers).map((offer) => ({
-      query: offer.query,
-      title: offer.title,
-      retailer: offer.retailer,
-      price: offer.price,
-      currency: offer.currency,
-      url: offer.url,
-      status: offer.status,
-      note: offer.note,
-    }));
-    saveWalkthrough({
-      savedAt: new Date().toISOString(),
-      source: result ? "measurement" : "recorded-preview",
-      transcript: result?.ai?.transcription.text ?? null,
-      transcriptNote: result?.ai?.transcription.note ?? "Recorded preview. Not a customer recording.",
-      plan,
-      videoPlan: result ? plan : null,
-      objects,
-      offers,
-      videoKey: result?.videoKey ?? null,
-    });
-  }, [plan, result, previewObjects, previewOffers]);
   const [tapeLabel, setTapeLabel] = useState("span_a");
   const [tapeValue, setTapeValue] = useState("");
-  const [online, setOnline] = useState(true);
   const [signal, setSignal] = useState<"online" | "weak" | "offline">("online");
   const [queue, setQueue] = useState<{ id: string; filename: string; status: string; totalChunks: number; error: string | null }[]>([]);
   const [progress, setProgress] = useState<{ sent: number; total: number } | null>(null);
   const [micLevel, setMicLevel] = useState(0);
   const [micNote, setMicNote] = useState("Mic level appears once recording starts.");
-  const [uploadStatus, setUploadStatus] = useState("Capture stays on this phone if the signal drops. Measurement runs on the server.");
+  const [uploadStatus, setUploadStatus] = useState("");
   const audioContext = useRef<AudioContext | null>(null);
   const meterFrame = useRef<number | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
@@ -205,15 +145,12 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
   const previous = useRef<ImageData | null>(null);
 
   useEffect(() => {
-    setOnline(navigator.onLine);
     setSignal(readSignal());
     const markOnline = () => {
-      setOnline(true);
       setSignal(readSignal());
       void flushPending();
     };
     const markOffline = () => {
-      setOnline(false);
       setSignal("offline");
       setUploadStatus(captureStatusLabel({ online: false, phase: "saved", sent: 0, total: 0 }));
     };
@@ -238,27 +175,6 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
       window.removeEventListener("online", markOnline);
       window.removeEventListener("offline", markOffline);
       document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function detect() {
-      const bluetooth = typeof navigator !== "undefined" && "bluetooth" in navigator ? "supported" : "unsupported";
-      let webxr: SensorState["webxr"] = "unsupported";
-      const xr = navigator.xr;
-      if (xr?.isSessionSupported) {
-        try {
-          webxr = (await xr.isSessionSupported("immersive-ar")) ? "supported" : "unsupported";
-        } catch {
-          webxr = "unsupported";
-        }
-      }
-      if (!cancelled) setSensors({ webxr, bluetooth, laser: null });
-    }
-    void detect();
-    return () => {
-      cancelled = true;
     };
   }, []);
 
@@ -432,7 +348,6 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
         const measured = body as SolverResult;
         const plan = planFromResult(measured);
         setResult(measured);
-        setPlan(plan);
         if (!measured.error && measured.dimensions) {
           saveWalkthrough({
             savedAt: new Date().toISOString(),
@@ -445,7 +360,7 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
             offers: (measured.ai?.offers ?? []).map((offer) => ({ query: offer.query, title: offer.title, retailer: offer.retailer, price: offer.price, currency: offer.currency, url: offer.url, status: offer.status, note: offer.note })),
             videoKey: measured.videoKey ?? null,
           });
-          router.push("/contents");
+          router.push("/results");
         }
       }
     } catch (caught) {
@@ -521,28 +436,6 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
     }
   }
 
-  async function connectLaser() {
-    const bluetooth = (navigator as Navigator & { bluetooth?: { requestDevice: (options: { acceptAllDevices?: boolean; optionalServices?: string[] }) => Promise<{ name?: string }> } }).bluetooth;
-    if (!bluetooth) {
-      setSensors((current) => ({ ...current, bluetooth: "unsupported", laser: null }));
-      return;
-    }
-    try {
-      const device = await bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: ["battery_service"],
-      });
-      setSensors((current) => ({
-        ...current,
-        laser: device.name
-          ? `Connected to ${device.name}. This build does not decode a distance until the meter sends a numeric reading, so nothing is locked yet.`
-          : "A device connected, but it did not expose a distance reading. Nothing was locked.",
-      }));
-    } catch {
-      setSensors((current) => ({ ...current, laser: "Laser connection was cancelled. No distance was invented." }));
-    }
-  }
-
   const fused: { raw: SolverDimension; fused: FusedDimension }[] = (result?.dimensions ?? []).map((dimension) => {
     const readings: Reading[] = [
       {
@@ -559,194 +452,112 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
     return { raw: dimension, fused: fuseDimension(readings) };
   });
 
-  const signalLabel = signal === "offline" ? "Offline" : signal === "weak" ? "Weak signal" : "Online";
+  const step = result ? 3 : recording ? 2 : 1;
+  const showQueue = queue.length > 0 || busy || Boolean(error) || signal !== "online";
+  const tapeOptions = result?.dimensions?.length ? result.dimensions : [{ label: "span_a" }, { label: "span_b" }, { label: "height" }, { label: "area" }];
 
   return (
     <div className="flow">
+      <ol className="steps">
+        <li data-current={step === 1 ? "true" : undefined}>Place the sheet</li>
+        <li data-current={step === 2 ? "true" : undefined}>Record</li>
+        <li data-current={step === 3 ? "true" : undefined}>Done</li>
+      </ol>
       <section className={`capture-stage ${recording ? "is-recording" : ""}`}>
         <div className="capture-video">
           <video ref={videoRef} playsInline muted />
           <div className="capture-overlay">
             <p className="rec-indicator" role="status">
               <span className="rec-dot" aria-hidden="true" />
-              {recording ? "Recording" : "Ready"}
+              {recording ? "Recording" : result ? "Done" : "Ready"}
             </p>
-            <div className="capture-overlay-copy">
-              <p className="sheet-reminder">Put the calibration sheet on the floor before you walk the room. The 30 mm square is the only absolute scale this solver trusts.</p>
-              <a className="btn secondary" href="/api/calibration-target">Calibration sheet PDF</a>
-              <div className="mic-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(micLevel * 100)} aria-label="Microphone level">
-                <span style={{ width: `${Math.round(micLevel * 100)}%` }} />
+            {!recording && !result && (
+              <div className="capture-overlay-copy">
+                <p className="sheet-reminder">Place the sheet on the floor.</p>
+                <a className="btn secondary" href="/api/calibration-target">Sheet PDF</a>
               </div>
-              <p className="coach">{micNote}</p>
-              <p className="coach">{coach}</p>
-            </div>
+            )}
+            {recording && (
+              <div className="capture-overlay-copy">
+                <div className="mic-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(micLevel * 100)} aria-label="Microphone level">
+                  <span style={{ width: `${Math.round(micLevel * 100)}%` }} />
+                </div>
+                <p className="coach">{coach || micNote}</p>
+              </div>
+            )}
           </div>
         </div>
         <div className="action-bar">
-          {!recording ? (
+          {result ? (
+            <Link className="btn record-btn" href="/results">See results</Link>
+          ) : !recording ? (
             <button className="btn record-btn" type="button" onClick={() => void startCamera()}>Record</button>
           ) : (
             <button className="btn stop-btn" type="button" onClick={() => void finishRecording()}>Stop</button>
           )}
-          <label className="btn secondary">
-            Upload video
-            <input
-              type="file"
-              accept="video/*"
-              hidden
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void submitVideo(file, file.name);
-              }}
-            />
-          </label>
+          {!result && (
+            <label className="btn secondary">
+              Upload
+              <input
+                type="file"
+                accept="video/*"
+                hidden
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void submitVideo(file, file.name);
+                }}
+              />
+            </label>
+          )}
         </div>
       </section>
-      <section className="panel upload-queue" aria-live="polite">
-        <p className="kicker">Upload queue · {signalLabel}</p>
-        {signal === "weak" && <p className="banner">Weak signal. The video stays on this phone and the upload retries.</p>}
-        {signal === "offline" && <p className="banner">Offline. Recording and the queue stay on this phone.</p>}
-        <p role="status">{uploadStatus}{online ? "" : " Offline."}</p>
-        {progress && <progress max={progress.total} value={progress.sent}>{progress.sent} of {progress.total}</progress>}
-        {busy && !progress && <p className="meta">Measurement runs on the server after the upload.</p>}
-        {queue.length === 0 && <p className="meta">No capture is waiting.</p>}
-        <ul className="list">
-          {queue.map((item) => (
-            <li key={item.id} className="item">
-              <strong>{item.filename}</strong>
-              <span className="meta"> {item.status} · {item.totalChunks} chunks{item.error ? ` · ${item.error}` : ""}</span>
-            </li>
-          ))}
-        </ul>
-        <button className="btn" type="button" onClick={() => void retryUploads()} disabled={busy || recording}>Retry upload</button>
-        {error && <p className="error">{error}</p>}
-      </section>
-      <section className="panel">
-        <p className="kicker">This server</p>
-        <p className="meta">{setup.measurement}</p>
-        <p className="meta">{setup.vision}</p>
-        <p className="meta">{setup.pricing}</p>
-      </section>
-      <section className="panel">
-        <p className="kicker">Device sensors</p>
-        <p><span className="chip">WebXR</span> {sensors.webxr === "supported" ? "Hit-test is available. A hit is still estimated until a tape or laser locks it, and this build has no accuracy result for WebXR, so it cannot meet ±5%." : "Not available in this browser. iOS Safari does not expose WebXR depth. Measurement continues from the sheet, or stays unresolved."}</p>
-        <p><span className="chip">Bluetooth laser</span> {sensors.bluetooth === "supported" ? "Web Bluetooth is present. A spot check can lock a dimension only after a numeric reading arrives." : "Not available in this browser. iOS Safari has no Web Bluetooth. Enter a tape reading instead."}</p>
-        {sensors.bluetooth === "supported" && <button className="btn secondary" type="button" onClick={() => void connectLaser()}>Connect laser</button>}
-        {sensors.laser && <p className="meta">{sensors.laser}</p>}
-      </section>
-      <section className="panel">
-        <p className="kicker">Lock one dimension with a tape</p>
+      {showQueue && (
+        <section className="upload-queue" aria-live="polite">
+          <p className="meta">{signal === "offline" ? "Offline. The video stays on this phone." : signal === "weak" ? "Weak signal. The upload will retry." : uploadStatus}</p>
+          {progress && <progress max={progress.total} value={progress.sent}>{progress.sent} of {progress.total}</progress>}
+          <ul className="list">
+            {queue.map((item) => (
+              <li key={item.id} className="item">
+                <strong>{item.filename}</strong>
+                <span className="meta"> {item.status}</span>
+              </li>
+            ))}
+          </ul>
+          {queue.length > 0 && <button className="btn secondary" type="button" onClick={() => void retryUploads()} disabled={busy || recording}>Retry upload</button>}
+          {error && <p className="error">{error}</p>}
+        </section>
+      )}
+      <details className="quiet">
+        <summary>Tape check</summary>
         <div className="row">
           <label className="field">Dimension
             <select value={tapeLabel} onChange={(event) => setTapeLabel(event.target.value)}>
-              {(result?.dimensions ?? [{ label: "span_a" }, { label: "span_b" }, { label: "height" }, { label: "area" }]).map((dimension) => (
-                <option key={dimension.label} value={dimension.label}>{dimension.label}</option>
+              {tapeOptions.map((dimension) => (
+                <option key={dimension.label} value={dimension.label}>{dimensionLabel(dimension.label)}</option>
               ))}
             </select>
           </label>
-          <label className="field">Tape, feet
+          <label className="field">Feet
             <input value={tapeValue} onChange={(event) => setTapeValue(event.target.value)} inputMode="decimal" placeholder="14.0" />
           </label>
         </div>
-        <p className="meta">If the tape and the sheet disagree by more than 5%, the value is not confirmed.</p>
-      </section>
-      <section className="panel">
-        <p className="kicker">Floor plan</p>
-        <div className="row">
-          <button className="btn secondary" type="button" onClick={() => setPlan(floorPlanFromMeasurement([recordedSyntheticRoom], "Synthetic pinhole harness. Not a recording from this phone."))}>Preview recorded synthetic room</button>
-          <button className="btn secondary" type="button" onClick={() => { setPreviewObjects(recordedObjects); setPreviewOffers(recordedOffers); }}>Preview recorded price</button>
-        </div>
-        {plan ? (
-          <FieldPair
-            sketch={<PlanView plan={plan} onChange={setPlan} />}
-            items={<ResultsView plan={plan} objects={(result?.ai?.objects ?? previewObjects).map((object) => ({ ...object, confidence: object.confidence === "high" || object.confidence === "medium" ? object.confidence : "low" }))} offers={(result?.ai?.offers ?? previewOffers).map((offer) => ({ query: offer.query, title: offer.title, retailer: offer.retailer, price: offer.price, currency: offer.currency, url: offer.url, status: offer.status, note: offer.note }))} onChange={(next) => {
-              edits.current = next;
-              const existing = loadWalkthrough();
-              if (!existing) return;
-              saveWalkthrough({ ...existing, offers: next.offers, objects: next.objects });
-            }} />}
-          />
-        ) : <p className="meta">No outline yet. A measured wall is drawn only after the solver returns a length.</p>}
-      </section>
-      <section className="panel">
-        <p className="kicker">Dimensions</p>
-        {!result && <p className="meta">No measurement yet. A number is not shown as confirmed just because a video was uploaded.</p>}
-        {result?.notes?.map((note) => <p key={note} className="meta">{note}</p>)}
-        {fused.length > 0 && (
-          <table className="stack">
-            <thead>
-              <tr><th>Dimension</th><th>Value</th><th>Error bound</th><th>Target</th><th>Status</th></tr>
-            </thead>
-            <tbody>
-              {fused.map(({ raw, fused: item }) => (
-                <tr key={raw.label}>
-                  <td data-label="Dimension">{raw.kind.replaceAll("_", " ")} · {raw.label}</td>
-                  <td data-label="Value">{item.valueFt == null ? "?" : `${item.valueFt} ${raw.kind === "floor_area" ? "sq ft" : "ft"}`}</td>
-                  <td data-label="Error bound">{item.errorPercent == null ? "?" : `±${item.errorPercent}%`}</td>
-                  <td data-label="Target">{item.meetsAccuracyTarget ? <span className="chip blue">Meets ±5%</span> : <span className="chip orange">Does not meet ±5%</span>}</td>
-                  <td data-label="Status">{item.confirmed ? <span className="chip blue">Confirmed</span> : <span className="chip">Not confirmed</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        {fused.find((item) => item.fused.ask) && <p className="banner">{fused.find((item) => item.fused.ask)?.fused.ask}</p>}
-        {result?.cpuMs != null && (
-          <p className="meta">Local CPU time {(result.cpuMs / 1000).toFixed(1)} s (extract {(result.extractMs ?? 0) / 1000} s, solve {(result.solveMs ?? 0) / 1000} s). OpenCV on this server, not a GPU API. At most 16 frames are solved.</p>
-        )}
-        {result?.ai && <p className="meta">{result.ai.measurement.note}</p>}
-      </section>
-      {result?.ai && (
-        <>
-          <section className="panel">
-            <p className="kicker">Narration</p>
-            <p>{result.ai.transcription.text ?? result.ai.transcription.note}</p>
-            {result.ai.transcription.text && <p className="meta">{result.ai.transcription.note}</p>}
-          </section>
-          <section className="panel">
-            <p className="kicker">Objects</p>
-            <p className="meta">{result.ai.objectNote}</p>
-            {result.ai.objects.length > 0 && (
-              <table className="stack">
-                <thead><tr><th>Name</th><th>Room</th><th>Confidence</th><th>Evidence</th></tr></thead>
-                <tbody>
-                  {result.ai.objects.map((object) => (
-                    <tr key={object.name}>
-                      <td data-label="Name">{object.name}</td>
-                      <td data-label="Room">{object.room ?? "?"}</td>
-                      <td data-label="Confidence">{object.confidence}</td>
-                      <td data-label="Evidence">{object.evidence || "—"} <span className="meta">{(object.links?.length ? object.links : object.frames.map((frame) => ({ frame, timeMs: null }))).map((link) => `${link.frame}${link.timeMs == null ? "" : ` @ ${(link.timeMs / 1000).toFixed(1)}s`}`).join(", ")}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-          <section className="panel">
-            <p className="kicker">Replacement offers</p>
-            <p className="meta">{result.ai.pricing.reason} Offers are candidates. They are not written into the estimate.</p>
-            {result.ai.offers.length > 0 && (
-              <table className="stack">
-                <thead><tr><th>Item</th><th>Offer</th><th>Price</th><th>Check</th></tr></thead>
-                <tbody>
-                  {result.ai.offers.map((offer) => (
-                    <tr key={offer.query}>
-                      <td data-label="Item">{offer.query}</td>
-                      <td data-label="Offer">{offer.title ?? "—"}{offer.retailer ? ` · ${offer.retailer}` : ""}{offer.url ? <> · <a href={offer.url}>{offer.url}</a></> : null}</td>
-                      <td data-label="Price">{offer.price == null ? "—" : `${offer.currency ? `${offer.currency} ` : ""}${offer.price}`}</td>
-                      <td data-label="Check">
-                        {offer.status === "verified" && <span className="chip blue">Verified</span>}
-                        {offer.status === "unverified" && <span className="chip orange">Unverified</span>}
-                        {offer.status === "unpriced" && <span className="chip">Unpriced</span>}
-                        <span className="meta"> {offer.note}{offer.retrievedAt ? ` Retrieved ${offer.retrievedAt}.` : ""}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-        </>
+        <p className="meta">If the tape and the sheet disagree by more than 5%, it stays not verified.</p>
+      </details>
+      {fused.length > 0 && (
+        <table className="stack">
+          <thead>
+            <tr><th>Dimension</th><th>Value</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            {fused.map(({ raw, fused: item }) => (
+              <tr key={raw.label}>
+                <td data-label="Dimension">{dimensionLabel(raw.label)}</td>
+                <td data-label="Value">{item.valueFt == null ? "—" : `${item.valueFt} ${raw.kind === "floor_area" ? "sq ft" : "ft"}`}</td>
+                <td data-label="Status">{item.confirmed ? <span className="chip blue">Verified</span> : <span className="chip orange">Not verified</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );

@@ -7,7 +7,7 @@ const viewports = [
   { name: "ipad-air", width: 820, height: 1180 },
 ];
 
-const pages = ["/", "/measure", "/contents", "/claims", "/underwriting", "/account", "/jobs/new", "/login", "/forgot", "/auth/reset", "/admin/users"];
+const pages = ["/", "/walk", "/results", "/estimate", "/estimate?report=underwriting", "/account", "/jobs/new", "/login", "/forgot", "/auth/reset", "/admin/users", "/admin/system"];
 
 for (const viewport of viewports) {
   test.describe(viewport.name, () => {
@@ -37,3 +37,14 @@ for (const viewport of viewports) {
     }
   });
 }
+
+test("old routes redirect into the job flow", async ({ page }) => {
+  await page.goto("/measure");
+  await expect(page).toHaveURL(/\/walk$/);
+  await page.goto("/contents");
+  await expect(page).toHaveURL(/\/results$/);
+  await page.goto("/claims");
+  await expect(page).toHaveURL(/\/estimate$/);
+  await page.goto("/underwriting");
+  await expect(page).toHaveURL(/\/estimate\?report=underwriting$/);
+});

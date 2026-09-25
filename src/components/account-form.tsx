@@ -36,14 +36,13 @@ export function AccountForm({ notice }: { notice: string | null }) {
 
   return (
     <section className="panel grid">
-      <p className="kicker">Account</p>
       {session ? (
         <p>{session.name} · {session.email} · {session.role}</p>
       ) : (
         <p className="meta">You are not signed in. <Link href="/login">Sign in</Link>.</p>
       )}
-      {session?.role === "admin" && <p className="meta"><Link href="/admin/users">Invite and manage users</Link></p>}
-      {session && <p className="meta">{session.role === "estimator" ? "An estimator can review and approve. That does not authorize the customer." : session.role === "customer" ? "A customer can authorize an approved version. That does not approve it." : "An admin invites people, changes roles, and deactivates users. Approval and authorization stay on the estimator and the customer."}</p>}
+      {session?.role === "admin" && <p className="meta"><Link href="/admin/users">Users</Link> · <Link href="/admin/system">System</Link></p>}
+      {session && <p className="meta">Approval and authorization stay separate.</p>}
       <form className="grid" onSubmit={async (event) => {
         event.preventDefault();
         setError(null);

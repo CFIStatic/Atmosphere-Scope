@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { loadWalkthrough, saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
 import { FieldPair } from "@/components/field-pair";
 import { PlanView } from "@/components/plan-view";
@@ -16,9 +17,9 @@ export function ContentsScreen() {
 
   return (
     <div className="grid">
-      <section className="panel grid">
-        <p className="kicker">Import a floor plan</p>
-        <p className="meta">CSV, magicplan statistics CSV, DXF, SVG, or a Hover measurements JSON file. Lengths stay marked imported. A proprietary sketch file without an open schema is not imported.</p>
+      <details className="quiet">
+        <summary>Import a plan</summary>
+        <p className="meta">CSV, DXF, SVG, or Hover JSON.</p>
         <form className="row" onSubmit={async (event) => {
           event.preventDefault();
           setError(null);
@@ -67,15 +68,20 @@ export function ContentsScreen() {
           <label className="field">SVG, feet per drawing unit
             <input value={feetPerUnit} onChange={(event) => setFeetPerUnit(event.target.value)} inputMode="decimal" placeholder="1" />
           </label>
-          <button className="btn" type="submit">Import</button>
+          <button className="btn secondary" type="submit">Import</button>
         </form>
         {error && <p className="error">{error}</p>}
-      </section>
-      {!snapshot && <p className="banner">No contents yet. Capture a walkthrough or import a plan. Nothing was filled in.</p>}
+      </details>
+      {!snapshot && (
+        <div className="empty">
+          <p>Walk a room to see the sketch and items.</p>
+          <Link className="btn" href="/walk">Walk</Link>
+        </div>
+      )}
       {snapshot?.importNotes?.map((note) => <p key={note} className="meta">{note}</p>)}
       {snapshot?.crossCheck && snapshot.crossCheck.length > 0 && (
         <section className="panel">
-          <p className="kicker">Import compared with the video</p>
+          <p className="kicker">Compared with the video</p>
           <table className="stack">
             <thead><tr><th>Room</th><th>Item</th><th>Imported</th><th>Video</th><th></th></tr></thead>
             <tbody>

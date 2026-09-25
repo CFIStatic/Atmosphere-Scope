@@ -18,7 +18,6 @@ type RateDraft = {
 
 export function DraftEstimate({ snapshot, onSnapshot }: { snapshot: WalkthroughSnapshot; onSnapshot: (next: WalkthroughSnapshot) => void }) {
   const [catalog, setCatalog] = useState<CatalogVersion | null>(null);
-  const [versions, setVersions] = useState<{ id: string; version: number; publishedAt: string }[]>([]);
   const [rates, setRates] = useState<RateBook | null>(null);
   const [loss, setLoss] = useState<LossType>("none");
   const [rateDraft, setRateDraft] = useState<RateDraft | null>(null);
@@ -36,7 +35,6 @@ export function DraftEstimate({ snapshot, onSnapshot }: { snapshot: WalkthroughS
           return;
         }
         setCatalog(catalogBody.current);
-        setVersions(catalogBody.versions ?? []);
         setItems(catalogBody.current.items);
         setRates(rateBody);
         setRateDraft(toRateDraft(rateBody));
@@ -92,7 +90,6 @@ export function DraftEstimate({ snapshot, onSnapshot }: { snapshot: WalkthroughS
     }
     setCatalog(payload.current);
     setItems(payload.current.items);
-    setVersions((current) => [...current, { id: payload.current.id, version: payload.current.version, publishedAt: payload.current.publishedAt }]);
   }
 
   function finalize() {
@@ -107,11 +104,9 @@ export function DraftEstimate({ snapshot, onSnapshot }: { snapshot: WalkthroughS
   return (
     <div className="grid">
       <section className="panel grid">
-        <p className="kicker">Draft scope and estimate</p>
-        <p className="meta">Lines come from catalog {catalog?.id ?? "…"}. Prices use rate book {rates?.id ?? "…"} in {rates?.region ?? "…"}. A missing rate or material price stays blank.</p>
         <label className="field">Loss
           <select value={loss} onChange={(event) => setLoss(event.target.value as LossType)}>
-            <option value="none">No loss selected — rebuild and contents only</option>
+            <option value="none">None</option>
             <option value="water">Water</option>
             <option value="fire">Fire</option>
           </select>
@@ -126,7 +121,6 @@ export function DraftEstimate({ snapshot, onSnapshot }: { snapshot: WalkthroughS
         <button className="btn secondary" type="button" disabled={!live && !snapshot.finalReport} onClick={() => send("csv", snapshot.finalReport ?? live)}>Send report (CSV)</button>
         <button className="btn secondary" type="button" disabled={!live && !snapshot.finalReport} onClick={() => send("json", snapshot.finalReport ?? live)}>Send report (JSON)</button>
       </div>
-      <p className="meta">Send report uses the finalized copy when one is saved. Otherwise it uses the current draft. The file is Atmosphere Scope’s report, schema atmosphere.estimate.v1.</p>
       {rateDraft && (
         <details className="panel">
           <summary>Admin · regional rates</summary>
@@ -166,8 +160,8 @@ export function DraftEstimate({ snapshot, onSnapshot }: { snapshot: WalkthroughS
       )}
       {catalog && (
         <details className="panel">
-          <summary>Admin · line-item catalog {catalog.id}</summary>
-          <p className="meta">Published versions: {versions.map((item) => item.id).join(", ") || catalog.id}. Publishing appends a version. It does not edit {catalog.id}.</p>
+          <summary>Catalog</summary>
+          <p className="meta">Publishing adds a version. A finalized estimate keeps the one it already used.</p>
           {items.map((item, index) => (
             <div className="item" key={`${item.code}-${index}`}>
               <div className="form-grid">
@@ -236,9 +230,12 @@ export function DraftEstimate({ snapshot, onSnapshot }: { snapshot: WalkthroughS
 function ReportBlock({ title, report, locked }: { title: string; report: EstimateReport; locked?: boolean }) {
   return (
     <section className="panel grid">
-      <p className="kicker">{title}</p>
-      <p className="meta">{report.status} · catalog {report.catalogVersionId} · rates {report.rateBookId} · {report.region}{locked ? " · this copy does not change when rates are edited" : ""}</p>
-      <p className="banner">{report.unpricedCount ? `${report.note} Sum of complete lines: ${money(report.pricedTotal)}. That sum leaves out unpriced lines.` : report.note}</p>
+      <div className="row">
+        <h2>{title}</h2>
+        <span className="chip">{locked ? "Final" : "Draft"}</span>
+        {report.unpricedCount > 0 && <span className="chip">Needs price</span>}
+      </div>
+      {report.unpricedCount > 0 && <p className="meta">Unpriced lines stay blank.</p>}
       <table className="stack">
         <thead><tr><th>Room</th><th>Code</th><th>Description</th><th>Qty</th><th>Line</th></tr></thead>
         <tbody>
@@ -252,7 +249,7 @@ function ReportBlock({ title, report, locked }: { title: string; report: Estimat
                 <ComponentList line={line} />
               </td>
               <td data-label="Qty">{line.quantity == null ? "—" : `${line.quantity} ${line.unit}`}</td>
-              <td data-label="Line">{line.lineTotal == null ? "Unpriced" : money(line.lineTotal)}</td>
+              <td data-label="Line">{line.lineTotal == null ? "Needs price" : money(line.lineTotal)}</td>
             </tr>
           ))}
         </tbody>
@@ -266,7 +263,7 @@ function ComponentList({ line }: { line: PricedDraftLine }) {
     <ul>
       {line.componentsPriced.map((component) => (
         <li key={`${component.kind}-${component.label}`}>
-          {component.label}: {component.amount == null ? "Unpriced" : money(component.amount)} · {component.source} · {component.asOf ?? "no date"}
+          {component.label}: {component.amount == null ? "Needs price" : money(component.amount)}
         </li>
       ))}
       {line.unpriced.map((gap) => <li key={gap}>{gap}</li>)}
@@ -387,5 +384,5 @@ function editComponent(component: CatalogComponent, raw: string): CatalogCompone
 }
 
 function money(value: number | null): string {
-  return value == null ? "Unpriced" : `$${value.toFixed(2)}`;
+  return value == null ? "Needs price" : `$${value.toFixed(2)}`;
 }
