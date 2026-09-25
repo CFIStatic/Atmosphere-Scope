@@ -201,6 +201,7 @@ label.btn input { display: none; }
 .camera-mark { width: 18px; height: auto; display: block; }
 .camera-title { margin: 0; font-size: 13px; font-weight: 500; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .camera-bar-end { display: flex; align-items: center; gap: 12px; }
+.camera-bar-exit { grid-column: 1 / -1; justify-content: flex-end; }
 .rec-cluster { display: grid; justify-items: end; gap: 4px; }
 .rec-status { margin: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-variant-numeric: tabular-nums lining-nums; }
 .camera-app .rec-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); display: inline-block; }

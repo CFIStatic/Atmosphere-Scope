@@ -578,26 +578,24 @@ export function MeasureApp() {
           <span /><span /><span /><span />
         </div>
       )}
-      {!blocked && (
-        <header className="camera-bar">
-          <img className="camera-mark" src="/brand/mark.svg" alt="" width={160} height={180} />
-          <p className="camera-title">{walkTitle}</p>
-          <div className="camera-bar-end">
-            {recording && (
-              <div className="rec-cluster">
-                <p className="rec-status" role="status">
-                  <span className="rec-dot" aria-hidden="true" />
-                  {clock(elapsed)}
-                </p>
-                <div className="mic-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(micLevel * 100)} aria-label="Microphone level">
-                  <span style={{ width: `${Math.round(micLevel * 100)}%` }} />
-                </div>
+      <header className="camera-bar">
+        {!blocked && <img className="camera-mark" src="/brand/mark.svg" alt="" width={160} height={180} />}
+        {!blocked && <p className="camera-title">{walkTitle}</p>}
+        <div className={`camera-bar-end${blocked ? " camera-bar-exit" : ""}`}>
+          {!blocked && recording && (
+            <div className="rec-cluster">
+              <p className="rec-status" role="status">
+                <span className="rec-dot" aria-hidden="true" />
+                {clock(elapsed)}
+              </p>
+              <div className="mic-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(micLevel * 100)} aria-label="Microphone level">
+                <span style={{ width: `${Math.round(micLevel * 100)}%` }} />
               </div>
-            )}
-            <LinkJobs />
-          </div>
-        </header>
-      )}
+            </div>
+          )}
+          <LinkJobs />
+        </div>
+      </header>
       {camera === "pending" && <p className="camera-hint">Camera is used to record the walk.</p>}
       {blocked && (
         <div className="camera-fallback">
