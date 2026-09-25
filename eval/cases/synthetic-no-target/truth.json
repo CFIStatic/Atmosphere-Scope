@@ -1,0 +1,34 @@
+{
+  "id": "synthetic-no-target",
+  "kind": "synthetic_pinhole",
+  "notes": "Rendered room with JPEG noise and radial distortion. Tape-equivalent truth is the mesh, not a physical tape.",
+  "withBoard": false,
+  "dimensions": [
+    {
+      "id": "width",
+      "kind": "wall_length",
+      "label": "width",
+      "valueFt": 12.0
+    },
+    {
+      "id": "depth",
+      "kind": "wall_length",
+      "label": "depth",
+      "valueFt": 14.0
+    },
+    {
+      "id": "height",
+      "kind": "ceiling_height",
+      "label": "ceiling",
+      "valueFt": 8.0
+    },
+    {
+      "id": "area",
+      "kind": "floor_area",
+      "label": "floor",
+      "valueFt": 168.0
+    }
+  ],
+  "doorHeightIn": 80,
+  "video": "walkthrough.mp4"
+}

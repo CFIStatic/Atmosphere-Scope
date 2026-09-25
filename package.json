@@ -1,0 +1,30 @@
+{
+  "name": "atmosphere-scope",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone prototype that turns a narrated jobsite walkthrough into an editable sketch, evidence-backed assessment, and draft mitigation/rebuild estimate.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "eval:accuracy": "python3 -m measure.eval_harness"
+  },
+  "dependencies": {
+    "next": "^15.5.7",
+    "pdf-lib": "^1.17.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "three": "^0.186.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@types/three": "^0.186.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

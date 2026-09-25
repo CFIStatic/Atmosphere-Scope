@@ -1,0 +1,49 @@
+{
+  "host": "Linux-6.12.94+-x86_64-with-glibc2.39",
+  "machine": "x86_64",
+  "opencv": "5.0.0",
+  "gpu": false,
+  "note": "Local CPU only. from_video samples at 2 fps, scales to 1080 px wide, and keeps at most 16 frames. These clips are about 4 seconds, so they yield fewer than 16 frames. The 16-frame directory time is the solver at that cap. No hosted GPU was used.",
+  "runs": [
+    {
+      "label": "from_video synthetic-rect-charuco/walkthrough.mp4",
+      "cpuMs": 846,
+      "extractMs": 217,
+      "solveMs": 628,
+      "extractedFrames": 8,
+      "framesUsed": 8,
+      "method": "charuco_multiview",
+      "wallClockMs": 847,
+      "error": null
+    },
+    {
+      "label": "from_video synthetic-room-b/walkthrough.mp4",
+      "cpuMs": 844,
+      "extractMs": 249,
+      "solveMs": 595,
+      "extractedFrames": 8,
+      "framesUsed": 8,
+      "method": "charuco_multiview",
+      "wallClockMs": 845,
+      "error": null
+    },
+    {
+      "label": "from_video synthetic-room-c/walkthrough.mp4",
+      "cpuMs": 729,
+      "extractMs": 142,
+      "solveMs": 586,
+      "extractedFrames": 8,
+      "framesUsed": 8,
+      "method": "charuco_multiview",
+      "wallClockMs": 729,
+      "error": null
+    },
+    {
+      "label": "measure_directory 16 JPEG frames synthetic-rect-charuco",
+      "solveMs": 1115,
+      "frames": 16,
+      "method": "charuco_multiview",
+      "framesUsed": 16
+    }
+  ]
+}
