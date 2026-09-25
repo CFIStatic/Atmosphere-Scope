@@ -346,9 +346,11 @@ export function MeasureApp() {
       } });
       if (body && typeof body === "object") {
         const measured = body as SolverResult;
-        const plan = planFromResult(measured);
-        setResult(measured);
-        if (!measured.error && measured.dimensions) {
+        if (measured.error || !measured.dimensions) {
+          setError(measured.error || "This walk did not return dimensions. Nothing was saved.");
+        } else {
+          const plan = planFromResult(measured);
+          setResult(measured);
           saveWalkthrough({
             savedAt: new Date().toISOString(),
             source: "measurement",
