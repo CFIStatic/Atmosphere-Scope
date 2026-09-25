@@ -11,6 +11,7 @@ export default function RecordPage() {
         <h1 className="sr-only">Record</h1>
         <MeasureApp />
       </div>
+      <p className="phone-caption">Walkthrough</p>
     </div>
   );
 }

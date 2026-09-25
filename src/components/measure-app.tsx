@@ -561,25 +561,47 @@ export function MeasureApp() {
   const blocked = camera === "denied" || camera === "missing";
   const showHint = camera === "live" && !recording && !sheetSeen && !busy;
   const showQueue = queue.length > 0 || Boolean(error) || (signal !== "online" && !busy);
+  const attached = jobs.find((job) => job.id === attachId);
+  const walkTitle = attached ? (attached.address || attached.customer || "Job") : "New walkthrough";
 
   return (
     <div className={`camera-app ${recording ? "is-recording" : ""}`}>
       <video ref={videoRef} playsInline muted />
-      <LinkJobs />
-      {recording && (
-        <div className="camera-top">
-          <p className="rec-status" role="status">
-            <span className="rec-dot" aria-hidden="true" />
-            {clock(elapsed)}
-          </p>
-          <div className="mic-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(micLevel * 100)} aria-label="Microphone level">
-            <span style={{ width: `${Math.round(micLevel * 100)}%` }} />
-          </div>
+      {!blocked && (
+        <>
+          <div className="camera-scrim camera-scrim-top" aria-hidden="true" />
+          <div className="camera-scrim camera-scrim-bottom" aria-hidden="true" />
+        </>
+      )}
+      {camera === "live" && (
+        <div className="frame-guide" aria-hidden="true">
+          <span /><span /><span /><span />
         </div>
+      )}
+      {!blocked && (
+        <header className="camera-bar">
+          <img className="camera-mark" src="/brand/mark.svg" alt="" width={160} height={180} />
+          <p className="camera-title">{walkTitle}</p>
+          <div className="camera-bar-end">
+            {recording && (
+              <div className="rec-cluster">
+                <p className="rec-status" role="status">
+                  <span className="rec-dot" aria-hidden="true" />
+                  {clock(elapsed)}
+                </p>
+                <div className="mic-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(micLevel * 100)} aria-label="Microphone level">
+                  <span style={{ width: `${Math.round(micLevel * 100)}%` }} />
+                </div>
+              </div>
+            )}
+            <LinkJobs />
+          </div>
+        </header>
       )}
       {camera === "pending" && <p className="camera-hint">Camera is used to record the walk.</p>}
       {blocked && (
-        <div className="camera-permission">
+        <div className="camera-fallback">
+          <img className="camera-mark" src="/brand/mark.svg" alt="" width={160} height={180} />
           <p>{camera === "denied" ? "Camera is blocked. Allow it in the browser, or upload a video." : "This browser has no camera. Upload a video."}</p>
           <UploadControl onFile={(file) => void submitVideo(file, file.name)} prominent />
         </div>
@@ -601,8 +623,13 @@ export function MeasureApp() {
             data-recording={recording ? "true" : "false"}
             aria-label={recording ? "Stop" : "Record"}
             onClick={() => void (recording ? finishRecording() : startRecording())}
-          />
-          <button className="camera-side" type="button" aria-label="Help" onClick={() => setHelpOpen(true)}>?</button>
+          >
+            <span className="shutter-ring" aria-hidden="true"><span className="shutter-disc" /></span>
+          </button>
+          <button className="cam-tool" type="button" aria-label="Help" onClick={() => setHelpOpen(true)}>
+            <HelpIcon />
+            <span>Help</span>
+          </button>
         </div>
       )}
       {showQueue && (
@@ -639,8 +666,9 @@ function LinkJobs() {
 
 function UploadControl({ onFile, prominent }: { onFile: (file: File) => void; prominent?: boolean }) {
   return (
-    <label className={prominent ? "btn secondary" : "camera-side"}>
-      Upload
+    <label className={prominent ? "cam-tool cam-tool-prominent" : "cam-tool"}>
+      <UploadIcon />
+      <span>Upload</span>
       <input
         type="file"
         accept="video/*"
@@ -651,5 +679,24 @@ function UploadControl({ onFile, prominent }: { onFile: (file: File) => void; pr
         }}
       />
     </label>
+  );
+}
+
+function UploadIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+      <path d="M11 14.5V5.5M11 5.5L7.5 9M11 5.5L14.5 9" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M5 16.5h12" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function HelpIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+      <circle cx="11" cy="11" r="7.25" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M8.7 8.8a2.3 2.3 0 1 1 3.2 2.1c-.7.4-1.1.8-1.1 1.6V13" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M11 15.6h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
+    </svg>
   );
 }
