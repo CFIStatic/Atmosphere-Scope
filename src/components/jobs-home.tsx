@@ -45,6 +45,9 @@ export function JobsHome({ jobs, customer }: { jobs: JobRow[]; customer: boolean
   const attention = ranked.filter((job) => job.needsAttention);
   const recent = ranked.filter((job) => !job.needsAttention).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const empty = !walk && jobs.length === 0;
+  const book = walk ? [walk, ...ranked] : ranked;
+  const priced = book.reduce((sum, job) => sum + (job.total != null && job.total > 0 ? job.total : 0), 0);
+  const unpriced = book.reduce((sum, job) => sum + job.unpriced, 0);
 
   if (empty) {
     return (
@@ -57,6 +60,13 @@ export function JobsHome({ jobs, customer }: { jobs: JobRow[]; customer: boolean
 
   return (
     <div className="grid">
+      <div className="kpi" aria-label="Book summary">
+        <div><span>Jobs</span><strong>{book.length}</strong></div>
+        <div><span>Needs attention</span><strong>{attention.length + (walk ? 1 : 0)}</strong></div>
+        <div><span>Recent</span><strong>{recent.length}</strong></div>
+        <div><span>Priced</span><strong>{priced > 0 ? formatMoney(priced) : "—"}</strong></div>
+        <div><span>Unpriced</span><strong>{unpriced}</strong></div>
+      </div>
       {(walk || attention.length > 0) && (
         <section>
           <h2>Needs attention</h2>
