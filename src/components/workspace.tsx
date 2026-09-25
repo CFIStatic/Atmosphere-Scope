@@ -11,6 +11,7 @@ import { ShareJob } from "@/components/share-job";
 import { TapeVerify } from "@/components/tape-verify";
 import { loadWalkthrough, saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
 import { floorPlanFromSketch, type FloorPlan } from "@/domain/plan-from-measurement";
+import { SAMPLE_MEDIA_NOTE, visibleMediaNote } from "@/domain/media-note";
 import type { Job } from "@/domain/types";
 import type { SketchOp } from "@/domain/sketch-ops";
 import { SketchEditor } from "./sketch-editor";
@@ -32,13 +33,12 @@ const TABS = [
 
 type TabId = (typeof TABS)[number][0];
 
-export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: ReactNode }) {
+export function Workspace({ initialJob, canShare = false }: { initialJob: Job; canShare?: boolean; extra?: ReactNode }) {
   const router = useRouter();
   const [job, setJob] = useState(initialJob);
   const [tab, setTab] = useState<TabId>("chat");
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameDraft, setRenameDraft] = useState(initialJob.customer.name);
-  const [shareOpen, setShareOpen] = useState(false);
   const [walk, setWalk] = useState<WalkthroughSnapshot | null>(null);
   const [askSeed, setAskSeed] = useState<{ text: string; n: number } | null>(null);
   const [roomId, setRoomId] = useState<string | null>(initialJob.rooms[0]?.id ?? null);
@@ -134,11 +134,10 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
         <div className="job-file-actions">
           <button type="button" onClick={() => { setRenameDraft(job.customer.name); setRenameOpen(true); }}>Rename</button>
           <button type="button" onClick={() => void duplicate()}>Duplicate</button>
-          <button type="button" className="job-file-share" onClick={() => setShareOpen(true)}>Share with homeowner</button>
+          {canShare && <button type="button" className="job-file-share" onClick={() => choose("access")}>Share with customer</button>}
         </div>
       </header>
       <TodayStrip job={job} />
-      {extra}
       {error && <p className="error">{error}</p>}
       {renameOpen && (
         <form className="panel grid" onSubmit={async (event) => {
@@ -163,18 +162,12 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
           </div>
         </form>
       )}
-      {shareOpen && (
-        <div className="job-file-dialog" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setShareOpen(false); }}>
-          <div className="panel grid" role="dialog" aria-label="Share with homeowner">
-            <ShareJob jobId={job.id} />
-            <button className="btn secondary" type="button" onClick={() => setShareOpen(false)}>Close</button>
-          </div>
+      <div className="job-file-scroll">
+        <div className="job-file-bar" role="tablist" aria-label="Job file sections">
+          {TABS.map(([id, label]) => (
+            <button key={id} type="button" role="tab" id={`job-file-section-${id}`} aria-selected={tab === id} onClick={() => choose(id)}>{label}</button>
+          ))}
         </div>
-      )}
-      <div className="job-file-bar" role="tablist" aria-label="Job file sections">
-        {TABS.map(([id, label]) => (
-          <button key={id} type="button" role="tab" id={`job-file-section-${id}`} aria-selected={tab === id} onClick={() => choose(id)}>{label}</button>
-        ))}
       </div>
 
       {tab === "chat" && (
@@ -192,7 +185,7 @@ export function Workspace({ initialJob, extra }: { initialJob: Job; extra?: Reac
       )}
       {tab === "chat" && <Review job={job} onAct={act} />}
       {tab === "happening" && <HappeningNow job={job} unpriced={unpriced} openQuestions={openQuestions.length} status={jobStatusChip(version?.status)} />}
-      {tab === "access" && <ShareJob jobId={job.id} />}
+      {tab === "access" && (canShare ? <ShareJob jobId={job.id} /> : <p className="meta">Shared with you.</p>)}
       {tab === "videos" && (
         <section className="grid">
           <WalkthroughPlayer job={job} />
@@ -305,7 +298,7 @@ function HappeningNow({ job, unpriced, openQuestions, status }: { job: Job; unpr
                 <li key={clip.id}>
                   <div>
                     <strong>{visitTitle(clip.createdAt, clip.label)}</strong>
-                    <p>{clip.note?.trim() || "Day film on file."}</p>
+                    {visibleMediaNote(clip.note) ? <p>{visibleMediaNote(clip.note)}</p> : null}
                   </div>
                   <span className="chip chip-neutral">{status}</span>
                 </li>
@@ -346,17 +339,12 @@ function localDateKey(value: string | Date): string {
 
 function TodayStrip({ job }: { job: Job }) {
   const today = localDateKey(new Date());
-  const clips = job.media.filter((item) => localDateKey(item.createdAt) === today).length;
-  const updated = localDateKey(job.updatedAt) === today;
-  if (!clips && !updated) return null;
-  const bits = [
-    clips ? `${clips} new ${clips === 1 ? "clip" : "clips"}` : "",
-    updated ? "Job file updated" : "",
-  ].filter(Boolean);
+  const real = job.media.filter((item) => localDateKey(item.createdAt) === today && item.note?.trim() !== SAMPLE_MEDIA_NOTE).length;
+  if (!real) return null;
   return (
     <p className="job-file-today" data-testid="job-file-today">
       <strong>What changed today</strong>
-      <span className="meta">{bits.join(" · ")}</span>
+      <span className="meta">{real} new {real === 1 ? "clip" : "clips"}</span>
     </p>
   );
 }

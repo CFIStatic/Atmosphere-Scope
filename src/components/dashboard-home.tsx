@@ -53,7 +53,7 @@ export function DashboardHome({ jobs, customer }: { jobs: JobRow[]; customer: bo
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search by job, company, date, address, ID, or hash"
+          placeholder="Search by job, company, date, address, or ID"
           aria-label="Filter the dashboard"
         />
       </label>

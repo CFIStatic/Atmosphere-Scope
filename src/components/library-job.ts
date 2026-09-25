@@ -1,3 +1,4 @@
+import { jobCardSentence } from "@/domain/assist";
 import type { Job } from "@/domain/types";
 
 export type LibraryClip = {
@@ -14,9 +15,12 @@ export type LibraryJob = {
   recordedAt: string;
   status: "recorded" | "waiting" | "recording";
   clips: LibraryClip[];
+  attention: boolean;
+  unpriced: number;
+  total: number | null;
 };
 
-export function toLibraryJob(job: Job): LibraryJob {
+export function toLibraryJob(job: Job, viewerIsCustomer = false): LibraryJob {
   const clips = job.media.map((item) => ({
     id: item.id,
     label: item.label.trim() || item.filename.trim() || "Clip",
@@ -29,6 +33,9 @@ export function toLibraryJob(job: Job): LibraryJob {
     : clips.length > 0
       ? "recorded"
       : "waiting";
+  const version = job.estimates.find((item) => item.id === job.activeEstimateId) ?? job.estimates.at(-1);
+  const unpriced = version?.pricedLines.filter((line) => line.unpricedReason !== "Excluded from price." && (line.unitPrice == null || line.unpricedReason)).length ?? 0;
+  const total = version?.totals.supportedTotal ?? null;
   return {
     id: job.id,
     name: job.customer.name.trim() || "Untitled",
@@ -36,5 +43,14 @@ export function toLibraryJob(job: Job): LibraryJob {
     recordedAt,
     status,
     clips,
+    unpriced,
+    total,
+    attention: jobCardSentence({
+      customer: job.customer.name,
+      concern: job.concern,
+      status: version?.status ?? null,
+      unpriced,
+      viewerIsCustomer,
+    }).needsAttention,
   };
 }

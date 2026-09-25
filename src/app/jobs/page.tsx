@@ -14,7 +14,7 @@ export default async function JobsPage() {
   const customer = session?.role === "customer";
   return (
     <AppFrame variant="library" current="/jobs">
-      <VideoLibrary customer={customer} jobs={jobs.map(toLibraryJob)} />
+      <VideoLibrary customer={customer} jobs={jobs.map((job) => toLibraryJob(job, customer))} />
       {!customer && (
         <details className="quiet lib-samples">
           <summary>Samples</summary>

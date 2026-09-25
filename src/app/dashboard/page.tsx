@@ -11,7 +11,7 @@ export default async function DashboardPage() {
   const jobs = await listVisibleJobs();
   return (
     <AppFrame variant="library" current="/dashboard">
-      <VideoLibrary customer={session?.role === "customer"} jobs={jobs.map(toLibraryJob)} />
+      <VideoLibrary summary customer={session?.role === "customer"} jobs={jobs.map((job) => toLibraryJob(job, session?.role === "customer"))} />
     </AppFrame>
   );
 }

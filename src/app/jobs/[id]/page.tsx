@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { ShareJob } from "@/components/share-job";
 import { Workspace } from "@/components/workspace";
 import { getRequestSession } from "@/auth/request-session";
 import { loadVisibleJob } from "@/storage/visible-jobs";
@@ -12,15 +11,5 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   if ("error" in loaded) notFound();
   const { session } = await getRequestSession();
   const canShare = session?.role === "admin" || session?.role === "estimator";
-  return (
-    <Workspace
-      initialJob={loaded.job}
-      extra={
-        <>
-          {session?.role === "customer" && <p className="meta">Shared with you.</p>}
-          {canShare && <ShareJob jobId={id} />}
-        </>
-      }
-    />
-  );
+  return <Workspace initialJob={loaded.job} canShare={canShare} />;
 }

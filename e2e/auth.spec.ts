@@ -53,7 +53,7 @@ test("phone navigation is the dashboard drawer", async ({ page }) => {
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
   await menu.click();
   const drawer = page.getByRole("dialog", { name: "Navigation" });
-  for (const name of ["Start a job", "Dashboard", "Settings"]) {
+  for (const name of ["Dashboard", "Record", "Jobs", "Results", "Estimate", "Account"]) {
     const link = drawer.getByRole("link", { name, exact: true });
     await expect(link).toBeVisible();
     const linkBox = await link.boundingBox();

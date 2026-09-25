@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { LibraryJob } from "@/components/library-job";
 import { useLibraryQuery } from "@/components/library-query";
+import { formatMoney } from "@/domain/format";
 
 const STATUS = {
   recorded: { text: "Recorded", cls: "chip-green" },
@@ -13,7 +14,7 @@ const STATUS = {
 
 type SortKey = "job" | "status" | "recorded" | "uploader";
 
-export function VideoLibrary({ jobs, customer }: { jobs: LibraryJob[]; customer: boolean }) {
+export function VideoLibrary({ jobs, customer, summary = false }: { jobs: LibraryJob[]; customer: boolean; summary?: boolean }) {
   const query = useLibraryQuery();
   const [sortKey, setSortKey] = useState<SortKey>("recorded");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -33,9 +34,7 @@ export function VideoLibrary({ jobs, customer }: { jobs: LibraryJob[]; customer:
     });
   }, [jobs, query, sortDir, sortKey]);
 
-  const totalClips = jobs.reduce((sum, job) => sum + job.clips.length, 0);
-  const shownClips = filtered.reduce((sum, job) => sum + job.clips.length, 0);
-  const count = totalClips === 0 ? "0 clips" : `${shownClips} of ${totalClips} clips`;
+  const count = filtered.length === jobs.length ? `${jobs.length} ${jobs.length === 1 ? "job" : "jobs"}` : `${filtered.length} of ${jobs.length} jobs`;
   const empty = filtered.length === 0;
 
   function sort(key: SortKey) {
@@ -49,9 +48,10 @@ export function VideoLibrary({ jobs, customer }: { jobs: LibraryJob[]; customer:
   return (
     <div className="lib-screen">
       <div className="lib-toolbar">
-        <h1>All videos</h1>
+        <h1>Jobs</h1>
         <span className="lib-count">{count}</span>
       </div>
+      {summary && <LibrarySummary jobs={jobs} />}
       <div className="lib-tablewrap">
         <table className="lib-table">
           <thead>
@@ -77,11 +77,33 @@ export function VideoLibrary({ jobs, customer }: { jobs: LibraryJob[]; customer:
                 ? "Try clearing search."
                 : customer
                   ? "Jobs shared with you show up here."
-                  : <><Link href="/record">Start a job</Link> and the name shows up here. Footage files under it as crews film.</>}
+                  : <><Link href="/record">Record a walkthrough</Link> and the job shows up here.</>}
             </p>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function LibrarySummary({ jobs }: { jobs: LibraryJob[] }) {
+  const priced = jobs.reduce((sum, job) => sum + (job.total != null && job.total > 0 ? job.total : 0), 0);
+  const unpriced = jobs.reduce((sum, job) => sum + job.unpriced, 0);
+  const attention = jobs.filter((job) => job.attention).length;
+  const cells = [
+    ["Jobs", String(jobs.length)],
+    ["Needs attention", String(attention)],
+    ["Priced", priced > 0 ? formatMoney(priced) : "—"],
+    ["Unpriced", String(unpriced)],
+  ] as const;
+  return (
+    <div className="lib-kpi" aria-label="Job totals">
+      {cells.map(([label, value]) => (
+        <div key={label}>
+          <span>{label}</span>
+          <strong>{value}</strong>
+        </div>
+      ))}
     </div>
   );
 }

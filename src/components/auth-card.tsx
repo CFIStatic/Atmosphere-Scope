@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
-import { Wordmark } from "@/components/wordmark";
+import { BrandLockup } from "@/components/brand-lockup";
 
 export function AuthCard({ title, lede, children, after }: { title: string; lede?: string; children: ReactNode; after?: ReactNode }) {
   return (
     <main className="auth-shell">
       <div className="auth-chrome">
-        <Wordmark href="/login" />
+        <BrandLockup href="/login" />
       </div>
       <section className="auth-card">
         <p className="auth-kicker">Workspace</p>

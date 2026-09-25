@@ -59,7 +59,6 @@ export function AccountMenu() {
             {session?.email && <p>{session.email}</p>}
             {session?.role && <p>{roleWord(session.role)}</p>}
           </div>
-          <Link role="menuitem" href="/record" onClick={() => setOpen(false)}>Start a job</Link>
           <Link role="menuitem" href="/account" onClick={() => setOpen(false)}>Settings</Link>
           {session?.role === "admin" && <Link role="menuitem" href="/admin/users" onClick={() => setOpen(false)}>Users</Link>}
           {session ? (

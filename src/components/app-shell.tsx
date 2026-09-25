@@ -4,11 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { AccountMenu } from "@/components/account-menu";
+import { BrandLockup } from "@/components/brand-lockup";
 import { LibraryQueryContext } from "@/components/library-query";
-import { Wordmark } from "@/components/wordmark";
 
 export function AppShell({
-  current,
   variant = "page",
   children,
 }: {
@@ -24,24 +23,22 @@ export function AppShell({
     setOpen(false);
   }, [path]);
 
-  const rail = <Rail current={current} onNavigate={() => setOpen(false)} showChat={variant === "page"} />;
-
   return (
     <div className={variant === "library" ? "lib" : "ops"}>
       <aside className="rail" aria-label="Navigation">
         <div className="rail-head">
-          <Wordmark />
+          <BrandLockup href="/dashboard" />
         </div>
-        {variant === "page" && rail}
+        <Rail onNavigate={() => setOpen(false)} />
       </aside>
       {open && (
         <div className="rail-drawer" role="dialog" aria-modal="true" aria-label="Navigation">
           <button type="button" className="rail-scrim" aria-label="Close navigation" onClick={() => setOpen(false)} />
           <aside className="rail rail-panel">
             <div className="rail-head">
-              <Wordmark />
+              <BrandLockup href="/dashboard" />
             </div>
-            {rail}
+            <Rail onNavigate={() => setOpen(false)} />
           </aside>
         </div>
       )}
@@ -55,8 +52,8 @@ export function AppShell({
             <input
               type="search"
               value={query}
-              placeholder="Search by job, company, date, address, ID, or hash"
-              aria-label="Search videos"
+              placeholder="Search by job, company, date, address, or ID"
+              aria-label="Search jobs"
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
@@ -70,50 +67,32 @@ export function AppShell({
   );
 }
 
-function Rail({ current, onNavigate, showChat }: { current?: string; onNavigate: () => void; showChat: boolean }) {
-  const path = usePathname();
-  const [hash, setHash] = useState("");
-  const onJob = /^\/jobs\/[^/]+$/.test(path ?? "");
-
-  useEffect(() => {
-    const read = () => setHash(window.location.hash);
-    read();
-    window.addEventListener("hashchange", read);
-    return () => window.removeEventListener("hashchange", read);
-  }, [path]);
-
-  const chatOn = onJob && (hash === "" || hash === "#chat");
+function Rail({ onNavigate }: { onNavigate: () => void }) {
+  const path = usePathname() ?? "";
+  const items = [
+    { href: "/dashboard", label: "Dashboard", icon: <GridIcon />, current: path === "/dashboard" },
+    { href: "/record", label: "Record", icon: <RecordIcon />, current: path === "/record" },
+    { href: "/jobs", label: "Jobs", icon: <FolderIcon />, current: path === "/jobs" || path.startsWith("/jobs/") },
+    { href: "/results", label: "Results", icon: <ResultsIcon />, current: path === "/results" || path.startsWith("/results/") },
+    { href: "/estimate", label: "Estimate", icon: <EstimateIcon />, current: path === "/estimate" || path.startsWith("/estimate/") },
+  ];
+  const account = path === "/account" || path.startsWith("/account/");
   return (
     <>
       <div className="rail-body">
         <div className="rail-section">
-          <Link className="navitem" href="/record" onClick={onNavigate}>
-            <BoltIcon />
-            <span>Start a job</span>
-          </Link>
-          <Link className="navitem" href="/dashboard" aria-current={current === "/dashboard" || current === "/jobs" ? "page" : undefined} onClick={onNavigate}>
-            <GridIcon />
-            <span>Dashboard</span>
-          </Link>
+          {items.map((item) => (
+            <Link key={item.href} className="navitem" href={item.href} aria-current={item.current ? "page" : undefined} onClick={onNavigate}>
+              {item.icon}
+              <span>{item.label}</span>
+            </Link>
+          ))}
         </div>
-        {showChat && onJob && (
-          <div className="rail-section">
-            <h3>Chat history</h3>
-            <Link className="navitem" href={`${path}#chat`} onClick={onNavigate}>
-              <PlusIcon />
-              <span>New chat</span>
-            </Link>
-            <Link className="navitem" href={`${path}#chat`} aria-current={chatOn ? "page" : undefined} onClick={onNavigate}>
-              <ChatIcon />
-              <span>Chat</span>
-            </Link>
-          </div>
-        )}
       </div>
       <div className="rail-footer">
-        <Link className="navitem" href="/account" aria-current={current === "/account" ? "page" : undefined} onClick={onNavigate}>
+        <Link className="navitem" href="/account" aria-current={account ? "page" : undefined} onClick={onNavigate}>
           <GearIcon />
-          <span>Settings</span>
+          <span>Account</span>
         </Link>
       </div>
     </>
@@ -137,14 +116,6 @@ function SearchIcon() {
   );
 }
 
-function BoltIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function GridIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -156,18 +127,36 @@ function GridIcon() {
   );
 }
 
-function PlusIcon() {
+function RecordIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="7.2" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="12" cy="12" r="3.2" fill="currentColor" />
     </svg>
   );
 }
 
-function ChatIcon() {
+function FolderIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M5 16.5 3.5 20l4-1.2A8.5 8.5 0 1 0 5 16.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M3.5 6.5A1.5 1.5 0 0 1 5 5h4l2 2.5h8a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 18z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ResultsIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M5 6h14M5 12h14M5 18h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function EstimateIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M7 3.5h7l4 4V20a1.5 1.5 0 0 1-1.5 1.5h-9.5A1.5 1.5 0 0 1 5.5 20V5A1.5 1.5 0 0 1 7 3.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M14 3.5V8h4.5M8 12h8M8 16h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
