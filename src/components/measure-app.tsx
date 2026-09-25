@@ -5,6 +5,7 @@ import { chunkCount, getCapture, listPendingCaptures, putCapture, saveChunk } fr
 import { captureStatusLabel } from "@/capture/plan";
 import { resumeCapture } from "@/capture/resume-client";
 import { fuseDimension, type FusedDimension, type Reading, type ScaleSource } from "@/domain/fusion";
+import { saveWalkthrough } from "@/capture/snapshot";
 import { floorPlanFromMeasurement, recordedSyntheticRoom, type FloorPlan, type MeasuredRoomInput } from "@/domain/plan-from-measurement";
 import type { IdentifiedObject } from "@/analysis/frames";
 import type { ResultOffer } from "@/domain/results";
@@ -143,6 +144,32 @@ export function MeasureApp({ setup }: { setup: { measurement: string; vision: st
   const [plan, setPlan] = useState<FloorPlan | null>(null);
   const [previewObjects, setPreviewObjects] = useState<IdentifiedObject[]>([]);
   const [previewOffers, setPreviewOffers] = useState<ResultOffer[]>([]);
+  useEffect(() => {
+    if (!plan) return;
+    const objects: IdentifiedObject[] = (result?.ai?.objects ?? previewObjects).map((object) => {
+      const confidence: IdentifiedObject["confidence"] = object.confidence === "high" || object.confidence === "medium" ? object.confidence : "low";
+      return { ...object, confidence };
+    });
+    const offers = (result?.ai?.offers ?? previewOffers).map((offer) => ({
+      query: offer.query,
+      title: offer.title,
+      retailer: offer.retailer,
+      price: offer.price,
+      currency: offer.currency,
+      url: offer.url,
+      status: offer.status,
+      note: offer.note,
+    }));
+    saveWalkthrough({
+      savedAt: new Date().toISOString(),
+      source: result ? "measurement" : "recorded-preview",
+      transcript: result?.ai?.transcription.text ?? null,
+      transcriptNote: result?.ai?.transcription.note ?? "Recorded preview. Not a customer recording.",
+      plan,
+      objects,
+      offers,
+    });
+  }, [plan, result, previewObjects, previewOffers]);
   const [tapeLabel, setTapeLabel] = useState("span_a");
   const [tapeValue, setTapeValue] = useState("");
   const [online, setOnline] = useState(true);

@@ -5,6 +5,7 @@ import { priceAll, priceScopeItem } from "./pricing";
 import { DEMO_PRICE_BOOK } from "./price-book";
 import { buildScope, scopeHasDuplicateCharges } from "./scope";
 import { approveEstimate, authorizeEstimate, createEstimateVersion, markReviewed } from "./review";
+import { applyJobAction } from "./actions";
 import { applySketchOp, previewQuantityChanges, undoSketch } from "./sketch-ops";
 import { createEmptyJob, mergeFindings, retryPipeline, runPipeline } from "@/analysis/pipeline";
 import { acceptModelOutput } from "@/analysis/providers";
@@ -167,6 +168,8 @@ describe("scope, pricing, review", () => {
     const revision = rerun.estimates.find((version) => version.changeRequest);
     expect(revision?.status).toBe("ai_draft");
     expect(rerun.estimates.some((version) => version.status === "customer_authorized")).toBe(true);
+    const locked = { ...jobFrom("intact-guest"), estimates: [approved], activeEstimateId: approved.id };
+    expect(() => applyJobAction(locked, { type: "edit_scope", itemId: "missing", quantityValue: 1 })).toThrow(/locked/);
   });
 
   it("previews geometry quantity changes and preserves human findings", () => {

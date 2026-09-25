@@ -374,6 +374,8 @@ function Review({ job, onAct }: { job: Job; onAct: (body: unknown) => void }) {
     <section className="grid">
       <div className="panel grid">
         <p className="kicker">Estimator</p>
+        <p className="meta">Sign in as an estimator on Account. A customer sign-in cannot approve this version.</p>
+        <a className="btn secondary" href="/account">Account</a>
         <form className="row" onSubmit={(event) => { event.preventDefault(); onAct({ type: "mark_reviewed", actorName: String(new FormData(event.currentTarget).get("name")) }); }}>
           <input name="name" placeholder="Estimator name" required aria-label="Estimator name" />
           <button className="btn" type="submit">Mark reviewed</button>
@@ -385,7 +387,7 @@ function Review({ job, onAct }: { job: Job; onAct: (body: unknown) => void }) {
       </div>
       <div className="panel grid">
         <p className="kicker">Customer authorization</p>
-        <p className="meta">Separate from estimator approval. It names the exact version.</p>
+        <p className="meta">Sign in as the customer. This step does not approve the estimate. It names the exact version.</p>
         <form className="grid" onSubmit={(event) => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);

@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { moistureReadingDoesNotSetArea, softFloorScope, wallFaceFromAnswers } from "@/domain/gap-answers";
+import { useEffect, useState } from "react";
+import { gapsFromSnapshot, loadWalkthrough, saveWalkthrough, type WalkthroughSnapshot } from "@/capture/snapshot";
+import { PlanView } from "@/components/plan-view";
+import { ResultsView } from "@/components/results-view";
 
 type Row = {
   kind: string;
@@ -12,70 +14,50 @@ type Row = {
   meetsAccuracyTarget: boolean;
 };
 
+const STEPS = ["Capture", "Gaps", "Review", "Draft estimate"] as const;
+
 export function ClaimsFlow({ walls, height }: { walls: Row[]; height: Row | null }) {
-  const [feet, setFeet] = useState("");
-  const [inches, setInches] = useState("");
-  const [moisture, setMoisture] = useState("");
-  const [soft, setSoft] = useState<"confirmed" | "not_present" | "cant_tell" | "">("");
-  const length = walls[0]?.valueFt ?? null;
-  const typedHeight = useMemo(() => {
-    const whole = Number(feet);
-    const part = Number(inches || 0);
-    if (!Number.isFinite(whole) || whole <= 0) return null;
-    return whole + (Number.isFinite(part) ? part / 12 : 0);
-  }, [feet, inches]);
-  const face = wallFaceFromAnswers(length, typedHeight);
-  const pin = moistureReadingDoesNotSetArea();
-  const floor = soft ? softFloorScope(soft) : null;
+  const [step, setStep] = useState<(typeof STEPS)[number]>("Capture");
+  const [snapshot, setSnapshot] = useState<WalkthroughSnapshot | null>(null);
+  useEffect(() => setSnapshot(loadWalkthrough()), []);
+  const gaps = snapshot ? gapsFromSnapshot(snapshot) : [];
 
   return (
     <div className="flow">
-      <p className="kicker">Captured → Review → Draft estimate → Estimator approval → Customer authorization</p>
-      <section className="split">
-        <div className="phone">
-          <div className="phone-top"><span>REC</span><span>KITCHEN</span></div>
-          <div className="viewfinder">Fit the calibration sheet in the lower frame, then sweep the walls.</div>
-          <p className="coach">Listening is narration, not a measurement. A spoken length stays provisional.</p>
-          <div className="row">
-            <span className="chip orange">Provisional</span>
-            <span className="chip">Seen</span>
-            <span className="chip">Said · homeowner</span>
-          </div>
+      <p className="kicker">Capture, gaps, review, then a draft. Estimator approval is a later sign-in. Customer authorization is a separate sign-in.</p>
+      <div className="tabs" role="tablist">
+        {STEPS.map((item) => (
+          <button key={item} type="button" role="tab" aria-selected={step === item} onClick={() => setStep(item)}>{item}</button>
+        ))}
+      </div>
+      {!snapshot && <p className="banner">No walkthrough is saved in this browser. Measure a room, or open the recorded preview on Measure. Nothing was filled in.</p>}
+      {snapshot?.source === "recorded-preview" && <p className="banner">Recorded preview. Not a customer recording.</p>}
+      {step === "Capture" && (
+        <section className="phone">
+          <div className="phone-top"><span>{snapshot ? "Saved" : "Empty"}</span><span>Transcript</span></div>
+          <p>{snapshot?.transcript ?? "No transcript yet."}</p>
+          <p className="meta">{snapshot?.transcriptNote ?? "A spoken length stays provisional until it is locked on the plan."}</p>
           <a className="btn" href="/measure">Open guided capture</a>
-        </div>
-        <section className="panel">
-          <p className="kicker">3 gaps before this goes to the estimator</p>
-          <label className="field">Kitchen wall height
-            <span className="row">
-              <input value={feet} onChange={(event) => setFeet(event.target.value)} inputMode="numeric" placeholder="ft" />
-              <input value={inches} onChange={(event) => setInches(event.target.value)} inputMode="numeric" placeholder="in" />
-            </span>
-          </label>
-          <p className="meta">
-            Wall length from the sheet: {length == null ? "?" : `${length} ft`}.
-            Face area: {face.valueSqFt == null ? "?" : `${face.valueSqFt} sq ft`} · {face.status}.
-            {height && !height.meetsAccuracyTarget ? " The video ceiling did not meet ±5%, so this box is the tape, not a confirmation of the video." : ""}
-          </p>
-          <label className="field">Hallway moisture, pin %MC
-            <input value={moisture} onChange={(event) => setMoisture(event.target.value)} inputMode="decimal" placeholder="%" />
-          </label>
-          <p className="meta">{moisture ? `Reading ${moisture} stored as a test, not as seen.` : "No reading yet."} {pin.note} Quantity: ?</p>
-          <fieldset className="field">
-            <legend>Soft floor</legend>
-            <div className="row">
-              {(["confirmed", "not_present", "cant_tell"] as const).map((option) => (
-                <button key={option} type="button" className={soft === option ? "btn" : "btn secondary"} onClick={() => setSoft(option)}>
-                  {option === "not_present" ? "Not present" : option === "cant_tell" ? "Can't tell" : "Confirmed"}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-          {floor && <p className="meta">{floor.note} Quantity: {floor.quantitySqFt == null ? "?" : floor.quantitySqFt}</p>}
         </section>
-      </section>
+      )}
+      {step === "Gaps" && (
+        <section className="panel">
+          <p className="kicker">{gaps.length ? `${gaps.length} open` : "No open measurements"} before this goes further</p>
+          {gaps.length === 0 && <p className="meta">Nothing unmeasured was found on the saved plan.</p>}
+          {gaps.map((gap) => <p key={gap}>{gap}</p>)}
+        </section>
+      )}
+      {step === "Review" && snapshot && (
+        <PlanView plan={snapshot.plan} onChange={(plan) => {
+          const next = { ...snapshot, plan };
+          setSnapshot(next);
+          saveWalkthrough(next);
+        }} />
+      )}
+      {step === "Draft estimate" && snapshot && <ResultsView plan={snapshot.plan} objects={snapshot.objects} offers={snapshot.offers} />}
       <section className="panel">
-        <p className="kicker">Measured spans from the synthetic harness</p>
-        <p className="meta">These numbers are the ChArUco solve on rendered rooms, not a customer tape. A value that misses the target is not shown as confirmed.</p>
+        <p className="kicker">Synthetic harness, not this walkthrough</p>
+        <p className="meta">These rows are the ChArUco solve on rendered rooms. A miss is not shown as confirmed.</p>
         <table>
           <thead><tr><th>Truth</th><th>Solved</th><th>Actual error</th><th>Bound</th><th></th></tr></thead>
           <tbody>
@@ -99,8 +81,7 @@ export function ClaimsFlow({ walls, height }: { walls: Row[]; height: Row | null
             )}
           </tbody>
         </table>
-        <p className="meta">Estimator approval still locks quantities in the job workspace. Customer authorization is a later step. This screen does not approve anything.</p>
-        <a className="btn secondary" href="/jobs/new">Open a job workspace</a>
+        <a className="btn secondary" href="/account">Sign in to approve or authorize a job</a>
       </section>
     </div>
   );

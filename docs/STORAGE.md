@@ -34,6 +34,8 @@ values ('media', 'media', false)
 on conflict (id) do update set public = false;
 ```
 
+Sign-in is separate from job storage. Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` on the server to use Supabase Auth password grant. The role is `user_metadata.role` and must be `estimator` or `customer`. The anon key is not sent to the browser. If those two variables are unset, Account uses a local sign-in cookie and says so. An estimator can review and approve. A customer can authorize that approved version. One role cannot do the other. An approved or authorized version rejects sketch and line edits.
+
 The app then:
 
 - upserts each job with `POST /rest/v1/jobs` (`Prefer: resolution=merge-duplicates`)

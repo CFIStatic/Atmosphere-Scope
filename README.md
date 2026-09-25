@@ -95,6 +95,7 @@ Set variables on the Railway service. Do not use `NEXT_PUBLIC_` for any key, and
 | `PRICE_FETCH_MAX_BYTES` | no | Default `500000`. |
 | `PRICING_PROVIDER`, `SERPAPI_API_KEY` | no | SerpAPI only when both are set. |
 | `STORAGE`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | no | See below. |
+| `SUPABASE_ANON_KEY` | no | With `SUPABASE_URL`, Account uses Supabase Auth. The role is `user_metadata.role`: `estimator` or `customer`. Without the anon key, sign-in stays local and says so. |
 
 Add a volume mounted at `/data`. That directory holds job JSON, job media, and in-progress capture chunks. Railway's container disk is ephemeral, so a redeploy without the volume drops those files. The phone still has its copy of a capture in IndexedDB and can upload again.
 

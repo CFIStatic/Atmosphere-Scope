@@ -25,8 +25,8 @@ export default async function ClaimsPage() {
     <main className="shell">
       <header className="topbar">
         <div>
-          <p className="brand"><span>Atmosphere Scope</span>[Customer name] · Water loss</p>
-          <p className="meta">Floor 1 · measurement comes from the sheet solve, not from the mockup&apos;s placeholder quantities.</p>
+          <p className="brand"><span>Atmosphere Scope</span>Claims review</p>
+          <p className="meta">Capture, gaps, and the draft read the walkthrough saved in this browser.</p>
         </div>
         <Link className="btn secondary" href="/">Home</Link>
       </header>

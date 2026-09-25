@@ -16,12 +16,15 @@ export default async function HomePage() {
           <p className="brand"><span>Atmosphere</span>Scope</p>
           <p className="meta">Residential interior walkthroughs, evidence, sketch, and draft estimate. AI output stays a draft until an estimator approves it.</p>
         </div>
-        <Link className="btn" href="/jobs/new">New job</Link>
+        <div className="row">
+          <Link className="btn secondary" href="/account">Account</Link>
+          <Link className="btn" href="/jobs/new">New job</Link>
+        </div>
       </header>
       <nav className="cards" style={{ marginBottom: 16 }}>
         <Link className="card" href="/measure"><strong>Measure a room</strong><span className="meta">Calibration sheet, guided capture, error bounds.</span></Link>
         <Link className="card" href="/claims"><strong>Claims review</strong><span className="meta">Gaps, sketch spans, and what is not confirmed.</span></Link>
-        <Link className="card" href="/underwriting"><strong>Underwriting</strong><span className="meta">Checklist through scenarios. Illustrative dollars stay labeled.</span></Link>
+        <Link className="card" href="/underwriting"><strong>Underwriting</strong><span className="meta">Checklist through contents, from the saved walkthrough.</span></Link>
         <Link className="card" href="/accuracy"><strong>Accuracy harness</strong><span className="meta">Synthetic results by method. 95% is not claimed.</span></Link>
       </nav>
       <section className="panel" style={{ marginBottom: 16 }}>

@@ -1,0 +1,48 @@
+import type { IdentifiedObject } from "@/analysis/frames";
+import type { FloorPlan } from "@/domain/plan-from-measurement";
+import type { ResultOffer } from "@/domain/results";
+
+export const WALKTHROUGH_KEY = "atmosphere-walkthrough";
+
+export type WalkthroughSnapshot = {
+  savedAt: string;
+  source: "measurement" | "recorded-preview";
+  transcript: string | null;
+  transcriptNote: string;
+  plan: FloorPlan;
+  objects: IdentifiedObject[];
+  offers: ResultOffer[];
+};
+
+export function gapsFromSnapshot(snapshot: WalkthroughSnapshot): string[] {
+  const gaps: string[] = [];
+  for (const edge of snapshot.plan.edges) {
+    const room = snapshot.plan.names[edge.roomId] ?? edge.roomId;
+    if (edge.status === "unmeasured") gaps.push(`${room} wall ${edge.edgeIndex + 1} is unmeasured.`);
+    if (edge.status === "estimated") gaps.push(`${room} wall ${edge.edgeIndex + 1} is estimated, not confirmed.`);
+  }
+  for (const [roomId, height] of Object.entries(snapshot.plan.ceilingHeights)) {
+    if (height.status === "confirmed") continue;
+    gaps.push(`${snapshot.plan.names[roomId] ?? roomId} ceiling height is ${height.status === "unresolved" ? "unmeasured" : "estimated"}.`);
+  }
+  for (const note of snapshot.plan.annotations) gaps.push(note.text);
+  return gaps;
+}
+
+export function saveWalkthrough(snapshot: WalkthroughSnapshot): void {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(WALKTHROUGH_KEY, JSON.stringify(snapshot));
+}
+
+export function loadWalkthrough(): WalkthroughSnapshot | null {
+  if (typeof localStorage === "undefined") return null;
+  const raw = localStorage.getItem(WALKTHROUGH_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as WalkthroughSnapshot;
+    if (!parsed?.plan?.rooms || !Array.isArray(parsed.plan.quantities)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
