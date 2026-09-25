@@ -85,7 +85,6 @@ function planFromResult(result: SolverResult): FloorPlan {
 }
 
 type CameraState = "pending" | "live" | "denied" | "missing";
-type JobOption = { id: string; address: string; customer: string };
 type GeoPoint = { lat: number; lng: number };
 
 function cameraDenied(caught: unknown): boolean {
@@ -118,10 +117,7 @@ export function MeasureApp() {
   const [micLevel, setMicLevel] = useState(0);
   const [uploadStatus, setUploadStatus] = useState("");
   const [camera, setCamera] = useState<CameraState>("pending");
-  const [jobs, setJobs] = useState<JobOption[]>([]);
-  const [attachId, setAttachId] = useState("");
   const [sheetSeen, setSheetSeen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const audioContext = useRef<AudioContext | null>(null);
   const previewRef = useRef<MediaStream | null>(null);
@@ -129,7 +125,6 @@ export function MeasureApp() {
   const draftIdRef = useRef<string | null>(null);
   const jobPromise = useRef<Promise<string | null>>(Promise.resolve(null));
   const locationRef = useRef<GeoPoint | null>(null);
-  const attachRef = useRef("");
   const meterFrame = useRef<number | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -182,10 +177,6 @@ export function MeasureApp() {
   }, [busy]);
 
   useEffect(() => {
-    attachRef.current = attachId;
-  }, [attachId]);
-
-  useEffect(() => {
     let stopped = false;
     let stream: MediaStream | null = null;
     void requestPreview().then((opened) => {
@@ -200,14 +191,6 @@ export function MeasureApp() {
       stream?.getTracks().forEach((track) => track.stop());
       if (stream && previewRef.current === stream) previewRef.current = null;
     };
-  }, []);
-
-  useEffect(() => {
-    void fetch("/api/jobs").then(async (response) => {
-      if (!response.ok) return;
-      const body = await response.json();
-      if (Array.isArray(body.jobs)) setJobs(body.jobs);
-    }).catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -351,8 +334,6 @@ export function MeasureApp() {
   }
 
   function ensureJob(): Promise<string | null> {
-    const chosen = attachRef.current;
-    if (chosen) return Promise.resolve(chosen);
     if (draftIdRef.current) return Promise.resolve(draftIdRef.current);
     return fetch("/api/jobs", {
       method: "POST",
@@ -561,8 +542,6 @@ export function MeasureApp() {
   const blocked = camera === "denied" || camera === "missing";
   const showHint = camera === "live" && !recording && !sheetSeen && !busy;
   const showQueue = queue.length > 0 || Boolean(error) || (signal !== "online" && !busy);
-  const attached = jobs.find((job) => job.id === attachId);
-  const walkTitle = attached ? (attached.address || attached.customer || "Job") : "New walkthrough";
 
   return (
     <div className={`camera-app ${recording ? "is-recording" : ""}`}>
@@ -573,15 +552,10 @@ export function MeasureApp() {
           <div className="camera-scrim camera-scrim-bottom" aria-hidden="true" />
         </>
       )}
-      {camera === "live" && (
-        <div className="frame-guide" aria-hidden="true">
-          <span /><span /><span /><span />
-        </div>
-      )}
       {!blocked && (
         <header className="camera-bar">
           <img className="camera-mark" src="/brand/mark.svg" alt="" width={160} height={180} />
-          <p className="camera-title">{walkTitle}</p>
+          <p className="camera-title">New walkthrough</p>
           <div className="camera-bar-end">
             {recording && (
               <div className="rec-cluster">
@@ -602,8 +576,7 @@ export function MeasureApp() {
       {blocked && (
         <div className="camera-fallback">
           <img className="camera-mark" src="/brand/mark.svg" alt="" width={160} height={180} />
-          <p>{camera === "denied" ? "Camera is blocked. Allow it in the browser, or upload a video." : "This browser has no camera. Upload a video."}</p>
-          <UploadControl onFile={(file) => void submitVideo(file, file.name)} prominent />
+          <p>Allow camera access, or open this page on a phone.</p>
         </div>
       )}
       {showHint && <p className="camera-hint">Place the calibration sheet on the floor, then record.</p>}
@@ -616,7 +589,6 @@ export function MeasureApp() {
       )}
       {!busy && !blocked && camera === "live" && (
         <div className="camera-controls">
-          <UploadControl onFile={(file) => void submitVideo(file, file.name)} />
           <button
             className="shutter"
             type="button"
@@ -625,10 +597,6 @@ export function MeasureApp() {
             onClick={() => void (recording ? finishRecording() : startRecording())}
           >
             <span className="shutter-ring" aria-hidden="true"><span className="shutter-disc" /></span>
-          </button>
-          <button className="cam-tool" type="button" aria-label="Help" onClick={() => setHelpOpen(true)}>
-            <HelpIcon />
-            <span>Help</span>
           </button>
         </div>
       )}
@@ -639,23 +607,6 @@ export function MeasureApp() {
           {queue.length > 0 && <button className="camera-side" type="button" onClick={() => void retryUploads()} disabled={busy || recording}>Retry</button>}
         </p>
       )}
-      {helpOpen && (
-        <div className="camera-sheet-backdrop" onClick={() => setHelpOpen(false)}>
-          <div className="camera-sheet" role="dialog" aria-modal="true" aria-label="Calibration sheet" onClick={(event) => event.stopPropagation()}>
-            <p>Place the sheet flat on the floor, in view of the camera, then record.</p>
-            <a href="/api/calibration-target">Download sheet PDF</a>
-            <label className="field">Attach to existing job
-              <select aria-label="Attach to existing job" value={attachId} onChange={(event) => setAttachId(event.target.value)}>
-                <option value="">New draft</option>
-                {jobs.map((job) => (
-                  <option key={job.id} value={job.id}>{job.customer}{job.address ? ` · ${job.address}` : ""}</option>
-                ))}
-              </select>
-            </label>
-            <button className="camera-side" type="button" onClick={() => setHelpOpen(false)}>Close</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -664,39 +615,3 @@ function LinkJobs() {
   return <a className="phone-jobs phone-jobs-inside" href="/jobs">Jobs</a>;
 }
 
-function UploadControl({ onFile, prominent }: { onFile: (file: File) => void; prominent?: boolean }) {
-  return (
-    <label className={prominent ? "cam-tool cam-tool-prominent" : "cam-tool"}>
-      <UploadIcon />
-      <span>Upload</span>
-      <input
-        type="file"
-        accept="video/*"
-        hidden
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) onFile(file);
-        }}
-      />
-    </label>
-  );
-}
-
-function UploadIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
-      <path d="M11 14.5V5.5M11 5.5L7.5 9M11 5.5L14.5 9" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M5 16.5h12" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-function HelpIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
-      <circle cx="11" cy="11" r="7.25" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M8.7 8.8a2.3 2.3 0 1 1 3.2 2.1c-.7.4-1.1.8-1.1 1.6V13" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M11 15.6h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
-    </svg>
-  );
-}
