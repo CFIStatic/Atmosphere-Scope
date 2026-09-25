@@ -355,9 +355,12 @@ export function MeasureApp() {
       } });
       if (body && typeof body === "object") {
         const measured = body as SolverResult;
-        const plan = planFromResult(measured);
-        setResult(measured);
-        if (!measured.error && measured.dimensions) {
+        if (measured.error || !measured.dimensions) {
+          setResult(measured.dimensions ? measured : null);
+          setError(measured.error ?? "The measurement did not return dimensions. Nothing was saved.");
+        } else {
+          const plan = planFromResult(measured);
+          setResult(measured);
           const names = (measured.ai?.objects ?? []).map((object) => object.name);
           const narration = notesFromNarration(measured.ai?.transcription.text ?? null, names);
           const assist: AssistState = {
@@ -387,6 +390,7 @@ export function MeasureApp() {
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Upload failed.";
       setUploadStatus(captureStatusLabel({ online: navigator.onLine, phase: "error", sent: 0, total: 0 }));
+      setResult(null);
       setError(message);
       const record = await getCapture(id);
       if (record) await putCapture({ ...record, status: "error", error: message });
@@ -473,7 +477,8 @@ export function MeasureApp() {
     return { raw: dimension, fused: fuseDimension(readings) };
   });
 
-  const step = result ? 3 : recording ? 2 : 1;
+  const saved = Boolean(result && !result.error && result.dimensions);
+  const step = saved ? 3 : recording ? 2 : 1;
   const showQueue = queue.length > 0 || busy || Boolean(error) || signal !== "online";
   const tapeOptions = result?.dimensions?.length ? result.dimensions : [{ label: "span_a" }, { label: "span_b" }, { label: "height" }, { label: "area" }];
 
@@ -490,9 +495,9 @@ export function MeasureApp() {
           <div className="capture-overlay">
             <p className="rec-indicator" role="status">
               <span className="rec-dot" aria-hidden="true" />
-              {recording ? "Recording" : result ? "Done" : "Ready"}
+              {recording ? "Recording" : saved ? "Done" : "Ready"}
             </p>
-            {!recording && !result && (
+            {!recording && !saved && (
               <div className="capture-overlay-copy">
                 <p className="sheet-reminder">Place the sheet on the floor.</p>
                 <a className="btn secondary" href="/api/calibration-target">Sheet PDF</a>
@@ -509,14 +514,14 @@ export function MeasureApp() {
           </div>
         </div>
         <div className="action-bar">
-          {result ? (
+          {saved ? (
             <Link className="btn record-btn" href="/review">Review draft</Link>
           ) : !recording ? (
             <button className="btn record-btn" type="button" onClick={() => void startCamera()}>Record</button>
           ) : (
             <button className="btn stop-btn" type="button" onClick={() => void finishRecording()}>Stop</button>
           )}
-          {!result && (
+          {!saved && (
             <label className="btn secondary">
               Upload
               <input
