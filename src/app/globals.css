@@ -553,8 +553,9 @@ html[data-theme="light"] {
 .theme-toggle { width: 44px; justify-content: center; padding: 0; }
 .theme-menu { border-radius: 8px; width: 100%; justify-content: flex-start; color: var(--ink); background: none; }
 .auth-chrome { justify-content: space-between; }
-.settings-nav { display: flex; gap: 6px; overflow-x: auto; border-bottom: 1px solid var(--line); margin-bottom: 18px; scrollbar-width: none; }
-.settings-nav button { flex: 0 0 auto; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); min-height: 44px; padding: 8px 12px; font-size: 14px; }
+.settings-nav { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.settings-nav button { flex: 0 1 auto; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); min-height: 44px; padding: 8px 12px; font-size: 14px; }
+.settings input[type="file"] { font-size: 16px; max-width: 100%; }
 .settings-nav button[aria-current="page"] { color: var(--accent-ink); border-bottom-color: var(--accent); }
 .avatar-preview { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
 .usage-chart { display: flex; align-items: flex-end; gap: 4px; min-height: 140px; overflow-x: auto; }
