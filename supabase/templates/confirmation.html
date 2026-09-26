@@ -22,7 +22,6 @@
                   </td>
                 </tr>
               </table>
-              <p style="margin:16px 0 0;font-size:13px;line-height:1.45;color:#57534e;">If the button does not open, copy this link:<br><a href="{{ if .RedirectTo }}{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=signup{{ else }}{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=signup&amp;next=/onboarding{{ end }}" style="color:#1c1917;word-break:break-all;">{{ if .RedirectTo }}{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=signup{{ else }}{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=signup&amp;next=/onboarding{{ end }}</a></p>
             </td>
           </tr>
           <tr>
