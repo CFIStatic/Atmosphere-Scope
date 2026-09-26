@@ -1,19 +1,36 @@
 <!-- Supabase dashboard: Authentication → Email templates → Confirm signup -->
-<div style="margin:0;padding:32px 16px;background:#18191b;color:#f6f5f1;font-family:Inter,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;margin:0 auto;">
+<!-- Subject: Confirm your Atmosphere Scope account -->
+<!DOCTYPE html>
+<html lang="en">
+<body style="margin:0;padding:0;background:#f4f1eb;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1eb;margin:0;padding:0;">
     <tr>
-      <td style="padding:0 0 24px;">
-        <img src="{{ .SiteURL }}/brand/lockup-transparent-for-dark-bg.png" alt="Atmosphere Scope" width="220" style="display:block;width:220px;max-width:100%;height:auto;border:0;">
-      </td>
-    </tr>
-    <tr>
-      <td style="font-size:16px;line-height:1.5;">
-        <p style="margin:0 0 16px;">Confirm this email to finish setting up your Atmosphere Scope account.</p>
-        <p style="margin:0 0 24px;">
-          <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=signup&amp;next=/account" style="display:inline-block;background:#f5c518;color:#18191b;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:10px;min-height:44px;">Confirm email</a>
-        </p>
-        <p style="margin:0;color:#a8a8a6;font-size:14px;">If you did not ask for this, you can ignore it.</p>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:100%;max-width:560px;background:#ffffff;border:1px solid #e3ded4;">
+          <tr>
+            <td style="padding:28px 32px 4px;">
+              <img src="{{ .SiteURL }}/brand/lockup-on-light.png" alt="Atmosphere Scope" width="220" style="display:block;width:220px;max-width:100%;height:auto;border:0;">
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:12px 32px 28px;font-family:Arial,Helvetica,sans-serif;color:#1c1917;font-size:16px;line-height:1.5;">
+              <p style="margin:0 0 16px;">Confirm your email to finish creating your Atmosphere Scope account.</p>
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td bgcolor="#f5c518" style="background:#f5c518;border-radius:8px;">
+                    <a href="{{ if .RedirectTo }}{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=signup{{ else }}{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=signup&amp;next=/onboarding{{ end }}" style="display:inline-block;background:#f5c518;color:#18191b;text-decoration:none;font-weight:700;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:20px;padding:12px 18px;border-radius:8px;">Confirm email</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:16px 0 0;font-size:13px;line-height:1.45;color:#57534e;">If the button does not open, copy this link:<br><a href="{{ if .RedirectTo }}{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=signup{{ else }}{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=signup&amp;next=/onboarding{{ end }}" style="color:#1c1917;word-break:break-all;">{{ if .RedirectTo }}{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=signup{{ else }}{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=signup&amp;next=/onboarding{{ end }}</a></p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:14px 32px 22px;border-top:1px solid #e3ded4;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.4;color:#57534e;">Atmosphere Scope</td>
+          </tr>
+        </table>
       </td>
     </tr>
   </table>
-</div>
+</body>
+</html>

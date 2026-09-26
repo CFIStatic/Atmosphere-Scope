@@ -1,5 +1,5 @@
-<!-- Supabase dashboard: Authentication → Email templates → Reset password -->
-<!-- Subject: Reset your Atmosphere Scope password -->
+<!-- Supabase dashboard: Authentication → Email templates → Change email address -->
+<!-- Subject: Confirm your new Atmosphere Scope email -->
 <!DOCTYPE html>
 <html lang="en">
 <body style="margin:0;padding:0;background:#f4f1eb;">
@@ -14,15 +14,15 @@
           </tr>
           <tr>
             <td style="padding:12px 32px 28px;font-family:Arial,Helvetica,sans-serif;color:#1c1917;font-size:16px;line-height:1.5;">
-              <p style="margin:0 0 16px;">Reset the password for your Atmosphere Scope account.</p>
+              <p style="margin:0 0 16px;">Confirm this address as your new Atmosphere Scope email.</p>
               <table role="presentation" cellpadding="0" cellspacing="0">
                 <tr>
                   <td bgcolor="#f5c518" style="background:#f5c518;border-radius:8px;">
-                    <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=recovery&amp;next=/auth/reset" style="display:inline-block;background:#f5c518;color:#18191b;text-decoration:none;font-weight:700;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:20px;padding:12px 18px;border-radius:8px;">Reset password</a>
+                    <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=email_change&amp;next=/account" style="display:inline-block;background:#f5c518;color:#18191b;text-decoration:none;font-weight:700;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:20px;padding:12px 18px;border-radius:8px;">Confirm email</a>
                   </td>
                 </tr>
               </table>
-              <p style="margin:16px 0 0;font-size:13px;line-height:1.45;color:#57534e;">If the button does not open, copy this link:<br><a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=recovery&amp;next=/auth/reset" style="color:#1c1917;word-break:break-all;">{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=recovery&amp;next=/auth/reset</a></p>
+              <p style="margin:16px 0 0;font-size:13px;line-height:1.45;color:#57534e;">If the button does not open, copy this link:<br><a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=email_change&amp;next=/account" style="color:#1c1917;word-break:break-all;">{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=email_change&amp;next=/account</a></p>
             </td>
           </tr>
           <tr>

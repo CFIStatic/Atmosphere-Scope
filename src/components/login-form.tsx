@@ -55,12 +55,12 @@ export function LoginForm({ nextPath, notice }: { nextPath: string; notice: stri
   );
 }
 
-export function LoginExtras({ devFallback, nextPath }: { devFallback: boolean; nextPath: string }) {
+export function LoginExtras({ devFallback, nextPath, resendOpen = false }: { devFallback: boolean; nextPath: string; resendOpen?: boolean }) {
   const [confirmNote, setConfirmNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   return (
     <div className="auth-extra">
-      <details className="quiet">
+      <details className="quiet" {...(resendOpen ? { open: true } : {})}>
         <summary>Resend confirmation</summary>
         <form className="grid" onSubmit={async (event) => {
           event.preventDefault();
