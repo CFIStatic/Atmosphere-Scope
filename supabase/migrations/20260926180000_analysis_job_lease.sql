@@ -15,6 +15,8 @@ create table if not exists public.analysis_jobs (
   lease_until timestamptz,
   last_error text,
   stage text,
+  org_id text,
+  actor_email text,
   updated_at timestamptz not null default now()
 );
 

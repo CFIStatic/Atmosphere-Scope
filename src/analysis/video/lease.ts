@@ -18,6 +18,8 @@ export type AnalysisJobRow = {
   leaseUntil: string | null;
   lastError: string | null;
   stage: string | null;
+  orgId: string | null;
+  actorEmail: string | null;
   updatedAt: string;
 };
 

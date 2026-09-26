@@ -1,4 +1,4 @@
-import { selectMeasurementBackend, selectPricingProvider, selectStorage, type Env } from "@/analysis/config";
+import { inventoryVisionModel, selectMeasurementBackend, selectPricingProvider, selectStorage, visionModel, type Env } from "@/analysis/config";
 
 export type ProviderRow = {
   stage: string;
@@ -15,7 +15,8 @@ export function providerStatus(env: Env = process.env): ProviderRow[] {
   const measurement = selectMeasurementBackend(env);
   const storage = selectStorage(env);
   const transcribeModel = env.OPENAI_TRANSCRIBE_MODEL?.trim() || "gpt-4o-mini-transcribe";
-  const visionModel = env.OPENAI_VISION_MODEL?.trim() || "gpt-4o-mini";
+  const triage = visionModel(env);
+  const inventory = inventoryVisionModel(env);
   return [
     {
       stage: "Room measurement",
@@ -37,9 +38,9 @@ export function providerStatus(env: Env = process.env): ProviderRow[] {
       stage: "Object identification",
       env: "OPENAI_API_KEY",
       ready: openai,
-      provider: `OpenAI ${visionModel} vision`,
-      cost: "typically under about $0.01 per keyframe, at most 4 keyframes",
-      note: openai ? "Key is set. Names can be wrong. Vision does not measure the room." : "Key missing. Objects are not invented.",
+      provider: `OpenAI ${inventory} inventory, ${triage} keyframe notes`,
+      cost: "about $1.54 per walkthrough minute at 12 distinct frames on gpt-6-astra; keyframe notes stay near $0.01 each on gpt-4o-mini",
+      note: openai ? "Key is set. Names can be wrong. Vision does not measure the room. OPENAI_VISION_MODEL overrides the inventory model." : "Key missing. Objects are not invented.",
     },
     {
       stage: "Replacement prices",

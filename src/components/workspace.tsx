@@ -144,6 +144,7 @@ export function Workspace({ initialJob, canShare = false }: { initialJob: Job; c
         </div>
       </header>
       <TodayStrip job={job} />
+      <AnalysisStatus job={job} />
       {error && <p className="error">{error}</p>}
       {renameOpen && (
         <form className="panel grid" onSubmit={async (event) => {
@@ -349,11 +350,20 @@ function TodayStrip({ job }: { job: Job }) {
   const real = job.media.filter((item) => localDateKey(item.createdAt) === today && item.note?.trim() !== SAMPLE_MEDIA_NOTE).length;
   const [events, setEvents] = useState<string[]>([]);
   useEffect(() => {
-    void fetch(`/api/jobs/${job.id}/events`).then(async (response) => {
-      if (!response.ok) return;
-      const body = await response.json();
-      setEvents(Array.isArray(body.today) ? body.today.filter((item: unknown) => typeof item === "string" && item.trim()) : []);
-    }).catch(() => undefined);
+    let stop = false;
+    const load = () => {
+      void fetch(`/api/jobs/${job.id}/events`).then(async (response) => {
+        if (!response.ok || stop) return;
+        const body = await response.json();
+        setEvents(Array.isArray(body.today) ? body.today.filter((item: unknown) => typeof item === "string" && item.trim()) : []);
+      }).catch(() => undefined);
+    };
+    load();
+    const timer = window.setInterval(load, 4000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
   }, [job.id, job.updatedAt]);
   if (!real && events.length === 0) return null;
   const bits = [
@@ -364,6 +374,51 @@ function TodayStrip({ job }: { job: Job }) {
     <p className="job-file-today" data-testid="job-file-today">
       <strong>What changed today</strong>
       <span className="meta">{bits.join(" · ")}</span>
+    </p>
+  );
+}
+
+function AnalysisStatus({ job }: { job: Job }) {
+  const [row, setRow] = useState<{ status: string; label: string; error: string | null; mediaId: string | null } | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let stop = false;
+    const load = () => {
+      void fetch(`/api/analysis/queue?jobId=${encodeURIComponent(job.id)}`).then(async (response) => {
+        if (!response.ok || stop) return;
+        const body = await response.json();
+        setRow(body.status ? body : null);
+      }).catch(() => undefined);
+    };
+    load();
+    const timer = window.setInterval(load, 3000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
+  }, [job.id, job.updatedAt]);
+  if (!row) return null;
+  return (
+    <p className="row" data-testid="analysis-status">
+      <span className="badge">{row.label}</span>
+      {row.status === "failed" && row.error ? <span className="meta">{row.error}</span> : null}
+      {row.status === "failed" && row.mediaId ? (
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            void fetch("/api/analysis/queue", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ jobId: job.id, mediaId: row.mediaId }),
+            }).finally(() => setBusy(false));
+          }}
+        >
+          Retry
+        </button>
+      ) : null}
     </p>
   );
 }

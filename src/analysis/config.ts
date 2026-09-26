@@ -152,8 +152,19 @@ export function transcribeModel(env: Env = process.env): string {
   return trimmed(env, "OPENAI_TRANSCRIBE_MODEL") || "gpt-4o-mini-transcribe";
 }
 
-export function visionModel(env: Env = process.env): string {
-  return trimmed(env, "OPENAI_VISION_MODEL") || "gpt-4o-mini";
+/** Cheap keyframe notes. Stays on gpt-4o-mini. Inventory uses inventoryVisionModel. */
+export function visionModel(_env: Env = process.env): string {
+  return "gpt-4o-mini";
+}
+
+/**
+ * Inventory and damage assessment.
+ * `OPENAI_VISION_MODEL` overrides this. Unset uses gpt-6-astra, which accepts
+ * images on Chat Completions (developers.openai.com/api/docs/models/gpt-6-astra).
+ * The keyframe notes path stays on gpt-4o-mini unless that override is set.
+ */
+export function inventoryVisionModel(env: Env = process.env): string {
+  return trimmed(env, "OPENAI_VISION_MODEL") || "gpt-6-astra";
 }
 
 export function pricingModel(env: Env = process.env): string {

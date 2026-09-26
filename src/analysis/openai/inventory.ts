@@ -1,4 +1,5 @@
-import { visionModel, type Env } from "@/analysis/config";
+import { inventoryVisionModel, type Env } from "@/analysis/config";
+import { noteModelUse, type UsageAttribution } from "@/analysis/usage-log";
 import { OBJECT_CATEGORIES, DAMAGE_TYPES, type RawDetection } from "@/analysis/objects/detect";
 import type { TileRef } from "@/analysis/objects/detect";
 import { usageFromChat } from "@/analysis/video/cost";
@@ -65,9 +66,11 @@ export async function inventoryFrame(input: {
   crops?: { tile: { row: number; col: number; rows: number; cols: number }; bytes: Uint8Array; mimeType: string }[];
   env?: Env;
   fetchImpl?: typeof fetch;
+  jobId?: string | null;
+  attribution?: UsageAttribution;
 }): Promise<{ detections: RawDetection[]; stage: AnalysisStageCost; note: string }> {
   const env = input.env ?? process.env;
-  const model = visionModel(env);
+  const model = inventoryVisionModel(env);
   if (!openaiVisionConfigured(env)) {
     return { detections: [], stage: usageFromChat(null, 0, model, "inventory"), note: "OPENAI_API_KEY is not set. Objects were not invented." };
   }
@@ -86,6 +89,7 @@ export async function inventoryFrame(input: {
       headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
+        ...(usesReasoningEffort(model) ? { reasoning_effort: "low" } : {}),
         response_format: { type: "json_schema", json_schema: { name: "frame_inventory", strict: true, schema: inventorySchema() } },
         messages: [{
           role: "user",
@@ -97,6 +101,7 @@ export async function inventoryFrame(input: {
       }),
     });
     const payload = await response.json().catch(() => null);
+    await noteModelUse(payload, model, input.jobId, input.attribution);
     const usage = payload && typeof payload === "object" ? (payload as { usage?: { prompt_tokens?: number; completion_tokens?: number } }).usage : undefined;
     inputTokens += usage?.prompt_tokens ?? 0;
     outputTokens += usage?.completion_tokens ?? 0;
@@ -111,6 +116,10 @@ export async function inventoryFrame(input: {
   }
   const stage = usageFromChat({ usage: { prompt_tokens: inputTokens, completion_tokens: outputTokens } }, Date.now() - started, model, "inventory");
   return { detections, stage, note: detections.length ? "Names come from a vision model. They can be wrong, and they are not measurements." : "No object passed validation. Nothing was invented." };
+}
+
+function usesReasoningEffort(model: string): boolean {
+  return model.startsWith("gpt-5") || model.startsWith("gpt-6");
 }
 
 export function detectionsFromPayload(parsed: unknown, input: { frameId: string; mediaId: string; timeMs: number; roomHint: string | null }, tile: TileRef | null): RawDetection[] {

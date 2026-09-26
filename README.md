@@ -38,7 +38,7 @@ The minimum setup for the full walkthrough is one key: `OPENAI_API_KEY`. Copy `.
 | --- | --- | --- | --- |
 | Measurement, calibration PDF, plane fit | none | Local OpenCV (`measure/requirements.txt`) and ffmpeg | $0 |
 | Transcription | `OPENAI_API_KEY` | `gpt-4o-mini-transcribe` (override with `OPENAI_TRANSCRIBE_MODEL`; `whisper-1` is about $0.006/min) | a few tenths of a cent per minute |
-| Object identification | `OPENAI_API_KEY` | `gpt-4o-mini` vision. The older notes path reads at most 4 keyframes. The exhaustive inventory reads distinct frames and 2×2 crops, with a safety ceiling of 120 frames | about $0.02–$0.04 per walkthrough minute at ~12 distinct frames; a busy camera near 60 frames is closer to $0.10/min plus transcription |
+| Object identification | `OPENAI_API_KEY` | Inventory and damage assessment default to `gpt-6-astra` (`OPENAI_VISION_MODEL` overrides it). The older notes path uses `gpt-4o-mini` and at most 4 keyframes. The exhaustive inventory reads distinct frames and 2×2 crops, with a safety ceiling of 120 frames. The Node server polls the leased queue | about $1.54 per walkthrough minute at ~12 distinct frames ($10 / $50 per 1M tokens). A busy camera near 60 frames is closer to $7.70 of vision plus $0.003 transcription |
 | Replacement price | `OPENAI_API_KEY` | Responses API `web_search`, then a server fetch of the product page | billed per search, often cents per item plus tokens |
 | Storage | none | JSON and files in `data/` | $0 |
 
@@ -73,7 +73,7 @@ npm test
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Jobs are stored as JSON in `data/` (gitignored). Uploaded media stays in `data/media` and is served only through the job route. To use Supabase instead, set `STORAGE=supabase` plus the project URL and secret key, and apply `supabase/migrations/20260925160000_jobs_shares_rls.sql` and `supabase/migrations/20260926180000_analysis_job_lease.sql`. Missing Supabase settings are an error. The app does not silently keep writing to disk. The analysis lease table is the durable queue for video inventory. Without Supabase, the same queue is `data/analysis-jobs.json`.
+Open [http://localhost:3000](http://localhost:3000). Jobs are stored as JSON in `data/` (gitignored). Uploaded media stays in `data/media` and is served only through the job route. To use Supabase instead, set `STORAGE=supabase` plus the project URL and secret key, and apply `supabase/migrations/20260925160000_jobs_shares_rls.sql`, `supabase/migrations/20260926160000_account_settings.sql`, `supabase/migrations/20260926170000_member_policy_no_recursion.sql`, `supabase/migrations/20260926180000_analysis_job_lease.sql`, and `supabase/migrations/20260926181000_analysis_job_actor.sql`. Missing Supabase settings are an error. The app does not silently keep writing to disk. The analysis lease table is the durable queue for video inventory. The Node server polls it every few seconds and also starts a job as soon as a video upload is queued. `POST /api/analysis/tick` remains a manual trigger. Without Supabase, the same queue is `data/analysis-jobs.json`.
 
 ## Continuous integration
 
@@ -103,7 +103,7 @@ Set variables on the Railway service. Do not use `NEXT_PUBLIC_` for any key, and
 
 Add a volume mounted at `/data` and set `DATA_DIR=/data`. Railway's container disk is ephemeral. The volume holds in-progress capture chunks. With local storage it also holds job JSON, media, walkthroughs, and the catalog. The phone still has its copy of a capture in IndexedDB and can upload again.
 
-To keep finished jobs, walkthroughs, the catalog, and video in Supabase, set `STORAGE=supabase` plus the URL and secret key, and apply `supabase/migrations/20260925160000_jobs_shares_rls.sql` and `supabase/migrations/20260926180000_analysis_job_lease.sql`. The bucket stays private. Chunks for a capture that is still uploading remain under `DATA_DIR/uploads` until the server stores the finished video, so the volume is still the scratch space. The service role key stays a service variable. It is not sent to the browser. `ANALYSIS_LEASE_MS` is optional (default 120000) and is not required for a deploy.
+To keep finished jobs, walkthroughs, the catalog, and video in Supabase, set `STORAGE=supabase` plus the URL and secret key, and apply `supabase/migrations/20260925160000_jobs_shares_rls.sql`, `supabase/migrations/20260926160000_account_settings.sql`, `supabase/migrations/20260926170000_member_policy_no_recursion.sql`, `supabase/migrations/20260926180000_analysis_job_lease.sql`, and `supabase/migrations/20260926181000_analysis_job_actor.sql`. The bucket stays private. Chunks for a capture that is still uploading remain under `DATA_DIR/uploads` until the server stores the finished video, so the volume is still the scratch space. The service role key stays a service variable. It is not sent to the browser. `ANALYSIS_LEASE_MS` (default 120000) and `ANALYSIS_POLL_MS` (default 4000) are optional and are not required for a deploy.
 
 These are the variables to set on the Railway service before a hosted deploy. Values are not listed here.
 

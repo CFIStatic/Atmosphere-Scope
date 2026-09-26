@@ -1,20 +1,22 @@
 /**
  * Token and dollar log for one walkthrough.
  * Rates are OpenAI list rates used for planning. They are not an invoice.
- * gpt-4o-mini: $0.15 / 1M input, $0.60 / 1M output.
- * gpt-4o-mini-transcribe: $0.003 per minute (a few tenths of a cent).
+ * Inventory default gpt-6-astra: $10 / 1M input, $50 / 1M output.
+ * Keyframe triage gpt-4o-mini: $0.15 / 1M input, $0.60 / 1M output.
+ * gpt-4o-mini-transcribe: $0.003 per minute.
  */
 
 import type { AnalysisCostLog, AnalysisStageCost } from "@/domain/types";
+import { listCostUsd } from "@/domain/workspace";
 
-export const MINI_INPUT_USD_PER_TOKEN = 0.15 / 1_000_000;
-export const MINI_OUTPUT_USD_PER_TOKEN = 0.60 / 1_000_000;
+export const INVENTORY_MODEL = "gpt-6-astra";
+export const TRIAGE_MODEL = "gpt-4o-mini";
 export const TRANSCRIBE_USD_PER_MINUTE = 0.003;
 
-export function tokensToUsd(inputTokens: number, outputTokens: number): number {
+export function tokensToUsd(inputTokens: number, outputTokens: number, model = INVENTORY_MODEL): number {
   const input = Number.isFinite(inputTokens) ? Math.max(0, inputTokens) : 0;
   const output = Number.isFinite(outputTokens) ? Math.max(0, outputTokens) : 0;
-  return round6(input * MINI_INPUT_USD_PER_TOKEN + output * MINI_OUTPUT_USD_PER_TOKEN);
+  return listCostUsd(model, input, output) ?? 0;
 }
 
 export function stageCost(stage: string, model: string, inputTokens: number, outputTokens: number, latencyMs: number): AnalysisStageCost {
@@ -24,7 +26,7 @@ export function stageCost(stage: string, model: string, inputTokens: number, out
     inputTokens: Math.max(0, Math.round(inputTokens) || 0),
     outputTokens: Math.max(0, Math.round(outputTokens) || 0),
     latencyMs: Math.max(0, Math.round(latencyMs) || 0),
-    estimatedUsd: tokensToUsd(inputTokens, outputTokens),
+    estimatedUsd: tokensToUsd(inputTokens, outputTokens, model),
   };
 }
 
@@ -48,16 +50,18 @@ export function costLog(input: { mediaId?: string | null; durationSeconds?: numb
  * 12 distinct frames after the diversity filter. Each frame is a full image plus a
  * 2×2 crop grid (five vision requests). The token counts below are a planning
  * allowance for that set, about 4,800 input and 1,600 output per distinct frame,
- * plus transcription. Live usage is whatever the provider returns.
+ * plus transcription. Live usage is whatever the provider returns, including
+ * reasoning tokens billed as output.
  * A static camera keeps fewer frames, so this is the high side of a normal minute.
  */
-export function expectedWalkthroughMinuteUsd(opts?: { distinctFrames?: number; inputTokensPerFrame?: number; outputTokensPerFrame?: number }): { visionUsd: number; transcribeUsd: number; totalUsd: number; distinctFrames: number } {
+export function expectedWalkthroughMinuteUsd(opts?: { distinctFrames?: number; inputTokensPerFrame?: number; outputTokensPerFrame?: number; model?: string }): { visionUsd: number; transcribeUsd: number; totalUsd: number; distinctFrames: number; model: string } {
   const distinctFrames = opts?.distinctFrames ?? 12;
   const inputTokens = opts?.inputTokensPerFrame ?? 4800;
   const outputTokens = opts?.outputTokensPerFrame ?? 1600;
-  const visionUsd = tokensToUsd(distinctFrames * inputTokens, distinctFrames * outputTokens);
+  const model = opts?.model ?? INVENTORY_MODEL;
+  const visionUsd = tokensToUsd(distinctFrames * inputTokens, distinctFrames * outputTokens, model);
   const transcribeUsd = TRANSCRIBE_USD_PER_MINUTE;
-  return { visionUsd, transcribeUsd, totalUsd: round6(visionUsd + transcribeUsd), distinctFrames };
+  return { visionUsd, transcribeUsd, totalUsd: round6(visionUsd + transcribeUsd), distinctFrames, model };
 }
 
 export function usageFromChat(body: unknown, latencyMs: number, model: string, stage: string): AnalysisStageCost {

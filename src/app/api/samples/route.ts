@@ -18,8 +18,8 @@ export async function POST(request: Request) {
     ? costLog({
       mediaId: bundle.media[0]?.id ?? null,
       durationSeconds: 45,
-      stages: [{ stage: "inventory", model: "gpt-4o-mini", inputTokens: minute.distinctFrames * 4800, outputTokens: minute.distinctFrames * 1600, latencyMs: 0, estimatedUsd: minute.visionUsd }],
-      note: "Planning estimate for about one minute at gpt-4o-mini list rates (12 distinct frames, full frame plus a 2×2 crop grid). Not an invoice and not a live call. The sample objects were scored from the fixture.",
+      stages: [{ stage: "inventory", model: minute.model, inputTokens: minute.distinctFrames * 4800, outputTokens: minute.distinctFrames * 1600, latencyMs: 0, estimatedUsd: minute.visionUsd }],
+      note: "Planning estimate for about one minute at gpt-6-astra list rates (12 distinct frames, full frame plus a 2×2 crop grid). Not an invoice and not a live call. The sample objects were scored from the fixture.",
     })
     : undefined;
   const created = createEmptyJob({

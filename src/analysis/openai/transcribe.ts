@@ -1,5 +1,6 @@
 import { openaiKey, redact, transcribeModel, type Env } from "@/analysis/config";
 import { screenText } from "@/analysis/guard";
+import { noteModelUse, type UsageAttribution } from "@/analysis/usage-log";
 
 export type TranscriptionResult = {
   status: "ok" | "missing_key" | "failed";
@@ -10,7 +11,7 @@ export type TranscriptionResult = {
 
 export async function transcribeWithOpenAI(
   file: { filename: string; bytes: Uint8Array; mimeType: string } | null,
-  options: { env?: Env; fetchImpl?: typeof fetch } = {},
+  options: { env?: Env; fetchImpl?: typeof fetch; jobId?: string | null; attribution?: UsageAttribution } = {},
 ): Promise<TranscriptionResult> {
   const env = options.env ?? process.env;
   const key = openaiKey(env);
@@ -32,6 +33,7 @@ export async function transcribeWithOpenAI(
       body: form,
     });
     const payload = await response.json().catch(() => null);
+    await noteModelUse(payload, transcribeModel(env), options.jobId, options.attribution);
     if (!response.ok) {
       return { status: "failed", text: null, note: `Transcription failed (${response.status}). Narration was not invented.`, injectionFlags: [] };
     }

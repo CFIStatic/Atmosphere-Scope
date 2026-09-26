@@ -18,6 +18,9 @@ import { needsAnalysisReclaim } from "./sweep";
 import { claimNext, completeJob, failJob, type AnalysisJobRow } from "./lease";
 import { claimJob, memoryStore } from "./job-queue";
 import { expectedWalkthroughMinuteUsd, tokensToUsd } from "./cost";
+import { analysisPollMs } from "./supervisor";
+import { publicAnalysisStatus } from "./status";
+import { inventoryVisionModel } from "@/analysis/config";
 import { prepareFrames } from "./intelligence";
 import { stitchWindowTranscripts, transcriptWindows } from "./proof-transcript";
 import { cropFilter } from "@/analysis/objects/tiles";
@@ -36,7 +39,7 @@ function solid(level: number, size = 12_000): Buffer {
 function row(id: string, overrides: Partial<AnalysisJobRow> = {}): AnalysisJobRow {
   return {
     id, jobId: "job", mediaId: "med", status: "pending", attempts: 0, maxAttempts: 3,
-    leaseOwner: null, leaseUntil: null, lastError: null, stage: null, updatedAt: "2026-09-26T00:00:00.000Z",
+    leaseOwner: null, leaseUntil: null, lastError: null, stage: null, orgId: null, actorEmail: null, updatedAt: "2026-09-26T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -150,10 +153,18 @@ describe("ported video infrastructure", () => {
 
   it("prices a planning minute from list rates without treating it as an invoice", () => {
     const minute = expectedWalkthroughMinuteUsd();
-    expect(minute.totalUsd).toBeGreaterThan(0.02);
-    expect(minute.totalUsd).toBeLessThan(0.04);
+    expect(minute.model).toBe("gpt-6-astra");
+    expect(minute.totalUsd).toBeGreaterThan(1.5);
+    expect(minute.totalUsd).toBeLessThan(1.6);
     expect(minute.transcribeUsd).toBe(0.003);
     expect(tokensToUsd(0, 0)).toBe(0);
+    expect(tokensToUsd(1_000_000, 0, "gpt-4o-mini")).toBe(0.15);
     expect(minute.distinctFrames).toBe(12);
+    expect(inventoryVisionModel({})).toBe("gpt-6-astra");
+    expect(inventoryVisionModel({ OPENAI_VISION_MODEL: "gpt-4o-mini" })).toBe("gpt-4o-mini");
+    expect(publicAnalysisStatus({ status: "pending", stage: "queued" })).toBe("queued");
+    expect(publicAnalysisStatus({ status: "running", stage: "inventorying" })).toBe("inventorying");
+    expect(publicAnalysisStatus({ status: "failed", stage: "failed" })).toBe("failed");
+    expect(analysisPollMs({})).toBe(4000);
   });
 });

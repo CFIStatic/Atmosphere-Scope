@@ -19,8 +19,11 @@ import { parseVerbatimTranscript } from "./verbatim-transcript";
 import { defaultRunner, extractFrames, probeMetadata, type CommandRunner } from "./extract";
 import { prepareFrames } from "./intelligence";
 import { costLog } from "./cost";
-import { claimJob, type AnalysisJobStore } from "./job-queue";
-import { completeJob, failJob } from "./lease";
+import { claimJob, updateJobRow, type AnalysisJobStore } from "./job-queue";
+import type { AnalysisJobRow } from "./lease";
+import { analysisEventSummary, publicAnalysisStatus } from "./status";
+import type { UsageAttribution } from "@/analysis/usage-log";
+import { addJobEvent } from "@/storage/workspace-book";
 
 export function leaseOwner(): string {
   return `${hostname()}:${process.pid}`;
@@ -44,6 +47,8 @@ export async function tickAnalysisQueue(input: {
   const nowMs = input.nowMs ?? Date.now();
   const claimed = await claimJob(input.store, nowMs, leaseOwner(), leaseMs(input.env));
   if (!claimed) return { claimed: null, status: "idle" };
+  const attribution: UsageAttribution = { orgId: claimed.orgId, userEmail: claimed.actorEmail ?? "" };
+  const report = (stage: "extracting" | "inventorying" | "assessing" | "pricing") => reportAnalysisStage(input.store, claimed, stage, input.env);
   try {
     const job = await input.loadJob(claimed.jobId);
     if (!job) throw new Error("Job was not found.");
@@ -60,17 +65,47 @@ export async function tickAnalysisQueue(input: {
       runner: input.runner,
       env: input.env,
       fetchImpl: input.fetchImpl,
+      attribution,
+      onStage: report,
     });
     await input.saveJob(analyzed);
-    const rows = completeJob(await input.store.list(), claimed.id, Date.now());
-    await input.store.save(rows);
+    await updateJobRow(input.store, claimed.id, { status: "complete", leaseOwner: null, leaseUntil: null, lastError: null, stage: "complete" });
+    await recordAnalysisEvent(claimed, "done");
     return { claimed: claimed.id, status: "complete" };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Analysis failed.";
-    const rows = failJob(await input.store.list(), claimed.id, Date.now(), message);
-    await input.store.save(rows);
+    const attempts = claimed.attempts + 1;
+    const exhausted = attempts >= claimed.maxAttempts;
+    await updateJobRow(input.store, claimed.id, {
+      attempts,
+      status: exhausted ? "failed" : "pending",
+      leaseOwner: null,
+      leaseUntil: null,
+      lastError: message.slice(0, 500),
+      stage: exhausted ? "failed" : "retry",
+    });
+    if (exhausted) await recordAnalysisEvent(claimed, "failed", message.slice(0, 240));
     return { claimed: claimed.id, status: "retry" };
   }
+}
+
+async function reportAnalysisStage(store: AnalysisJobStore, claimed: AnalysisJobRow, stage: "extracting" | "inventorying" | "assessing" | "pricing", env?: Record<string, string | undefined>): Promise<void> {
+  const now = Date.now();
+  await updateJobRow(store, claimed.id, {
+    stage,
+    leaseOwner: leaseOwner(),
+    leaseUntil: new Date(now + leaseMs(env)).toISOString(),
+  });
+  await recordAnalysisEvent(claimed, publicAnalysisStatus({ status: "running", stage }));
+}
+
+async function recordAnalysisEvent(claimed: AnalysisJobRow, status: "queued" | "extracting" | "inventorying" | "assessing" | "pricing" | "done" | "failed", error?: string): Promise<void> {
+  await addJobEvent({
+    jobId: claimed.jobId,
+    orgId: claimed.orgId,
+    actorEmail: claimed.actorEmail ?? "",
+    summary: analysisEventSummary(status, error),
+  }).catch(() => undefined);
 }
 
 export async function analyzeVideoBytes(input: {
@@ -82,9 +117,12 @@ export async function analyzeVideoBytes(input: {
   runner?: CommandRunner;
   env?: Record<string, string | undefined>;
   fetchImpl?: typeof fetch;
+  attribution?: UsageAttribution;
+  onStage?: (stage: "extracting" | "inventorying" | "assessing" | "pricing") => Promise<void>;
 }): Promise<Job> {
   const dir = await mkdtemp(join(tmpdir(), "scope-walk-"));
   try {
+    await input.onStage?.("extracting");
     const filePath = join(dir, "walk.mp4");
     await writeFile(filePath, input.bytes);
     const meta = await probeMetadata(filePath, input.runner);
@@ -98,6 +136,7 @@ export async function analyzeVideoBytes(input: {
     const diverse = prepareFrames(loaded, { durationSeconds: meta.durationSeconds ?? undefined });
     const detections: RawDetection[] = [];
     const stages = [];
+    await input.onStage?.("inventorying");
     for (const frame of diverse) {
       const source = loaded.find((item) => item.atSeconds === frame.atSeconds);
       if (!source) continue;
@@ -122,11 +161,16 @@ export async function analyzeVideoBytes(input: {
         crops,
         env: input.env,
         fetchImpl: input.fetchImpl,
+        jobId: input.job.id,
+        attribution: input.attribution,
       });
       detections.push(...inventory.detections);
       stages.push(inventory.stage);
     }
-    const speech = await transcribeWithOpenAI({ filename: input.filename, bytes: new Uint8Array(input.bytes), mimeType: input.mimeType }, { env: input.env, fetchImpl: input.fetchImpl });
+    const speech = await transcribeWithOpenAI(
+      { filename: input.filename, bytes: new Uint8Array(input.bytes), mimeType: input.mimeType },
+      { env: input.env, fetchImpl: input.fetchImpl, jobId: input.job.id, attribution: input.attribution },
+    );
     const transcripts = speech.text ? segmentsFromTranscript(input.mediaId, speech.text) : input.job.transcripts;
     const log = costLog({
       mediaId: input.mediaId,
@@ -134,8 +178,10 @@ export async function analyzeVideoBytes(input: {
       stages,
       note: speech.status === "missing_key"
         ? "OPENAI_API_KEY is not set. Objects and narration were not invented. Transcription cost is a planning rate for the duration only."
-        : "Token cost uses the usage the provider returned and gpt-4o-mini list rates. It is not an invoice.",
+        : "Token cost uses the usage the provider returned and published list rates. It is not an invoice.",
     });
+    await input.onStage?.("assessing");
+    await input.onStage?.("pricing");
     return runPipeline(input.job, {
       media: input.job.media,
       transcripts: transcripts.length ? transcripts : input.job.transcripts,
