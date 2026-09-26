@@ -10,7 +10,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
   return (
     <AuthCard
       title={step === 2 ? "Set up the company" : "Create your account"}
-      lede={step === 2 ? "Add the address and license that will appear on estimates. Empty fields stay empty." : "Your company gets its own workspace. You are its admin."}
+      lede={step === 2 ? "Add the address and license that will appear on estimates. Empty fields stay empty." : "Start your company's Atmosphere Scope account."}
     >
       <SignupForm step={step} nextPath={safeNext(params.next)} email={params.email ?? ""} />
     </AuthCard>
