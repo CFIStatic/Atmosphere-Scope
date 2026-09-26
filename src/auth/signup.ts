@@ -2,6 +2,19 @@ import type { AccountRole } from "@/auth/gate";
 
 export const SIGNUP_EXISTS = "An account with this email already exists. Sign in, or open the invite from your admin.";
 
+/** The name collected at signup. Kept on the auth user so a later org row can still use it. */
+export function signupIdentity(fullName: string): { fullName: string; userMetadata: { name: string; full_name: string } } {
+  const name = fullName.trim();
+  return { fullName: name, userMetadata: { name, full_name: name } };
+}
+
+/** Read the signup name back off the auth user. Confirmation can finish before the company row exists. */
+export function nameFromSignupMetadata(metadata: { name?: unknown; full_name?: unknown } | null | undefined): string {
+  const full = typeof metadata?.full_name === "string" ? metadata.full_name.trim() : "";
+  const name = typeof metadata?.name === "string" ? metadata.name.trim() : "";
+  return full || name;
+}
+
 export type SignupMembership = { orgId: string; role: AccountRole; revoked: boolean } | null;
 
 export type SignupPlan =

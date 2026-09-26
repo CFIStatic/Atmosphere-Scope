@@ -195,11 +195,12 @@ export async function saveOrg(
   email: string,
   role: AccountRole,
   input: { name: string; address: string; licenseNumbers: string; logoUrl?: string },
-  options?: { onboardingComplete?: boolean },
+  options?: { onboardingComplete?: boolean; fullName?: string },
 ): Promise<Org> {
   const name = input.name.trim();
   if (name.length < 2) throw new Error("Enter the company name.");
   const onboardingComplete = options?.onboardingComplete !== false;
+  const fullName = options?.fullName?.trim() ?? "";
   const existing = await membershipFor(userId);
   if (existing && existing.member.role !== "admin") throw new Error("An admin has to update the company.");
   if (remote()) {
@@ -213,7 +214,11 @@ export async function saveOrg(
         updated_at: new Date().toISOString(),
       }).eq("id", existing.org.id);
       fail(error);
-      await saveProfile(userId, email, { onboardingComplete });
+      if (fullName && !existing.member.fullName) {
+        const named = await client.from("org_members").update({ full_name: fullName }).eq("org_id", existing.org.id).eq("user_id", userId);
+        fail(named.error);
+      }
+      await saveProfile(userId, email, fullName ? { onboardingComplete, fullName } : { onboardingComplete });
       return { ...existing.org, name, address: input.address.trim(), licenseNumbers: input.licenseNumbers.trim(), logoUrl: input.logoUrl ?? existing.org.logoUrl };
     }
     const id = crypto.randomUUID();
@@ -223,7 +228,7 @@ export async function saveOrg(
       org_id: id,
       user_id: userId,
       email,
-      full_name: "",
+      full_name: fullName,
       role,
     });
     fail(member.error);
@@ -236,7 +241,7 @@ export async function saveOrg(
       labor_rates: [],
     });
     fail(defaults.error);
-    await saveProfile(userId, email, { onboardingComplete });
+    await saveProfile(userId, email, fullName ? { onboardingComplete, fullName } : { onboardingComplete });
     return { id, name, address: input.address.trim(), logoUrl: input.logoUrl ?? "", licenseNumbers: input.licenseNumbers.trim() };
   }
   return mutate((book) => {
@@ -248,16 +253,23 @@ export async function saveOrg(
       org.licenseNumbers = input.licenseNumbers.trim();
       if (input.logoUrl != null) org.logoUrl = input.logoUrl;
       const profile = book.profiles.find((item) => item.userId === userId);
-      if (profile) profile.onboardingComplete = onboardingComplete;
+      if (profile) {
+        profile.onboardingComplete = onboardingComplete;
+        if (fullName && !profile.fullName) profile.fullName = fullName;
+      }
+      const member = book.members.find((item) => item.orgId === org.id && item.userId === userId && !item.revokedAt);
+      if (member && fullName && !member.fullName) member.fullName = fullName;
       return org;
     }
     const org: Org = { id: crypto.randomUUID(), name, address: input.address.trim(), logoUrl: input.logoUrl ?? "", licenseNumbers: input.licenseNumbers.trim() };
     book.orgs.push(org);
-    book.members.push({ orgId: org.id, userId, email, fullName: "", role, revokedAt: null });
+    book.members.push({ orgId: org.id, userId, email, fullName, role, revokedAt: null });
     book.defaults.push(blankDefaults(org.id));
     const profile = book.profiles.find((item) => item.userId === userId);
-    if (profile) profile.onboardingComplete = onboardingComplete;
-    else book.profiles.push({ userId, email, fullName: "", avatarUrl: "", onboardingComplete });
+    if (profile) {
+      profile.onboardingComplete = onboardingComplete;
+      if (fullName) profile.fullName = fullName;
+    } else book.profiles.push({ userId, email, fullName, avatarUrl: "", onboardingComplete });
     return org;
   });
 }

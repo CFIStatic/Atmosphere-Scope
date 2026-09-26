@@ -4,8 +4,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { canSeeJob } from "@/auth/gate";
 import { resetRateLimits } from "@/auth/rate-limit";
-import { signupOutcome, signupPlan } from "@/auth/signup";
-import { addMember, membershipFor } from "@/storage/workspace-book";
+import { nameFromSignupMetadata, signupIdentity, signupOutcome, signupPlan } from "@/auth/signup";
+import { addMember, getProfile, membershipFor, saveOrg } from "@/storage/workspace-book";
 
 vi.mock("next/headers", () => ({
   cookies: async () => ({
@@ -109,6 +109,7 @@ describe("public signup", () => {
     const pat = await membershipFor("pat@example.com");
     expect(pat?.org.id).toBe(ada?.org.id);
     expect(pat?.member.role).toBe("customer");
+    expect(pat?.member.fullName).toBe("Pat Customer");
 
     const book = JSON.parse(await readFile(path.join(dir, "book.json"), "utf8")) as { orgs: { id: string }[] };
     expect(book.orgs).toHaveLength(1);
@@ -131,5 +132,56 @@ describe("public signup", () => {
       viewerOrgId: ada?.org.id,
       shares: [],
     })).toBe(true);
+  });
+
+  it("stores the signup full name on the member and profile, including when the name is only on user metadata", async () => {
+    const identity = signupIdentity("  Jack Cyganiak  ");
+    expect(identity.userMetadata).toEqual({ name: "Jack Cyganiak", full_name: "Jack Cyganiak" });
+    expect(nameFromSignupMetadata(identity.userMetadata)).toBe("Jack Cyganiak");
+    expect(nameFromSignupMetadata({ name: "Jack Cyganiak" })).toBe("Jack Cyganiak");
+
+    const created = await POST(signupRequest({
+      email: "jack@jettx.ai",
+      password: "long-enough",
+      fullName: "Jack Cyganiak",
+      companyName: "Cold Brew Ventures LLC",
+    }, "203.0.113.30"));
+    expect(created.status).toBe(200);
+    const body = await created.json();
+    expect(body.session.name).toBe("Jack Cyganiak");
+    expect(body.session.role).toBe("admin");
+
+    const membership = await membershipFor("jack@jettx.ai");
+    expect(membership?.org.name).toBe("Cold Brew Ventures LLC");
+    expect(membership?.member.fullName).toBe("Jack Cyganiak");
+    expect(membership?.member.role).toBe("admin");
+    const profile = await getProfile("jack@jettx.ai", "jack@jettx.ai");
+    expect(profile.fullName).toBe("Jack Cyganiak");
+
+    await saveOrg("jack@jettx.ai", "jack@jettx.ai", "admin", {
+      name: "Cold Brew Ventures LLC",
+      address: "1 Main",
+      licenseNumbers: "",
+    });
+    expect((await membershipFor("jack@jettx.ai"))?.member.fullName).toBe("Jack Cyganiak");
+    expect((await getProfile("jack@jettx.ai", "jack@jettx.ai")).fullName).toBe("Jack Cyganiak");
+  });
+
+  it("fills a blank member from signup metadata when the company row already exists", async () => {
+    const storedName = nameFromSignupMetadata(signupIdentity("Jack Cyganiak").userMetadata);
+    await saveOrg("later@jettx.ai", "later@jettx.ai", "admin", {
+      name: "Cold Brew Ventures LLC",
+      address: "",
+      licenseNumbers: "",
+    }, { onboardingComplete: false });
+    expect((await membershipFor("later@jettx.ai"))?.member.fullName).toBe("");
+
+    await saveOrg("later@jettx.ai", "later@jettx.ai", "admin", {
+      name: "Cold Brew Ventures LLC",
+      address: "",
+      licenseNumbers: "",
+    }, { onboardingComplete: false, fullName: storedName });
+    expect((await membershipFor("later@jettx.ai"))?.member.fullName).toBe("Jack Cyganiak");
+    expect((await getProfile("later@jettx.ai", "later@jettx.ai")).fullName).toBe("Jack Cyganiak");
   });
 });
