@@ -286,6 +286,7 @@ label.btn input { display: none; }
 .password-row { position: relative; display: block; }
 .password-row input { padding-right: 44px; }
 .password-eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; min-height: 36px; border: 0; background: transparent; color: var(--muted); display: grid; place-items: center; padding: 0; }
+.password-hint { font-weight: 450; }
 .signin-btn { width: 100%; min-height: 48px; margin-top: 8px; background: var(--accent); color: var(--on-accent); border: 0; font-size: 16px; font-weight: 600; }
 .signin-btn:hover { background: var(--gold); }
 .ops-main .shell, .lib-main .shell { max-width: none; }

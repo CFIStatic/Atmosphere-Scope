@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionAllowed, editBlocked, localSession, publicSession, sessionFromSupabaseUser, signInWithSupabase } from "./access";
+import { accountSession, actionAllowed, editBlocked, localSession, publicSession, sessionFromSupabaseUser, signInWithSupabase } from "./access";
 import { parseSessionCookie, serializeSessionCookie } from "./signed-cookie";
 
 describe("accounts", () => {
@@ -25,6 +25,7 @@ describe("accounts", () => {
     expect(publicSession(stored)).toEqual({ email: "a@example.com", name: "Ada", role: "estimator" });
     expect(JSON.stringify(publicSession(stored))).not.toContain("secret-token");
     expect(() => localSession({ name: "Ada", email: "a@example.com", role: "admin" })).toThrow(/estimator or customer/);
+    expect(accountSession({ name: "Ada", email: "A@Example.com", role: "admin" })).toMatchObject({ email: "a@example.com", role: "admin" });
   });
 
   it("signs in through Supabase without keeping the password", async () => {
@@ -58,6 +59,8 @@ describe("accounts", () => {
     const localEnv = { SESSION_SECRET: "local-secret" };
     const local = serializeSessionCookie({ email: "a@example.com", name: "Ada", role: "customer" }, localEnv);
     expect((await parseSessionCookie(local, localEnv, fetch))?.role).toBe("customer");
+    const adminCookie = serializeSessionCookie(accountSession({ name: "Ada", email: "a@example.com", role: "admin" }), localEnv);
+    expect((await parseSessionCookie(adminCookie, localEnv, fetch))?.role).toBe("admin");
     const flipped = `${local.slice(0, -1)}${local.endsWith("a") ? "b" : "a"}`;
     expect(await parseSessionCookie(flipped, localEnv, fetch)).toBeNull();
   });

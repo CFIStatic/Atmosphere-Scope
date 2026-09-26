@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createEmptyJob } from "@/analysis/pipeline";
 import { draftJobInput } from "@/domain/job-identity";
 import { saveJob } from "@/storage/job-store";
+import { assignJobOrg } from "@/storage/job-org";
 import { assertJobWriter, listVisibleJobs } from "@/storage/visible-jobs";
 
 export async function GET() {
@@ -20,14 +21,14 @@ export async function POST(request: Request) {
   if ("error" in writer) return NextResponse.json({ error: writer.error }, { status: writer.status });
   const body = await request.json();
   if (body.draft === true) {
-    const job = await saveJob(createEmptyJob(draftJobInput()));
+    const job = await saveJob(await assignJobOrg(createEmptyJob(draftJobInput())));
     return NextResponse.json({ jobId: job.id });
   }
   const required = ["address", "city", "region", "postalCode", "customerName", "concern"] as const;
   for (const key of required) {
     if (!String(body[key] ?? "").trim()) return NextResponse.json({ error: `${key} is required.` }, { status: 400 });
   }
-  const job = await saveJob(createEmptyJob({
+  const job = await saveJob(await assignJobOrg(createEmptyJob({
     address: String(body.address),
     city: String(body.city),
     region: String(body.region),
@@ -36,6 +37,6 @@ export async function POST(request: Request) {
     phone: String(body.phone ?? ""),
     email: String(body.email ?? ""),
     concern: String(body.concern),
-  }));
+  })));
   return NextResponse.json({ jobId: job.id });
 }

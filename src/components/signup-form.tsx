@@ -3,28 +3,59 @@
 import Link from "next/link";
 import { useState } from "react";
 import { PasswordField } from "@/components/password-field";
-import { MIN_PASSWORD_LENGTH, passwordProblem, safeNext } from "@/auth/gate";
+import { CONFIRM_SENT, MIN_PASSWORD_LENGTH, passwordProblem, safeNext } from "@/auth/gate";
 
 export function SignupForm({
   step,
   nextPath,
   email: initialEmail,
-  hosted,
+  initialCompany = "",
   signedIn = false,
 }: {
   step: 1 | 2;
   nextPath: string;
   email: string;
-  hosted: boolean;
+  initialCompany?: string;
   signedIn?: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState(initialEmail);
-  const [companyName, setCompanyName] = useState("");
+  const [companyName, setCompanyName] = useState(initialCompany);
   const [address, setAddress] = useState("");
   const [licenseNumbers, setLicenseNumbers] = useState("");
+  const [confirming, setConfirming] = useState<{ email: string; next: "/onboarding" | "/record" } | null>(null);
+
+  if (confirming) {
+    return (
+      <div className="grid">
+        <h2>Check your email</h2>
+        <p className="meta">We sent a confirmation link to {confirming.email}. {confirming.next === "/record" ? "Open it to sign in. You will land on Record." : "Open it, then finish company setup. You will land on Record."}</p>
+        <button className="btn secondary" type="button" disabled={pending} onClick={async () => {
+          setError(null);
+          setNote(null);
+          setPending(true);
+          const response = await fetch("/api/auth/resend", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ email: confirming.email, next: confirming.next }),
+          });
+          const body = await response.json();
+          setPending(false);
+          if (!response.ok) {
+            setError(body.error ?? "The confirmation email was not sent.");
+            return;
+          }
+          setNote(body.message ?? CONFIRM_SENT);
+        }}>{pending ? "Sending…" : "Resend confirmation"}</button>
+        {note && <p className="meta" role="status">{note}</p>}
+        {error && <p className="error" role="alert">{error}</p>}
+        <p className="auth-switch">Already confirmed? <Link href="/login">Sign in</Link></p>
+      </div>
+    );
+  }
 
   if (step === 2) {
     return (
@@ -43,20 +74,20 @@ export function SignupForm({
           setError(body.error ?? "The company was not saved.");
           return;
         }
-        window.location.assign(safeNext(nextPath === "/" ? "/settings?section=company" : nextPath));
+        const destination = !nextPath || nextPath === "/" ? "/record" : safeNext(nextPath);
+        window.location.assign(destination);
       }}>
         <label className="field">Company name
-          <input value={companyName} onChange={(event) => setCompanyName(event.target.value)} required minLength={2} />
+          <input value={companyName} onChange={(event) => setCompanyName(event.target.value)} required minLength={2} autoComplete="organization" />
         </label>
         <label className="field">Address
-          <input value={address} onChange={(event) => setAddress(event.target.value)} />
+          <input value={address} onChange={(event) => setAddress(event.target.value)} autoComplete="street-address" />
         </label>
         <label className="field">License numbers
           <input value={licenseNumbers} onChange={(event) => setLicenseNumbers(event.target.value)} />
         </label>
         {error && <p className="error" role="alert">{error}</p>}
-        <button className="btn" type="submit" disabled={pending}>{pending ? "Saving…" : "Save company"}</button>
-        <p className="auth-switch"><Link href="/signup">Back to account</Link></p>
+        <button className="btn signin-btn" type="submit" disabled={pending}>{pending ? "Saving…" : "Continue"}</button>
       </form>
     );
   }
@@ -83,22 +114,24 @@ export function SignupForm({
         setError(body.error ?? "The account was not created.");
         return;
       }
-      window.location.assign("/onboarding");
+      if (body.needsEmailConfirmation) {
+        setConfirming({ email, next: body.joined ? "/record" : "/onboarding" });
+        return;
+      }
+      window.location.assign(body.joined ? "/record" : "/onboarding");
     }}>
-      {hosted && <p className="meta">Hosted accounts are invite-only. Use the link from your admin. This form does not grant a role.</p>}
-      {!hosted && <p className="meta">This server keeps the password as a hash and signs you in as an estimator. It does not create an admin.</p>}
-      <label className="field">Name
+      <label className="field">Full name
         <input value={fullName} onChange={(event) => setFullName(event.target.value)} required minLength={2} autoComplete="name" />
       </label>
-      <label className="field">Email
-        <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required autoComplete="email" readOnly={signedIn} />
-      </label>
-      <PasswordField name="password" label="Password" autoComplete="new-password" minLength={MIN_PASSWORD_LENGTH} />
       <label className="field">Company name
-        <input value={companyName} onChange={(event) => setCompanyName(event.target.value)} />
+        <input value={companyName} onChange={(event) => setCompanyName(event.target.value)} required minLength={2} autoComplete="organization" />
       </label>
+      <label className="field">Email
+        <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck={false} readOnly={signedIn} placeholder="you@company.com" />
+      </label>
+      <PasswordField name="password" label="Password" autoComplete="new-password" minLength={MIN_PASSWORD_LENGTH} strength />
       {error && <p className="error" role="alert">{error}</p>}
-      <button className="btn" type="submit" disabled={pending}>{pending ? "Creating…" : "Create account"}</button>
+      <button className="btn signin-btn" type="submit" disabled={pending}>{pending ? "Creating…" : "Create account"}</button>
       <p className="auth-switch">Already have an account? <Link href="/login">Sign in</Link></p>
     </form>
   );

@@ -34,6 +34,15 @@ export function passwordProblem(password: string): string | null {
   return null;
 }
 
+/** Hint only. A password of 8 characters is still accepted. */
+export function passwordHint(password: string): string {
+  if (password.length < MIN_PASSWORD_LENGTH) return `Use at least ${MIN_PASSWORD_LENGTH} characters.`;
+  const kinds = [/[a-z]/.test(password), /[A-Z]/.test(password), /\d/.test(password)].filter(Boolean).length;
+  if (password.length >= 12 && kinds >= 3) return "Strong password.";
+  if (password.length >= 10 || kinds >= 2) return "Okay password. A longer mix is stronger.";
+  return "Weak password. Add length or a mix of letters and numbers.";
+}
+
 export function safeNext(value: string | null | undefined): string {
   if (!value) return "/";
   let path = value;
@@ -55,13 +64,18 @@ export function canSeeJob(input: {
   role: AccountRole | null;
   email: string;
   jobId: string;
+  jobOrgId?: string | null;
+  viewerOrgId?: string | null;
   shares: { jobId: string; email: string }[];
 }): boolean {
   if (input.openCatalog) return true;
-  if (input.role === "admin" || input.role === "estimator") return true;
-  if (input.role !== "customer") return false;
   const email = input.email.trim().toLowerCase();
-  return input.shares.some((share) => share.jobId === input.jobId && share.email.trim().toLowerCase() === email);
+  const shared = input.shares.some((share) => share.jobId === input.jobId && share.email.trim().toLowerCase() === email);
+  if (input.role === "customer") return shared;
+  if (input.role !== "admin" && input.role !== "estimator") return false;
+  if (shared) return true;
+  if (input.viewerOrgId) return Boolean(input.jobOrgId) && input.jobOrgId === input.viewerOrgId;
+  return !input.jobOrgId;
 }
 
 export function canMutateJobs(input: { openCatalog: boolean; role: AccountRole | null }): boolean {

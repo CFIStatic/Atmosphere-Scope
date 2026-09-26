@@ -37,7 +37,7 @@ function readSignedSession(raw: string, env: Env): StoredSession | null {
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as StoredSession;
     if (!parsed.email || !parsed.name) return null;
-    if (!isAccountRole(parsed.role) || parsed.role === "admin") return null;
+    if (!isAccountRole(parsed.role)) return null;
     return parsed;
   } catch {
     return null;

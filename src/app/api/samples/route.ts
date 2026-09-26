@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createEmptyJob, runPipeline } from "@/analysis/pipeline";
 import { getScenario, scenarioBundle } from "@/samples/scenarios";
 import { saveJob } from "@/storage/job-store";
+import { assignJobOrg } from "@/storage/job-org";
 import { assertJobWriter } from "@/storage/visible-jobs";
 
 export async function POST(request: Request) {
@@ -21,6 +22,6 @@ export async function POST(request: Request) {
     email: "",
     concern: scenario.concern,
   });
-  const job = await saveJob(runPipeline(created, { ...bundle, usePriceBook: scenario.usePriceBook, failStage: scenario.failStage }));
+  const job = await saveJob(await assignJobOrg(runPipeline(created, { ...bundle, usePriceBook: scenario.usePriceBook, failStage: scenario.failStage })));
   return NextResponse.json({ jobId: job.id });
 }

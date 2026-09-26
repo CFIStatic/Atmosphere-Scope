@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { passwordHint } from "@/auth/gate";
 
 export function PasswordField({
   name,
@@ -9,14 +10,17 @@ export function PasswordField({
   autoComplete,
   minLength,
   extra,
+  strength = false,
 }: {
   name: string;
   label: string;
   autoComplete: "current-password" | "new-password";
   minLength?: number;
   extra?: ReactNode;
+  strength?: boolean;
 }) {
   const [shown, setShown] = useState(false);
+  const [value, setValue] = useState("");
   return (
     <label className="field">
       <span className="field-label">
@@ -24,11 +28,20 @@ export function PasswordField({
         {extra}
       </span>
       <span className="password-row">
-        <input name={name} type={shown ? "text" : "password"} autoComplete={autoComplete} required minLength={minLength} />
+        <input
+          name={name}
+          type={shown ? "text" : "password"}
+          autoComplete={autoComplete}
+          required
+          minLength={minLength}
+          value={strength ? value : undefined}
+          onChange={strength ? (event) => setValue(event.target.value) : undefined}
+        />
         <button className="password-eye" type="button" aria-pressed={shown} aria-label={shown ? "Hide" : "Show"} onClick={() => setShown((value) => !value)}>
           <EyeIcon open={shown} />
         </button>
       </span>
+      {strength ? <span className="meta password-hint">{passwordHint(value)}</span> : null}
     </label>
   );
 }
