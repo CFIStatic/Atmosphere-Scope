@@ -1,10 +1,11 @@
+import { noteModelUse } from "@/analysis/usage-log";
 import { openaiKey, pricingModel, type Env } from "@/analysis/config";
 import { ASSIST_PARAMETERS, ASSIST_TOOL_NAME, parseProposal, type AssistProposal } from "@/domain/assist";
 
 export async function proposeCommand(
   prompt: string,
   context: string,
-  options: { env?: Env; fetchImpl?: typeof fetch } = {},
+  options: { env?: Env; fetchImpl?: typeof fetch; jobId?: string | null } = {},
 ): Promise<{ ready: boolean; proposal: AssistProposal | null }> {
   const env = options.env ?? process.env;
   const key = openaiKey(env);
@@ -26,6 +27,7 @@ export async function proposeCommand(
       }),
     });
     const payload = await response.json().catch(() => null);
+    await noteModelUse(payload, pricingModel(env), options.jobId);
     if (!response.ok) return { ready: true, proposal: null };
     const call = payload && typeof payload === "object" ? toolArguments(payload) : null;
     if (!call) return { ready: true, proposal: null };

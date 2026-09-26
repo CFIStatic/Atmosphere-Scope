@@ -419,7 +419,8 @@ export function MeasureApp() {
     try {
       const record = await getCapture(id);
       if (!record || record.totalChunks < 1) throw new Error("The recording was not saved on this phone.");
-      const body = await resumeCapture(record, { online: navigator.onLine, onStatus: (label) => {
+      const jobId = await jobPromise.current;
+      const body = await resumeCapture(record, { online: navigator.onLine, jobId, onStatus: (label) => {
         setUploadStatus(label);
         const match = label.match(/Uploading (\d+) of (\d+)/);
         setProgress(match ? { sent: Number(match[1]), total: Number(match[2]) } : null);
@@ -435,7 +436,6 @@ export function MeasureApp() {
           const transcript = measured.ai?.transcription.text ?? null;
           const narration = notesFromNarration(transcript, names);
           const suggestion = suggestFromNarration(transcript);
-          const jobId = await jobPromise.current;
           const assist: AssistState = {
             acceptedIds: [],
             skippedIds: [],

@@ -1,3 +1,4 @@
+import { noteModelUse } from "@/analysis/usage-log";
 import { pricingModel, redact, webSearchTool, type Env } from "@/analysis/config";
 import { blankOffer, fetchPublicPage, judgeOffer, type FetchPageOptions, type ReplacementOffer } from "@/analysis/pricing-check";
 
@@ -57,7 +58,7 @@ export function parseOfferJson(text: string): { title: string | null; retailer: 
 
 export async function priceWithOpenAI(
   query: string,
-  options: { apiKey: string; fetchImpl: typeof fetch; now: Date; env?: Env; page?: FetchPageOptions },
+  options: { apiKey: string; fetchImpl: typeof fetch; now: Date; env?: Env; page?: FetchPageOptions; jobId?: string | null },
 ): Promise<ReplacementOffer> {
   const env = options.env ?? process.env;
   const retrievedAt = options.now.toISOString();
@@ -81,6 +82,7 @@ export async function priceWithOpenAI(
       }),
     });
     const payload = await response.json().catch(() => null);
+    await noteModelUse(payload, pricingModel(env), options.jobId);
     if (!response.ok) {
       return blankOffer(query, `OpenAI pricing failed (${response.status}). No price was invented.`);
     }

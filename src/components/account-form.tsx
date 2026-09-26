@@ -45,11 +45,6 @@ export function AccountForm({ notice }: { notice: string | null }) {
       {session && <StartScreenControl email={session.email} />}
       {session?.role === "admin" && <p className="meta"><Link href="/admin/users">Users</Link> · <Link href="/admin/system">System</Link></p>}
       {session && <p className="meta">Approval and authorization stay separate.</p>}
-      <section className="account-sheet">
-        <h2>Calibration sheet</h2>
-        <p className="meta">Place the sheet flat on the floor, in view of the camera, then record.</p>
-        <p><a href="/api/calibration-target">Download sheet PDF</a></p>
-      </section>
       <form className="grid" onSubmit={async (event) => {
         event.preventDefault();
         setError(null);

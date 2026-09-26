@@ -24,6 +24,7 @@ export async function enrichMeasuredWalkthrough(input: {
   frames?: { name: string; bytes: Uint8Array; mimeType: string }[];
   page?: FetchPageOptions;
   cache?: OfferCache;
+  jobId?: string | null;
 }): Promise<WalkthroughAi> {
   const env = input.env ?? process.env;
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -33,15 +34,15 @@ export async function enrichMeasuredWalkthrough(input: {
   const cache = input.cache ?? sharedOfferCache(env);
   const [transcription, vision] = await Promise.all([
     transcribeWithOpenAI(input.video ?? null, { env, fetchImpl }),
-    identifyObjects(input.frames ?? [], { env, fetchImpl }),
+    identifyObjects(input.frames ?? [], { env, fetchImpl, jobId: input.jobId }),
   ]);
-  const offers = await priceObjects(vision.objects, { env, fetchImpl, now, pricing, page: input.page, cache });
+  const offers = await priceObjects(vision.objects, { env, fetchImpl, now, pricing, page: input.page, cache, jobId: input.jobId });
   return { transcription, objects: vision.objects, objectNote: vision.note, offers, pricing, measurement };
 }
 
 async function priceObjects(
   objects: IdentifiedObject[],
-  options: { env: Env; fetchImpl: typeof fetch; now: Date; pricing: PricingSelection; page?: FetchPageOptions; cache: OfferCache },
+  options: { env: Env; fetchImpl: typeof fetch; now: Date; pricing: PricingSelection; page?: FetchPageOptions; cache: OfferCache; jobId?: string | null },
 ): Promise<ReplacementOffer[]> {
   const chosen = objects.slice(0, MAX_PRICED_OBJECTS);
   if (!chosen.length) return [];
@@ -53,7 +54,7 @@ async function priceObjects(
     if (cached) return cached;
     const offer = options.pricing.id === "serpapi"
       ? await priceWithSerpApi(object.name, { apiKey: options.env.SERPAPI_API_KEY?.trim() ?? "", fetchImpl: options.fetchImpl, now: options.now, page: options.page })
-      : await priceWithOpenAI(object.name, { apiKey: key, fetchImpl: options.fetchImpl, now: options.now, env: options.env, page: options.page });
+      : await priceWithOpenAI(object.name, { apiKey: key, fetchImpl: options.fetchImpl, now: options.now, env: options.env, page: options.page, jobId: options.jobId });
     options.cache.set(options.pricing.id, object.name, offer, nowMs);
     return offer;
   }));

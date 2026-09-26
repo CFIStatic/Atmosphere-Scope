@@ -13,7 +13,7 @@ export type AuthDecision =
   | { type: "unauthorized" }
   | { type: "redirect"; pathname: string; search: string };
 
-const PUBLIC_PAGES = new Set(["/login", "/forgot", "/auth/callback", "/auth/reset"]);
+const PUBLIC_PAGES = new Set(["/login", "/signup", "/onboarding", "/forgot", "/auth/callback", "/auth/reset"]);
 
 export function authModeFromStorage(storage: string | undefined): "supabase" | "local" {
   return (storage ?? "").trim().toLowerCase() === "supabase" ? "supabase" : "local";
@@ -74,7 +74,7 @@ function isPublicPage(pathname: string): boolean {
 }
 
 function isPublicApi(pathname: string, method: string): boolean {
-  if (pathname === "/api/auth/forgot" || pathname === "/api/auth/resend") return true;
+  if (pathname === "/api/auth/forgot" || pathname === "/api/auth/resend" || pathname === "/api/auth/signup" || pathname === "/api/health") return true;
   if (pathname === "/api/auth/session" && (method === "GET" || method === "POST" || method === "DELETE")) return true;
   return false;
 }
@@ -99,7 +99,7 @@ export function decideRequest(input: {
     const reason = input.configured ? "" : "error=config&";
     return { type: "redirect", pathname: "/login", search: `?${reason}next=${encodeURIComponent(next)}` };
   }
-  if (!input.role && input.pathname !== "/account") {
+  if (!input.role && input.pathname !== "/account" && input.pathname !== "/settings" && !input.pathname.startsWith("/onboarding")) {
     if (api) return { type: "unauthorized" };
     return { type: "redirect", pathname: "/account", search: "?error=role" };
   }

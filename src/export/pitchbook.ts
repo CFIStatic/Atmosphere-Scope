@@ -20,6 +20,9 @@ export type Pitchbook = {
   lines: PitchLine[];
   totals: PitchTotal[];
   footnote: string;
+  company?: string;
+  license?: string;
+  estimateDefaults?: string;
 };
 
 const INK = rgb(0.094, 0.098, 0.106);
@@ -48,6 +51,9 @@ export async function pitchbookPdf(input: Pitchbook): Promise<Uint8Array> {
     ["Claim / Job #", input.jobNumber || "—"],
     ["Date", input.date || "—"],
     ["Prepared by", input.preparedBy || "Atmosphere Scope"],
+    ...(input.company ? [["Company", input.company] as const] : []),
+    ...(input.license ? [["License", input.license] as const] : []),
+    ...(input.estimateDefaults ? [["Defaults", input.estimateDefaults] as const] : []),
   ] as const) {
     y = pair(page, font, y, label, value);
   }

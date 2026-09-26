@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AccountMenu } from "@/components/account-menu";
 import { BrandLockup } from "@/components/brand-lockup";
 import { LibraryQueryContext } from "@/components/library-query";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function AppShell({
   variant = "page",
@@ -58,7 +59,10 @@ export function AppShell({
             />
           </label>
         )}
-        <AccountMenu />
+        <div className="header-tools">
+          <ThemeToggle id="theme-toggle" />
+          <AccountMenu />
+        </div>
       </header>
       <div className={variant === "library" ? "lib-main" : "ops-main"}>
         {variant === "library" ? <LibraryQueryContext.Provider value={query}>{children}</LibraryQueryContext.Provider> : children}
@@ -76,7 +80,7 @@ function Rail({ onNavigate }: { onNavigate: () => void }) {
     { href: "/results", label: "Results", icon: <ResultsIcon />, current: path === "/results" || path.startsWith("/results/") },
     { href: "/estimate", label: "Estimate", icon: <EstimateIcon />, current: path === "/estimate" || path.startsWith("/estimate/") },
   ];
-  const account = path === "/account" || path.startsWith("/account/");
+  const account = path === "/account" || path.startsWith("/account/") || path === "/settings" || path.startsWith("/settings");
   return (
     <>
       <div className="rail-body">
@@ -90,7 +94,7 @@ function Rail({ onNavigate }: { onNavigate: () => void }) {
         </div>
       </div>
       <div className="rail-footer">
-        <Link className="navitem" href="/account" aria-current={account ? "page" : undefined} onClick={onNavigate}>
+        <Link className="navitem" href="/settings" aria-current={account ? "page" : undefined} onClick={onNavigate}>
           <GearIcon />
           <span>Account</span>
         </Link>

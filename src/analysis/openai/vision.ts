@@ -1,3 +1,4 @@
+import { noteModelUse } from "@/analysis/usage-log";
 import { openaiKey, redact, visionModel, type Env } from "@/analysis/config";
 import { frameTimeMs, selectKeyframes, type EvidenceLink, type IdentifiedObject } from "@/analysis/frames";
 import { screenText } from "@/analysis/guard";
@@ -69,7 +70,7 @@ export function extractChatContent(body: unknown): string | null {
 
 export async function identifyObjects(
   frames: { name: string; bytes: Uint8Array; mimeType: string }[],
-  options: { env?: Env; fetchImpl?: typeof fetch } = {},
+  options: { env?: Env; fetchImpl?: typeof fetch; jobId?: string | null } = {},
 ): Promise<{ objects: IdentifiedObject[]; note: string }> {
   const env = options.env ?? process.env;
   const key = openaiKey(env);
@@ -129,6 +130,7 @@ export async function identifyObjects(
       }),
     });
     const payload = await response.json().catch(() => null);
+    await noteModelUse(payload, visionModel(env), options.jobId);
     if (!response.ok) return { objects: [], note: `Object identification failed (${response.status}). Objects were not invented.` };
     const text = extractChatContent(payload);
     if (!text) return { objects: [], note: "Object identification returned no list. Objects were not invented." };

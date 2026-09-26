@@ -84,7 +84,7 @@ function escapeXml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-export async function jobPdf(job: Job): Promise<Uint8Array> {
+export async function jobPdf(job: Job, identity?: { company?: string; license?: string; estimateDefaults?: string }): Promise<Uint8Array> {
   const version = job.estimates.find((item) => item.id === job.activeEstimateId) ?? job.estimates.at(-1) ?? null;
   const lines = job.scopeItems.map((item) => {
     const priced = version?.pricedLines.find((line) => line.scopeItemId === item.id);
@@ -116,5 +116,8 @@ export async function jobPdf(job: Job): Promise<Uint8Array> {
         ]
       : [{ label: "Total", amount: null, grand: true }],
     footnote: [bannerFor(version), job.sketch.disclaimer].filter(Boolean).join(" "),
+    company: identity?.company || undefined,
+    license: identity?.license || undefined,
+    estimateDefaults: identity?.estimateDefaults || undefined,
   });
 }
