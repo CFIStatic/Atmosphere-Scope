@@ -1,0 +1,51 @@
+.view { display: grid; gap: 16px; min-width: 0; }
+.room { margin: 0; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.list { display: grid; gap: 8px; min-width: 0; }
+.row, .detail {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  text-align: left;
+}
+.row { grid-template-columns: 72px minmax(0, 1fr); align-items: center; width: 100%; }
+.row[data-active="true"] { box-shadow: inset 0 -2px 0 var(--accent); }
+.main { min-width: 0; }
+.main strong, .detail h2 { color: var(--ink); }
+.meta { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.badge {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+}
+.ok { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
+.damaged { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+.unclear { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.thumb, .frame { width: 72px; height: 48px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; }
+.frame { width: 100%; height: auto; max-width: 420px; }
+.lines { display: flex; flex-wrap: wrap; gap: 6px; }
+.lines button, .link {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 0;
+  min-height: 32px;
+  font: inherit;
+}
+.cost { border-top: 1px solid var(--line); padding-top: 8px; }
+.cost ul { list-style: none; margin: 0; padding: 0; }
+.cost li { display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 6px 0; border-bottom: 1px solid var(--line); color: var(--ink); }
+@media (max-width: 720px) {
+  .row { grid-template-columns: 56px minmax(0, 1fr); }
+  .thumb { width: 56px; }
+}

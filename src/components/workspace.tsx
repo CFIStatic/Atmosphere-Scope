@@ -16,6 +16,7 @@ import type { Job } from "@/domain/types";
 import type { SketchOp } from "@/domain/sketch-ops";
 import { SketchEditor } from "./sketch-editor";
 import { AppFrame } from "@/components/app-frame";
+import { ObjectsView } from "@/components/objects-view";
 import { buildSpaceModel } from "@/spatial/model";
 
 const SpaceMap = dynamic(() => import("./space-map").then((mod) => mod.SpaceMap), { ssr: false, loading: () => <p>Loading 3D view…</p> });
@@ -28,6 +29,7 @@ const TABS = [
   ["sketch", "Sketch"],
   ["items", "Items"],
   ["measurements", "Measurements"],
+  ["objects", "Objects"],
   ["estimate", "Estimate"],
 ] as const;
 
@@ -43,12 +45,16 @@ export function Workspace({ initialJob, canShare = false }: { initialJob: Job; c
   const [askSeed, setAskSeed] = useState<{ text: string; n: number } | null>(null);
   const [roomId, setRoomId] = useState<string | null>(initialJob.rooms[0]?.id ?? null);
   const [findingId, setFindingId] = useState<string | null>(initialJob.findings[0]?.id ?? null);
+  const [objectId, setObjectId] = useState<string | null>(() => {
+    const objects = initialJob.objects ?? [];
+    return objects.find((object) => object.condition === "damaged")?.id ?? objects[0]?.id ?? null;
+  });
   const [error, setError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"mitigation" | "rebuild">("mitigation");
+  const [phase, setPhase] = useState<"mitigation" | "rebuild" | "all">("all");
   const version = job.estimates.find((item) => item.id === job.activeEstimateId) ?? job.estimates.at(-1) ?? null;
   const model = useMemo(() => buildSpaceModel(job), [job]);
   const findings = job.findings.filter((finding) => !roomId || finding.roomId === roomId);
-  const lines = job.scopeItems.filter((item) => item.phase === phase && (!roomId || item.roomId === roomId));
+  const lines = job.scopeItems.filter((item) => (phase === "all" || item.phase === phase) && (!roomId || item.roomId === roomId));
 
   async function act(body: unknown) {
     setError(null);
@@ -204,7 +210,7 @@ export function Workspace({ initialJob, canShare = false }: { initialJob: Job; c
       {tab === "items" && (
         <>
           <RoomFilter roomId={roomId} rooms={job.rooms} onChange={setRoomId} job={job} />
-          <Estimate job={job} phase={phase} setPhase={setPhase} lines={lines} version={version} onAffected={(sqft) => roomId && act({ type: "set_affected", roomId, sqft, note: "Entered from the estimate tab." })} onApply={() => act({ type: "apply_quantities" })} onEdit={(itemId, quantityValue) => act({ type: "edit_scope", itemId, quantityValue })} onSelectRoom={(id) => setRoomId(id)} />
+          <Estimate job={job} phase={phase} setPhase={setPhase} lines={lines} version={version} onAffected={(sqft) => roomId && act({ type: "set_affected", roomId, sqft, note: "Entered from the estimate tab." })} onApply={() => act({ type: "apply_quantities" })} onEdit={(itemId, quantityValue) => act({ type: "edit_scope", itemId, quantityValue })} onSelectRoom={(id) => setRoomId(id)} onOpenObject={(id) => { setObjectId(id); choose("objects"); }} onAccept={(itemId) => act({ type: "accept_line", itemId })} />
         </>
       )}
       {tab === "measurements" && (
@@ -216,6 +222,7 @@ export function Workspace({ initialJob, canShare = false }: { initialJob: Job; c
           <Link className="btn secondary" href="/results">Open results</Link>
         </section>
       )}
+      {tab === "objects" && <ObjectsView job={job} objectId={objectId} onSelect={setObjectId} />}
       {tab === "estimate" && version && (
         <form className="panel form-grid" onSubmit={(event) => {
           event.preventDefault();
@@ -579,20 +586,23 @@ function Questions({ job, onAnswer }: { job: Job; onAnswer: (id: string, answer:
   );
 }
 
-function Estimate({ job, phase, setPhase, lines, version, onAffected, onApply, onEdit, onSelectRoom }: {
+function Estimate({ job, phase, setPhase, lines, version, onAffected, onApply, onEdit, onSelectRoom, onOpenObject, onAccept }: {
   job: Job;
-  phase: "mitigation" | "rebuild";
-  setPhase: (phase: "mitigation" | "rebuild") => void;
+  phase: "mitigation" | "rebuild" | "all";
+  setPhase: (phase: "mitigation" | "rebuild" | "all") => void;
   lines: Job["scopeItems"];
   version: Job["estimates"][number] | null;
   onAffected: (sqft: number) => void;
   onApply: () => void;
   onEdit: (itemId: string, quantityValue: number) => void;
   onSelectRoom: (id: string) => void;
+  onOpenObject: (id: string) => void;
+  onAccept: (itemId: string) => void;
 }) {
   return (
     <section className="grid">
       <div className="row">
+        <button className={phase === "all" ? "btn" : "btn-secondary"} type="button" onClick={() => setPhase("all")}>All</button>
         <button className={phase === "mitigation" ? "btn" : "btn-secondary"} type="button" onClick={() => setPhase("mitigation")}>Mitigation</button>
         <button className={phase === "rebuild" ? "btn" : "btn-secondary"} type="button" onClick={() => setPhase("rebuild")}>Rebuild</button>
       </div>
@@ -619,18 +629,29 @@ function Estimate({ job, phase, setPhase, lines, version, onAffected, onApply, o
         <input name="sqft" type="number" step="0.1" min="0" placeholder="Affected sqft for filtered room" aria-label="Affected area" />
         <button className="btn-secondary" type="submit">Set affected area</button>
       </form>
-      <table className="data">
+      <table className="data" data-testid="estimate-lines">
         <thead><tr><th>Class</th><th>Line</th><th className="num">Qty</th><th>Unit</th><th className="num">Amount</th></tr></thead>
         <tbody>
           {lines.map((item) => {
             const priced = version?.pricedLines.find((line) => line.scopeItemId === item.id);
             const amount = priced?.unpricedReason || priced?.extendedPrice == null ? null : priced.extendedPrice;
+            const object = job.objects?.find((entry) => entry.id === item.objectId);
+            const sighting = object?.sightings[0];
             return (
               <tr key={item.id}>
-                <td data-label="Class">{item.scopeClass}</td>
+                <td data-label="Class">{item.scopeClass}{item.proposal ? ` · ${item.proposal}` : ""}</td>
                 <td data-label="Line">
                   <button type="button" className="btn-secondary" onClick={() => item.roomId && onSelectRoom(item.roomId)}>{item.location}</button>
                   <div>{item.description}</div>
+                  {object && (
+                    <button type="button" className="btn-secondary" data-testid={`evidence-${item.code}`} onClick={() => onOpenObject(object.id)}>
+                      Evidence · {object.label}{sighting ? ` · ${formatClock(sighting.timeMs)}` : ""}
+                    </button>
+                  )}
+                  {priced?.unpricedReason && priced.unpricedReason !== "Excluded from price." && <div className="meta">{priced.unpricedReason}</div>}
+                  {item.proposal === "suggested" && item.reviewStatus !== "accepted" && (
+                    <button type="button" className="btn-secondary" onClick={() => onAccept(item.id)}>Accept suggested line</button>
+                  )}
                 </td>
                 <td className="num" data-label="Qty">
                   {item.quantity.value == null ? "—" : item.quantity.value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -652,9 +673,27 @@ function Estimate({ job, phase, setPhase, lines, version, onAffected, onApply, o
   );
 }
 
+function formatClock(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
 function Review({ job, onAct }: { job: Job; onAct: (body: unknown) => void }) {
+  const suggested = job.scopeItems.filter((item) => item.proposal === "suggested" && item.reviewStatus !== "accepted");
   return (
     <section className="grid">
+      {suggested.length > 0 && (
+        <div className="panel grid" data-testid="suggested-review">
+          <p className="kicker">Suggested lines</p>
+          <p className="meta">Low-confidence lines stay out of the supported total until they are accepted. Accepting one does not approve the estimate.</p>
+          {suggested.map((item) => (
+            <div key={item.id} className="row">
+              <span>{item.description}</span>
+              <button className="btn" type="button" onClick={() => onAct({ type: "accept_line", itemId: item.id })}>Accept</button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="panel grid">
         <p className="kicker">Estimator</p>
         <p className="meta">Estimator approval and customer authorization are separate.</p>

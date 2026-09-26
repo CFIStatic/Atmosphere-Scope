@@ -1,3 +1,5 @@
+import kitchenFixture from "@/analysis/eval/fixtures/kitchen-objects.json";
+import type { RawDetection, RoomMeasure } from "@/analysis/objects/run";
 import { createId } from "@/domain/ids";
 import type { FrameObservation, MediaAsset, TranscriptSegment } from "@/domain/types";
 
@@ -30,7 +32,7 @@ const media = (label: string): MediaAsset => ({
   note: "",
 });
 
-export function scenarioBundle(scenario: Scenario): { media: MediaAsset[]; transcripts: TranscriptSegment[]; frames: FrameObservation[] } {
+export function scenarioBundle(scenario: Scenario): { media: MediaAsset[]; transcripts: TranscriptSegment[]; frames: FrameObservation[]; detections?: RawDetection[]; measures?: RoomMeasure[] } {
   const mediaAssets: MediaAsset[] = [];
   const transcripts: TranscriptSegment[] = [];
   const frames: FrameObservation[] = [];
@@ -62,7 +64,10 @@ export function scenarioBundle(scenario: Scenario): { media: MediaAsset[]; trans
       });
     }
   }
-  return { media: mediaAssets, transcripts, frames };
+  if (scenario.id !== "kitchen-objects") return { media: mediaAssets, transcripts, frames };
+  const mediaId = mediaAssets[0]?.id ?? "media-kitchen";
+  const detections = (kitchenFixture.detections as unknown as RawDetection[]).map((detection) => ({ ...detection, mediaId }));
+  return { media: mediaAssets, transcripts, frames, detections, measures: [kitchenFixture.measures as RoomMeasure] };
 }
 
 export const SCENARIOS: Scenario[] = [
@@ -172,6 +177,28 @@ export const SCENARIOS: Scenario[] = [
         room: "Bathroom",
         transcript: [{ startMs: 0, text: "This is the bathroom." }],
         frames: [{ timeMs: 0, features: ["no_visible_issue", "fixture"], coverage: ["wide"], note: "Unused because the stage fails." }],
+      },
+    ],
+  },
+  {
+    id: "kitchen-objects",
+    title: "Kitchen — every object",
+    summary: "Each visible object is listed. Wet drywall and swollen baseboard become lines. The outlet stays a question.",
+    concern: "Kitchen wall is wet after a supply leak.",
+    address: "14 Cedar Avenue",
+    city: "Madison",
+    region: "WI",
+    postalCode: "53703",
+    customerName: "M. Alvarez",
+    usePriceBook: true,
+    clips: [
+      {
+        label: "Kitchen walk",
+        room: "Kitchen",
+        transcript: kitchenFixture.transcript,
+        frames: [
+          { timeMs: 2000, features: ["wall", "ceiling", "floor", "window", "fixture"], coverage: ["wide", "corners", "walls", "ceiling", "floor", "openings"], note: "Wide kitchen. Object inventory is separate from these coverage notes." },
+        ],
       },
     ],
   },

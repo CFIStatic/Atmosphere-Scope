@@ -1,0 +1,40 @@
+{
+  "slug": "kitchen-objects",
+  "notes": "Synthetic kitchen walk. De-identified. The outlet appears only in a crop.",
+  "mediaId": "media-kitchen",
+  "transcript": [
+    { "startMs": 0, "text": "This is the kitchen." },
+    { "startMs": 8000, "text": "This wall is wet to 2 feet along 10 feet." },
+    { "startMs": 14000, "text": "The baseboard is swollen for 10 feet." },
+    { "startMs": 20000, "text": "I can't tell if that outlet is damaged." }
+  ],
+  "measures": {
+    "roomName": "Kitchen",
+    "wallSqft": 280,
+    "ceilingSqft": 140,
+    "floorSqft": 140,
+    "baseboardLf": 46,
+    "calibrationMeetsTarget": false
+  },
+  "detections": [
+    { "frameId": "frm-wide", "timeMs": 2000, "roomHint": "Kitchen", "tile": null, "category": "drywall", "label": "Drywall", "material": "painted gypsum", "box": { "x": 0.05, "y": 0.1, "width": 0.7, "height": 0.7 }, "confidence": 0.9, "condition": "damaged", "damageTypes": ["wet"], "severity": "moderate", "rationale": "The lower wall looks darkened." },
+    { "frameId": "frm-wide", "timeMs": 2000, "roomHint": "Kitchen", "tile": null, "category": "cabinet", "label": "Upper cabinet", "material": "wood", "box": { "x": 0.08, "y": 0.05, "width": 0.4, "height": 0.22 }, "confidence": 0.91, "condition": "ok", "damageTypes": [], "severity": "none", "rationale": "Doors are closed and even." },
+    { "frameId": "frm-angle", "timeMs": 18000, "roomHint": "Kitchen", "tile": null, "category": "cabinet", "label": "Upper cabinet", "material": "wood", "box": { "x": 0.42, "y": 0.08, "width": 0.36, "height": 0.2 }, "confidence": 0.84, "condition": "ok", "damageTypes": [], "severity": "none", "rationale": "Same run from the doorway." },
+    { "frameId": "frm-base", "timeMs": 14000, "roomHint": "Kitchen", "tile": null, "category": "baseboard", "label": "Baseboard", "material": "painted wood", "box": { "x": 0.04, "y": 0.78, "width": 0.8, "height": 0.08 }, "confidence": 0.86, "condition": "damaged", "damageTypes": ["swelling"], "severity": "moderate", "rationale": "The shoe is swollen." },
+    { "frameId": "frm-ceiling", "timeMs": 4000, "roomHint": "Kitchen", "tile": null, "category": "ceiling", "label": "Ceiling", "material": "painted gypsum", "box": { "x": 0.2, "y": 0.0, "width": 0.5, "height": 0.18 }, "confidence": 0.8, "condition": "damaged", "damageTypes": ["water_staining"], "severity": "minor", "rationale": "A stain, dry to the eye." },
+    { "frameId": "frm-floor", "timeMs": 5000, "roomHint": "Kitchen", "tile": null, "category": "flooring", "label": "Vinyl flooring", "material": "vinyl", "box": { "x": 0.0, "y": 0.82, "width": 1, "height": 0.18 }, "confidence": 0.88, "condition": "ok", "damageTypes": [], "severity": "none", "rationale": "The field looks intact." },
+    { "frameId": "frm-window", "timeMs": 6000, "roomHint": "Kitchen", "tile": null, "category": "window", "label": "Window", "material": "vinyl", "box": { "x": 0.62, "y": 0.12, "width": 0.22, "height": 0.28 }, "confidence": 0.9, "condition": "ok", "damageTypes": [], "severity": "none", "rationale": "Sash is in place." },
+    { "frameId": "frm-sofa", "timeMs": 7000, "roomHint": "Kitchen", "tile": null, "category": "contents", "label": "Sofa", "material": "fabric", "box": { "x": 0.5, "y": 0.45, "width": 0.3, "height": 0.25 }, "confidence": 0.62, "condition": "damaged", "damageTypes": ["smoke"], "severity": "minor", "rationale": "Fabric looks gray at the arm." },
+    { "frameId": "frm-outlet", "timeMs": 20000, "roomHint": "Kitchen", "tile": { "row": 1, "col": 0, "rows": 2, "cols": 2 }, "category": "outlet", "label": "Duplex outlet", "material": null, "box": { "x": 0.42, "y": 0.55, "width": 0.08, "height": 0.1 }, "confidence": 0.58, "condition": "unclear", "damageTypes": [], "severity": null, "rationale": "The device is small in the crop." }
+  ],
+  "expect": {
+    "labels": ["Drywall", "Baseboard", "Ceiling", "Vinyl Flooring", "Window", "Sofa", "Duplex Outlet", "Upper Cabinet"],
+    "single": ["Upper Cabinet"],
+    "lineCodes": ["MIT-FLOOD-CUT", "REB-DRYWALL", "REB-PAINT", "REB-BASE", "MIT-DEMO-BASE"],
+    "noLineLabels": ["Duplex Outlet", "Upper Cabinet", "Vinyl Flooring", "Window"],
+    "questionMentions": ["outlet"],
+    "floodCutLf": 10,
+    "drywallSf": 20,
+    "mustNotClaimAccuracy": true
+  }
+}

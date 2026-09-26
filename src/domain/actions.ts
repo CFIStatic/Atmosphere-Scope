@@ -26,7 +26,8 @@ export type JobAction =
   | { type: "process"; transcript: string; mediaId?: string; usePriceBook: boolean; frames?: FrameObservation[] }
   | { type: "retry" }
   | { type: "set_affected"; roomId: string; sqft: number | null; note: string }
-  | { type: "add_named_room"; name: string };
+  | { type: "add_named_room"; name: string }
+  | { type: "accept_line"; itemId: string };
 
 export function applyJobAction(job: Job, action: JobAction): Job {
   const locked = editBlocked(action.type, activeEstimate(job)?.status ?? null);
@@ -79,6 +80,7 @@ export function applyJobAction(job: Job, action: JobAction): Job {
   if (action.type === "process") return processSupplied(job, action);
   if (action.type === "set_affected") return setAffected(job, action.roomId, action.sqft, action.note);
   if (action.type === "add_named_room") return addNamedRoom(job, action.name);
+  if (action.type === "accept_line") return acceptLine(job, action.itemId);
   return job;
 }
 
@@ -200,6 +202,15 @@ function addNamedRoom(job: Job, name: string): Job {
     sketch,
     pendingQuantityChanges: previewQuantityChanges({ ...job, sketch }),
   }, "room_added", `Added ${name}. Dimensions are not measured yet.`);
+}
+
+function acceptLine(job: Job, itemId: string): Job {
+  const status = activeEstimate(job)?.status ?? null;
+  if (status === "estimator_approved" || status === "customer_authorized") throw new Error("This version is locked. It was not changed.");
+  const items = job.scopeItems.map((item) => item.id === itemId && item.proposal === "suggested"
+    ? { ...item, proposal: "proposed" as const, scopeClass: "supported" as const, reviewStatus: "accepted" as const }
+    : item);
+  return reprice({ ...job, scopeItems: items }, activeEstimate(job)?.settings, "Suggested line accepted. The version is still a draft until the estimator approves it.");
 }
 
 function requireDraft(job: Job) {
