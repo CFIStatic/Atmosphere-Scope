@@ -29,16 +29,14 @@ export function absoluteUrl(origin: string, path: string): string {
   return new URL(path, origin).toString();
 }
 
-/** Signup confirmation continues to onboarding. A bad signup link returns to login. */
+/** A signup follows next. An invite or recovery sets a password. A bad signup link returns to login. */
 export function authCallbackDestination(input: { ok: boolean; type: string | null; next: string | null }): string {
   if (!input.ok) {
     if (input.type === "signup") return "/login?error=confirm";
     return "/auth/reset?error=invalid";
   }
-  if (input.type === "signup" || input.type === "invite") return "/onboarding";
-  const next = safeNext(input.next);
-  if (input.type === "recovery") return "/auth/reset";
-  return next;
+  if (input.type === "invite" || input.type === "recovery") return "/auth/reset";
+  return safeNext(input.next);
 }
 
 function originFromUrl(value: string | null | undefined): string | null {

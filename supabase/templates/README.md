@@ -10,4 +10,4 @@ Paste each file into Authentication → Email templates. Set the subject in the 
 | `recovery.html` | Reset password | Reset your Atmosphere Scope password |
 | `email-change.html` | Change email address | Confirm your new Atmosphere Scope email |
 
-Links go to `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}`. Signup and invite continue to `/onboarding`. Password recovery continues to `/auth/reset`. A magic link signs in at `/`. An email change returns to `/account`.
+Links go to `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}`. A signup confirmation follows `RedirectTo` (`/onboarding` for a new company, `/record` when someone joins). An invite continues to `/auth/reset` so they can set a password. Password recovery continues to `/auth/reset`. A magic link signs in at `/`. An email change returns to `/account`.

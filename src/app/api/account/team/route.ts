@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     if (authMode() === "supabase") {
       const admin = createSupabaseAdmin();
       if (!admin) return NextResponse.json({ error: "The service role key is missing on the server." }, { status: 503 });
-      const redirectTo = callbackUrl(siteOrigin(request), "/onboarding");
+      const redirectTo = callbackUrl(siteOrigin(request), "/auth/reset");
       let createdUserId: string | null = null;
       let actionLink: string | null = null;
       try {

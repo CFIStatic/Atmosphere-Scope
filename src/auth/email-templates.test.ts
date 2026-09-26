@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest";
 const dir = path.join(process.cwd(), "supabase/templates");
 
 const expected = {
-  "confirmation.html": { subject: "Confirm your Atmosphere Scope account", next: "next=/onboarding", type: "type=signup" },
-  "invite.html": { subject: "You're invited to Atmosphere Scope", next: "next=/onboarding", type: "type=invite" },
+  "confirmation.html": { subject: "Confirm your Atmosphere Scope account", next: "{{ .RedirectTo }}", type: "type=signup" },
+  "invite.html": { subject: "You're invited to Atmosphere Scope", next: "next=/auth/reset", type: "type=invite" },
   "magic-link.html": { subject: "Sign in to Atmosphere Scope", next: "next=/", type: "type=magiclink" },
   "recovery.html": { subject: "Reset your Atmosphere Scope password", next: "next=/auth/reset", type: "type=recovery" },
   "email-change.html": { subject: "Confirm your new Atmosphere Scope email", next: "next=/account", type: "type=email_change" },

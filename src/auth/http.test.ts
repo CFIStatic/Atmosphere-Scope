@@ -34,12 +34,16 @@ describe("public origin", () => {
     expect(siteOrigin(request, { SITE_URL: railway })).toBe(railway);
   });
 
-  it("sends a bad signup confirmation to login and a good one to onboarding", () => {
+  it("sends signup confirmations to next, and invites to set a password", () => {
     expect(authCallbackDestination({ ok: false, type: "signup", next: "/account" })).toBe("/login?error=confirm");
-    expect(authCallbackDestination({ ok: true, type: "signup", next: "/account" })).toBe("/onboarding");
-    expect(authCallbackDestination({ ok: true, type: "invite", next: "/auth/reset" })).toBe("/onboarding");
+    expect(authCallbackDestination({ ok: true, type: "signup", next: "/onboarding" })).toBe("/onboarding");
+    expect(authCallbackDestination({ ok: true, type: "signup", next: "/record" })).toBe("/record");
+    expect(authCallbackDestination({ ok: true, type: "signup", next: "/account" })).toBe("/account");
+    expect(authCallbackDestination({ ok: true, type: "invite", next: "/onboarding" })).toBe("/auth/reset");
+    expect(authCallbackDestination({ ok: true, type: "invite", next: "/auth/reset" })).toBe("/auth/reset");
     expect(authCallbackDestination({ ok: true, type: "recovery", next: "/account" })).toBe("/auth/reset");
     expect(authCallbackDestination({ ok: false, type: "recovery", next: "/auth/reset" })).toBe("/auth/reset?error=invalid");
+    expect(authCallbackDestination({ ok: false, type: "invite", next: "/auth/reset" })).toBe("/auth/reset?error=invalid");
     expect(authCallbackDestination({ ok: true, type: "magiclink", next: "/record" })).toBe("/record");
     expect(authCallbackDestination({ ok: true, type: null, next: "https://evil.example" })).toBe("/");
   });

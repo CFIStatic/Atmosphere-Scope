@@ -69,7 +69,7 @@ export function LoginExtras({ devFallback, nextPath, resendOpen = false }: { dev
           const response = await fetch("/api/auth/resend", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ email, next: "/onboarding" }),
+            body: JSON.stringify({ email }),
           });
           const body = await response.json();
           setConfirmNote(body.error ?? body.message ?? CONFIRM_SENT);
