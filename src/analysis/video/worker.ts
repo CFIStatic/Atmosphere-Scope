@@ -13,6 +13,7 @@ import type { Job, TranscriptSegment } from "@/domain/types";
 import { runPipeline } from "@/analysis/pipeline";
 import { inventoryFrame } from "@/analysis/openai/inventory";
 import { transcribeWithOpenAI } from "@/analysis/openai/transcribe";
+import { roomAt } from "@/analysis/objects/narration";
 import { cropFilter, planTiles, tileBox } from "@/analysis/objects/tiles";
 import type { RawDetection } from "@/analysis/objects/detect";
 import { parseVerbatimTranscript } from "./verbatim-transcript";
@@ -34,6 +35,13 @@ export function leaseMs(env: Record<string, string | undefined> = process.env): 
   return Number.isFinite(value) && value >= 10_000 ? value : 120_000;
 }
 
+class LeaseLost extends Error {
+  constructor() {
+    super("Analysis lease was lost.");
+    this.name = "LeaseLost";
+  }
+}
+
 export async function tickAnalysisQueue(input: {
   store: AnalysisJobStore;
   loadJob: (id: string) => Promise<Job | null>;
@@ -45,10 +53,29 @@ export async function tickAnalysisQueue(input: {
   fetchImpl?: typeof fetch;
 }): Promise<{ claimed: string | null; status: "idle" | "complete" | "retry" }> {
   const nowMs = input.nowMs ?? Date.now();
-  const claimed = await claimJob(input.store, nowMs, leaseOwner(), leaseMs(input.env));
+  const holdMs = leaseMs(input.env);
+  const owner = leaseOwner();
+  const claimed = await claimJob(input.store, nowMs, owner, holdMs);
   if (!claimed) return { claimed: null, status: "idle" };
   const attribution: UsageAttribution = { orgId: claimed.orgId, userEmail: claimed.actorEmail ?? "" };
-  const report = (stage: "extracting" | "inventorying" | "assessing" | "pricing") => reportAnalysisStage(input.store, claimed, stage, input.env);
+  let lost = false;
+  let gate = Promise.resolve();
+  const extend = () => {
+    const run = gate.then(async () => {
+      const ok = await updateJobRow(input.store, claimed.id, {
+        leaseOwner: owner,
+        leaseUntil: new Date(Date.now() + holdMs).toISOString(),
+      }, owner);
+      if (!ok) lost = true;
+    });
+    gate = run.then(() => undefined, () => undefined);
+    return run;
+  };
+  const beat = setInterval(() => { void extend().catch(() => undefined); }, Math.max(5_000, Math.floor(holdMs / 3)));
+  const stopBeat = async () => {
+    clearInterval(beat);
+    await gate;
+  };
   try {
     const job = await input.loadJob(claimed.jobId);
     if (!job) throw new Error("Job was not found.");
@@ -66,13 +93,24 @@ export async function tickAnalysisQueue(input: {
       env: input.env,
       fetchImpl: input.fetchImpl,
       attribution,
-      onStage: report,
+      onStage: (stage) => reportAnalysisStage(input.store, claimed, stage, input.env),
+      keepAlive: async () => {
+        await extend();
+        if (lost) throw new LeaseLost();
+      },
     });
+    await stopBeat();
+    if (lost) return { claimed: claimed.id, status: "retry" };
+    await extend();
+    if (lost) return { claimed: claimed.id, status: "retry" };
     await input.saveJob(analyzed);
-    await updateJobRow(input.store, claimed.id, { status: "complete", leaseOwner: null, leaseUntil: null, lastError: null, stage: "complete" });
+    const settled = await updateJobRow(input.store, claimed.id, { status: "complete", leaseOwner: null, leaseUntil: null, lastError: null, stage: "complete" }, owner);
+    if (!settled) return { claimed: claimed.id, status: "retry" };
     await recordAnalysisEvent(claimed, "done");
     return { claimed: claimed.id, status: "complete" };
   } catch (error) {
+    await stopBeat();
+    if (error instanceof LeaseLost || lost) return { claimed: claimed.id, status: "retry" };
     const message = error instanceof Error ? error.message : "Analysis failed.";
     const attempts = claimed.attempts + 1;
     const exhausted = attempts >= claimed.maxAttempts;
@@ -83,19 +121,22 @@ export async function tickAnalysisQueue(input: {
       leaseUntil: null,
       lastError: message.slice(0, 500),
       stage: exhausted ? "failed" : "retry",
-    });
+    }, owner);
     if (exhausted) await recordAnalysisEvent(claimed, "failed", message.slice(0, 240));
     return { claimed: claimed.id, status: "retry" };
+  } finally {
+    clearInterval(beat);
   }
 }
 
 async function reportAnalysisStage(store: AnalysisJobStore, claimed: AnalysisJobRow, stage: "extracting" | "inventorying" | "assessing" | "pricing", env?: Record<string, string | undefined>): Promise<void> {
-  const now = Date.now();
-  await updateJobRow(store, claimed.id, {
+  const owner = leaseOwner();
+  const ok = await updateJobRow(store, claimed.id, {
     stage,
-    leaseOwner: leaseOwner(),
-    leaseUntil: new Date(now + leaseMs(env)).toISOString(),
-  });
+    leaseOwner: owner,
+    leaseUntil: new Date(Date.now() + leaseMs(env)).toISOString(),
+  }, owner);
+  if (!ok) throw new LeaseLost();
   await recordAnalysisEvent(claimed, publicAnalysisStatus({ status: "running", stage }));
 }
 
@@ -119,6 +160,7 @@ export async function analyzeVideoBytes(input: {
   fetchImpl?: typeof fetch;
   attribution?: UsageAttribution;
   onStage?: (stage: "extracting" | "inventorying" | "assessing" | "pricing") => Promise<void>;
+  keepAlive?: () => Promise<void>;
 }): Promise<Job> {
   const dir = await mkdtemp(join(tmpdir(), "scope-walk-"));
   try {
@@ -134,10 +176,18 @@ export async function analyzeVideoBytes(input: {
       localPath: frame.localPath,
     })));
     const diverse = prepareFrames(loaded, { durationSeconds: meta.durationSeconds ?? undefined });
+    if (input.keepAlive) await input.keepAlive();
+    const speech = await transcribeWithOpenAI(
+      { filename: input.filename, bytes: new Uint8Array(input.bytes), mimeType: input.mimeType },
+      { env: input.env, fetchImpl: input.fetchImpl, jobId: input.job.id, attribution: input.attribution },
+    );
+    const transcripts = speech.text ? segmentsFromTranscript(input.mediaId, speech.text) : input.job.transcripts;
+    const heard = transcripts.length ? transcripts : input.job.transcripts;
     const detections: RawDetection[] = [];
     const stages = [];
     await input.onStage?.("inventorying");
     for (const frame of diverse) {
+      if (input.keepAlive) await input.keepAlive();
       const source = loaded.find((item) => item.atSeconds === frame.atSeconds);
       if (!source) continue;
       const crops = [];
@@ -156,7 +206,7 @@ export async function analyzeVideoBytes(input: {
         frameId: `frm_${source.sequence}`,
         mediaId: input.mediaId,
         timeMs: Math.round(frame.atSeconds * 1000),
-        roomHint: null,
+        roomHint: roomAt(heard, Math.round(frame.atSeconds * 1000)),
         full: { bytes: new Uint8Array(frame.jpeg), mimeType: "image/jpeg" },
         crops,
         env: input.env,
@@ -167,11 +217,6 @@ export async function analyzeVideoBytes(input: {
       detections.push(...inventory.detections);
       stages.push(inventory.stage);
     }
-    const speech = await transcribeWithOpenAI(
-      { filename: input.filename, bytes: new Uint8Array(input.bytes), mimeType: input.mimeType },
-      { env: input.env, fetchImpl: input.fetchImpl, jobId: input.job.id, attribution: input.attribution },
-    );
-    const transcripts = speech.text ? segmentsFromTranscript(input.mediaId, speech.text) : input.job.transcripts;
     const log = costLog({
       mediaId: input.mediaId,
       durationSeconds: meta.durationSeconds,
@@ -196,16 +241,25 @@ export async function analyzeVideoBytes(input: {
 }
 
 function segmentsFromTranscript(mediaId: string, text: string): TranscriptSegment[] {
-  const verbatim = parseVerbatimTranscript(text);
+  const verbatim = parseVerbatimTranscript(text).flatMap((segment) => {
+    if (segment.tSec != null) return [segment];
+    const parts = segment.text.split(/\n+|(?<=[.!?])\s+/).map((part) => part.trim()).filter(Boolean);
+    return (parts.length ? parts : [segment.text]).map((part) => ({ ...segment, text: part }));
+  });
   if (!verbatim.length) return [];
-  return verbatim.map((segment, index) => ({
-    id: createId("seg"),
-    mediaId,
-    startMs: Math.round((segment.tSec ?? index) * 1000),
-    endMs: Math.round((segment.tSec ?? index) * 1000 + 4000),
-    text: segment.text,
-    speaker: "narrator" as const,
-    injectionFlags: [],
-    source: "asr" as const,
-  }));
+  return verbatim.map((segment, index) => {
+    const tSec = segment.tSec ?? index;
+    const next = verbatim[index + 1]?.tSec;
+    const endSec = next != null && next > tSec ? next : tSec + 4;
+    return {
+      id: createId("seg"),
+      mediaId,
+      startMs: Math.round(tSec * 1000),
+      endMs: Math.round(endSec * 1000),
+      text: segment.text,
+      speaker: "narrator" as const,
+      injectionFlags: [],
+      source: "asr" as const,
+    };
+  });
 }

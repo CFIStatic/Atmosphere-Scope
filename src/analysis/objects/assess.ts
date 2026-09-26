@@ -32,7 +32,7 @@ export function assessClusters(clusters: DetectionCluster[], transcripts: Transc
     if (condition !== "damaged") damageTypes.splice(0, damageTypes.length);
     const height = related.find((cue) => cue.heightFt != null)?.heightFt ?? null;
     const length = related.find((cue) => cue.lengthFt != null)?.lengthFt ?? null;
-    const confidence = round3(Math.min(cluster.confidence, quote && narratedDamage.length ? Math.max(cluster.confidence, 0.8) : cluster.confidence));
+    const confidence = round3(Math.min(1, quote && narratedDamage.length ? Math.max(cluster.confidence, 0.8) : cluster.confidence));
     const measure = measures.find((item) => item.roomName.toLowerCase() === cluster.roomName.toLowerCase());
     const quantity = quantityFor(cluster, condition, height, length, measure);
     const extent = extentFor(condition, height, length, quantity, quote?.quote ?? null);

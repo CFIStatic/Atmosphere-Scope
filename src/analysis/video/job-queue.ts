@@ -2,9 +2,11 @@
  * Durable analysis queue. Local disk, or Supabase when STORAGE=supabase.
  * Lease columns follow Atmosphere's processing-job lease (20260905190000)
  * and proof analysis lease (20260905191000).
+ * A claim or update touches one row, and only while that worker still holds
+ * the lease, so two ticks cannot take the same job or clear someone else's lease.
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { assertStorageReady, supabaseKey, type Env } from "@/analysis/config";
 import { dataRoot } from "@/storage/paths";
@@ -15,34 +17,129 @@ export type AnalysisJobPatch = Partial<Pick<AnalysisJobRow, "status" | "attempts
 export type AnalysisJobStore = {
   list(): Promise<AnalysisJobRow[]>;
   save(rows: AnalysisJobRow[]): Promise<void>;
-  /** Compare-and-swap claim. Supabase uses this so two instances cannot take the same row. */
-  claim?(nowMs: number, owner: string, leaseMs: number): Promise<AnalysisJobRow | null>;
-  update?(id: string, patch: AnalysisJobPatch): Promise<void>;
+  claim(nowMs: number, owner: string, leaseMs: number): Promise<AnalysisJobRow | null>;
+  /** Patch one row. When `owner` is set, skip the write if that owner no longer holds the lease. */
+  update(id: string, patch: AnalysisJobPatch, owner?: string): Promise<boolean>;
+  enqueue(row: AnalysisJobRow): Promise<void>;
 };
 
-export function memoryStore(seed: AnalysisJobRow[] = []): AnalysisJobStore {
-  let rows = seed.map((row) => ({ ...row }));
-  return {
-    async list() { return rows.map((row) => ({ ...row })); },
-    async save(next) { rows = next.map((row) => ({ ...row })); },
+function sameActive(row: AnalysisJobRow, incoming: AnalysisJobRow): boolean {
+  return row.id === incoming.id || (row.jobId === incoming.jobId && row.mediaId === incoming.mediaId && row.status !== "complete" && row.status !== "failed");
+}
+
+function normalizeRow(row: AnalysisJobRow): AnalysisJobRow {
+  return { ...row, orgId: row.orgId ?? null, actorEmail: row.actorEmail ?? null };
+}
+
+function serialGate() {
+  let tail = Promise.resolve();
+  return function exclusive<T>(fn: () => T | Promise<T>): Promise<T> {
+    const run = tail.then(fn, fn);
+    tail = run.then(() => undefined, () => undefined);
+    return run;
   };
+}
+
+export function memoryStore(seed: AnalysisJobRow[] = []): AnalysisJobStore {
+  let rows = seed.map((row) => normalizeRow(row));
+  const exclusive = serialGate();
+  return {
+    async list() { return exclusive(() => rows.map((row) => ({ ...row }))); },
+    async save(next) { await exclusive(() => { rows = next.map((row) => normalizeRow(row)); }); },
+    async claim(nowMs, owner, leaseMs) {
+      return exclusive(() => {
+        const picked = claimNext(rows, nowMs, owner, leaseMs);
+        if (!picked) return null;
+        rows = picked.rows.map((row) => normalizeRow(row));
+        return { ...picked.claimed };
+      });
+    },
+    async update(id, patch, owner) {
+      return exclusive(() => {
+        const current = rows.find((row) => row.id === id);
+        if (!current || (owner && current.leaseOwner !== owner)) return false;
+        rows = rows.map((row) => row.id === id ? normalizeRow({ ...row, ...patch }) : row);
+        return true;
+      });
+    },
+    async enqueue(row) {
+      await exclusive(() => {
+        if (rows.some((item) => sameActive(item, row))) return;
+        rows = [...rows, normalizeRow(row)];
+      });
+    },
+  };
+}
+
+async function withQueueLock<T>(lockPath: string, fn: () => Promise<T>): Promise<T> {
+  await mkdir(path.dirname(lockPath), { recursive: true });
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    try {
+      const handle = await open(lockPath, "wx");
+      try {
+        return await fn();
+      } finally {
+        await handle.close();
+        await rm(lockPath, { force: true });
+      }
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error ? String((error as { code?: string }).code) : "";
+      if (code !== "EEXIST") throw error;
+      try {
+        const info = await stat(lockPath);
+        if (Date.now() - info.mtimeMs > 15_000) await rm(lockPath, { force: true });
+      } catch {
+        // The lock was already released.
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
+  throw new Error("Analysis queue was busy.");
 }
 
 export function fileStore(root = dataRoot()): AnalysisJobStore {
   const file = path.join(root, "analysis-jobs.json");
+  const lock = path.join(root, "analysis-jobs.lock");
+  const read = async (): Promise<AnalysisJobRow[]> => {
+    try {
+      const raw = await readFile(file, "utf8");
+      const parsed = JSON.parse(raw) as AnalysisJobRow[];
+      return Array.isArray(parsed) ? parsed.map((row) => normalizeRow(row)) : [];
+    } catch {
+      return [];
+    }
+  };
+  const write = async (rows: AnalysisJobRow[]) => {
+    await mkdir(root, { recursive: true });
+    await writeFile(file, JSON.stringify(rows.map((row) => normalizeRow(row)), null, 2));
+  };
   return {
-    async list() {
-      try {
-        const raw = await readFile(file, "utf8");
-        const parsed = JSON.parse(raw) as AnalysisJobRow[];
-        return Array.isArray(parsed) ? parsed.map((row) => ({ ...row, orgId: row.orgId ?? null, actorEmail: row.actorEmail ?? null })) : [];
-      } catch {
-        return [];
-      }
+    list() { return withQueueLock(lock, read); },
+    save(rows) { return withQueueLock(lock, () => write(rows)); },
+    claim(nowMs, owner, leaseMs) {
+      return withQueueLock(lock, async () => {
+        const rows = await read();
+        const picked = claimNext(rows, nowMs, owner, leaseMs);
+        if (!picked) return null;
+        await write(picked.rows);
+        return picked.claimed;
+      });
     },
-    async save(rows) {
-      await mkdir(root, { recursive: true });
-      await writeFile(file, JSON.stringify(rows, null, 2));
+    update(id, patch, owner) {
+      return withQueueLock(lock, async () => {
+        const rows = await read();
+        const current = rows.find((row) => row.id === id);
+        if (!current || (owner && current.leaseOwner !== owner)) return false;
+        await write(rows.map((row) => row.id === id ? { ...row, ...patch } : row));
+        return true;
+      });
+    },
+    enqueue(row) {
+      return withQueueLock(lock, async () => {
+        const rows = await read();
+        if (rows.some((item) => sameActive(item, row))) return;
+        await write([...rows, row]);
+      });
     },
   };
 }
@@ -51,20 +148,14 @@ function restHeaders(key: string, extra?: Record<string, string>): HeadersInit {
   return { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", ...extra };
 }
 
-export async function updateJobRow(store: AnalysisJobStore, id: string, patch: AnalysisJobPatch): Promise<void> {
-  const next = { ...patch, updatedAt: patch.updatedAt ?? new Date().toISOString() };
-  if (store.update) {
-    await store.update(id, next);
-    return;
-  }
-  const rows = await store.list();
-  await store.save(rows.map((row) => (row.id === id ? { ...row, ...next } : row)));
+export async function updateJobRow(store: AnalysisJobStore, id: string, patch: AnalysisJobPatch, owner?: string): Promise<boolean> {
+  return store.update(id, { ...patch, updatedAt: patch.updatedAt ?? new Date().toISOString() }, owner);
 }
 
 export function supabaseStore(env: Env, fetchImpl: typeof fetch): AnalysisJobStore {
   const url = env.SUPABASE_URL?.trim().replace(/\/$/, "") ?? "";
   const key = supabaseKey(env);
-  return {
+  const store: AnalysisJobStore = {
     async list() {
       const response = await fetchImpl(`${url}/rest/v1/analysis_jobs?select=*`, { headers: restHeaders(key) });
       if (!response.ok) throw new Error(`Supabase analysis queue list failed (${response.status}).`);
@@ -105,15 +196,30 @@ export function supabaseStore(env: Env, fetchImpl: typeof fetch): AnalysisJobSto
       }
       return null;
     },
-    async update(id, patch) {
-      const response = await fetchImpl(`${url}/rest/v1/analysis_jobs?id=eq.${encodeURIComponent(id)}`, {
+    async update(id, patch, owner) {
+      const filters = [`id=eq.${encodeURIComponent(id)}`];
+      if (owner) filters.push(`lease_owner=eq.${encodeURIComponent(owner)}`);
+      const response = await fetchImpl(`${url}/rest/v1/analysis_jobs?${filters.join("&")}`, {
         method: "PATCH",
-        headers: restHeaders(key, { Prefer: "return=minimal" }),
+        headers: restHeaders(key, { Prefer: "return=representation" }),
         body: JSON.stringify(toPatch(patch)),
       });
       if (!response.ok) throw new Error(`Supabase analysis queue update failed (${response.status}).`);
+      const updated = await response.json().catch(() => []);
+      return Array.isArray(updated) && updated.length > 0;
+    },
+    async enqueue(row) {
+      const rows = await store.list();
+      if (rows.some((item) => sameActive(item, row))) return;
+      const response = await fetchImpl(`${url}/rest/v1/analysis_jobs`, {
+        method: "POST",
+        headers: restHeaders(key, { Prefer: "resolution=merge-duplicates,return=minimal" }),
+        body: JSON.stringify([toRow(row)]),
+      });
+      if (!response.ok) throw new Error(`Supabase analysis queue save failed (${response.status}).`);
     },
   };
+  return store;
 }
 
 export function analysisJobStore(env: Env = process.env, fetchImpl: typeof fetch = fetch): AnalysisJobStore {
@@ -121,18 +227,11 @@ export function analysisJobStore(env: Env = process.env, fetchImpl: typeof fetch
 }
 
 export async function enqueueJob(store: AnalysisJobStore, row: AnalysisJobRow): Promise<void> {
-  const rows = await store.list();
-  if (rows.some((item) => item.id === row.id || (item.jobId === row.jobId && item.mediaId === row.mediaId && item.status !== "complete" && item.status !== "failed"))) return;
-  await store.save([...rows, row]);
+  await store.enqueue(row);
 }
 
 export async function claimJob(store: AnalysisJobStore, nowMs: number, owner: string, leaseMs: number): Promise<AnalysisJobRow | null> {
-  if (store.claim) return store.claim(nowMs, owner, leaseMs);
-  const rows = await store.list();
-  const claimed = claimNext(rows, nowMs, owner, leaseMs);
-  if (!claimed) return null;
-  await store.save(claimed.rows);
-  return claimed.claimed;
+  return store.claim(nowMs, owner, leaseMs);
 }
 
 function fromRow(row: Record<string, unknown>): AnalysisJobRow {

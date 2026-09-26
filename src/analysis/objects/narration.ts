@@ -44,8 +44,8 @@ export function narrationCues(segments: TranscriptSegment[]): NarrationCue[] {
   const ordered = [...segments].sort((a, b) => a.startMs - b.startMs);
   for (const segment of ordered) {
     if (screenText(segment.text).length) continue;
-    const announced = segment.text.match(/(?:this is|we're in|we are in|entering)\s+(?:the\s+)?([a-z][a-z0-9 '/-]{1,40})/i);
-    if (announced) room = titleCase(announced[1].replace(/\b(on the|about|and|with|where)\b[\s\S]*$/i, "").trim());
+    const announced = announcedRoom(segment.text);
+    if (announced) room = announced;
     const categories = CATEGORY_WORDS.filter((entry) => entry.re.test(segment.text)).map((entry) => entry.category);
     const damageTypes = damageIn(segment.text);
     const heightFt = firstNumber(segment.text, /(?:wet|water|damp|saturated)\s+to\s+(\d+(?:\.\d+)?)\s*(?:feet|ft|foot)\b/i);
@@ -67,6 +67,26 @@ export function narrationCues(segments: TranscriptSegment[]): NarrationCue[] {
     });
   }
   return cues;
+}
+
+/** Room name from a line such as "This is the kitchen." */
+export function announcedRoom(text: string): string | null {
+  const announced = text.match(/(?:this is|we're in|we are in|entering)\s+(?:the\s+)?([a-z][a-z0-9 '/-]{1,40})/i);
+  if (!announced?.[1]) return null;
+  const name = titleCase(announced[1].replace(/\b(on the|about|and|with|where)\b[\s\S]*$/i, "").trim());
+  return name || null;
+}
+
+/** Room announced at or before `timeMs`. Later announcements replace earlier ones. */
+export function roomAt(segments: TranscriptSegment[], timeMs: number): string | null {
+  let room: string | null = null;
+  for (const segment of [...segments].sort((a, b) => a.startMs - b.startMs)) {
+    if (segment.startMs > timeMs) break;
+    if (screenText(segment.text).length) continue;
+    const announced = announcedRoom(segment.text);
+    if (announced) room = announced;
+  }
+  return room;
 }
 
 export function cueMatches(cue: NarrationCue, roomName: string, category: ObjectCategory, label: string): boolean {

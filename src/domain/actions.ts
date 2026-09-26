@@ -208,7 +208,7 @@ function acceptLine(job: Job, itemId: string): Job {
   const status = activeEstimate(job)?.status ?? null;
   if (status === "estimator_approved" || status === "customer_authorized") throw new Error("This version is locked. It was not changed.");
   const items = job.scopeItems.map((item) => item.id === itemId && item.proposal === "suggested"
-    ? { ...item, proposal: "proposed" as const, scopeClass: "supported" as const, reviewStatus: "accepted" as const }
+    ? { ...item, proposal: "proposed" as const, scopeClass: "supported" as const, reviewStatus: "accepted" as const, humanEdited: true }
     : item);
   return reprice({ ...job, scopeItems: items }, activeEstimate(job)?.settings, "Suggested line accepted. The version is still a draft until the estimator approves it.");
 }
