@@ -1,6 +1,7 @@
 import { mkdir, readFile, readdir, writeFile, rm } from "node:fs/promises";
 import path from "node:path";
 import type { Job, MediaAsset } from "@/domain/types";
+import { normalizeJob } from "@/domain/job-shape";
 import { assertStorageReady } from "@/analysis/config";
 import { dataRoot } from "./paths";
 import { deleteSupabaseJob, getSupabaseJob, listSupabaseJobs, readSupabaseMedia, saveSupabaseJob, saveSupabaseMedia } from "./supabase-store";
@@ -18,24 +19,27 @@ async function ensure() {
 }
 
 export async function listJobs(): Promise<Job[]> {
-  if (assertStorageReady().mode === "supabase") return listSupabaseJobs(process.env, fetch);
+  if (assertStorageReady().mode === "supabase") return (await listSupabaseJobs(process.env, fetch)).map(normalizeJob);
   const { jobsDir } = await ensure();
   const files = await readdir(jobsDir);
   const jobs: Job[] = [];
   for (const file of files) {
     if (!file.endsWith(".json")) continue;
     const raw = await readFile(path.join(jobsDir, file), "utf8");
-    jobs.push(JSON.parse(raw) as Job);
+    jobs.push(normalizeJob(JSON.parse(raw) as Job));
   }
   return jobs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export async function getJob(id: string): Promise<Job | null> {
-  if (assertStorageReady().mode === "supabase") return getSupabaseJob(id, process.env, fetch);
+  if (assertStorageReady().mode === "supabase") {
+    const job = await getSupabaseJob(id, process.env, fetch);
+    return job ? normalizeJob(job) : null;
+  }
   const { jobsDir } = await ensure();
   try {
     const raw = await readFile(path.join(jobsDir, `${id}.json`), "utf8");
-    return JSON.parse(raw) as Job;
+    return normalizeJob(JSON.parse(raw) as Job);
   } catch {
     return null;
   }

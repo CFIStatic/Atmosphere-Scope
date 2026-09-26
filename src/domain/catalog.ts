@@ -2,7 +2,7 @@ import type { FloorPlan } from "@/domain/plan-from-measurement";
 import type { IdentifiedObject } from "@/analysis/frames";
 
 export type LossType = "none" | "water" | "fire";
-export type CatalogTrigger = "sketch" | "water" | "fire" | "contents";
+export type CatalogTrigger = "sketch" | "water" | "fire" | "contents" | "object";
 export type QuantityBasis = "floor_area" | "wall_area" | "baseboard" | "each";
 
 export type CatalogComponent =
@@ -94,6 +94,25 @@ export const STARTER_CATALOG: CatalogVersion = {
     item("CON-REPLACE", "contents", "Replace a listed content item", "each", "each", ["contents"], [
       { kind: "labor", trade: "general", hoursPerUnit: 0.25 },
       { kind: "material", query: "" },
+    ]),
+    item("MIT-FLOOD-CUT", "mitigation", "Flood cut drywall to the stated height", "lf", "baseboard", ["object"], [
+      { kind: "labor", trade: "carpenter", hoursPerUnit: 0.12 },
+    ]),
+    item("MIT-ANTIMICROBIAL", "mitigation", "Apply antimicrobial treatment to the affected area", "sqft", "wall_area", ["object"], [
+      { kind: "labor", trade: "general", hoursPerUnit: 0.02 },
+      { kind: "material", query: "antimicrobial treatment" },
+    ]),
+    item("MIT-REMOVE-FINISH", "mitigation", "Remove affected drywall", "sqft", "wall_area", ["object"], [
+      { kind: "labor", trade: "carpenter", hoursPerUnit: 0.05 },
+    ]),
+    item("MIT-DEMO-BASE", "mitigation", "Remove affected baseboard", "lf", "baseboard", ["object"], [
+      { kind: "labor", trade: "carpenter", hoursPerUnit: 0.04 },
+    ]),
+    item("COND-INSPECT", "mitigation", "Qualified inspection of staining", "each", "each", ["object"], [
+      { kind: "labor", trade: "general", hoursPerUnit: 1 },
+    ]),
+    item("CON-CLEAN", "contents", "Clean a listed content item", "each", "each", ["object"], [
+      { kind: "labor", trade: "general", hoursPerUnit: 0.2 },
     ]),
   ],
 };

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createId, nowIso } from "@/domain/ids";
 import type { MediaKind } from "@/domain/types";
+import { analysisJobStore, enqueueJob } from "@/analysis/video/job-queue";
+import { kickAnalysisWorker } from "@/analysis/video/supervisor";
+import { analysisEventSummary } from "@/analysis/video/status";
+import { callerAttribution } from "@/analysis/usage-log";
+import { addJobEvent } from "@/storage/workspace-book";
 import { saveJob, saveMediaFile } from "@/storage/job-store";
 import { assertJobWriter, loadVisibleJob } from "@/storage/visible-jobs";
 import { importDepthPayload, isDepthPayload } from "@/spatial/depth";
@@ -40,6 +45,30 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
   }
   const next = await saveJob(nextJob);
+  if (kind === "video") {
+    try {
+      const who = await callerAttribution();
+      await enqueueJob(analysisJobStore(), {
+        id: createId("anl"),
+        jobId: id,
+        mediaId: media.id,
+        status: "pending",
+        attempts: 0,
+        maxAttempts: 3,
+        leaseOwner: null,
+        leaseUntil: null,
+        lastError: null,
+        stage: "queued",
+        orgId: who.orgId,
+        actorEmail: who.userEmail || null,
+        updatedAt: nowIso(),
+      });
+      await addJobEvent({ jobId: id, orgId: who.orgId, actorEmail: who.userEmail, summary: analysisEventSummary("queued") }).catch(() => undefined);
+      kickAnalysisWorker();
+    } catch {
+      // The upload is already stored. The queue can be retried with POST /api/analysis/queue.
+    }
+  }
   return NextResponse.json({ job: next, mediaId: media.id });
 }
 

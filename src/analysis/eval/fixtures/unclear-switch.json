@@ -1,0 +1,23 @@
+{
+  "slug": "unclear-switch",
+  "notes": "An unclear device produces a question and no line item.",
+  "mediaId": "media-hall",
+  "transcript": [{ "startMs": 0, "text": "This is the hallway." }],
+  "detections": [
+    {
+      "frameId": "frm-switch",
+      "timeMs": 1000,
+      "roomHint": "Hallway",
+      "tile": { "row": 0, "col": 1, "rows": 2, "cols": 2 },
+      "category": "switch",
+      "label": "Switch",
+      "material": null,
+      "box": { "x": 0.2, "y": 0.4, "width": 0.06, "height": 0.08 },
+      "confidence": 0.4,
+      "condition": "unclear",
+      "damageTypes": [],
+      "severity": null,
+      "rationale": "The plate is in shadow."
+    }
+  ]
+}

@@ -1,4 +1,5 @@
-import { selectMeasurementBackend, selectPricingProvider, selectStorage, type Env } from "@/analysis/config";
+import { analysisMode, inventoryVisionModel, selectMeasurementBackend, selectPricingProvider, selectStorage, triageVisionModel, visionModel, type Env } from "@/analysis/config";
+import { expectedModeMinuteUsd } from "@/analysis/video/cost";
 
 export type ProviderRow = {
   stage: string;
@@ -15,7 +16,13 @@ export function providerStatus(env: Env = process.env): ProviderRow[] {
   const measurement = selectMeasurementBackend(env);
   const storage = selectStorage(env);
   const transcribeModel = env.OPENAI_TRANSCRIBE_MODEL?.trim() || "gpt-4o-mini-transcribe";
-  const visionModel = env.OPENAI_VISION_MODEL?.trim() || "gpt-4o-mini";
+  const triage = triageVisionModel(env);
+  const inventory = inventoryVisionModel(env);
+  const mode = analysisMode(env);
+  const cheap = expectedModeMinuteUsd("cheap");
+  const cascade = expectedModeMinuteUsd("cascade");
+  const strong = expectedModeMinuteUsd("strong");
+  const notes = visionModel(env);
   return [
     {
       stage: "Room measurement",
@@ -37,9 +44,9 @@ export function providerStatus(env: Env = process.env): ProviderRow[] {
       stage: "Object identification",
       env: "OPENAI_API_KEY",
       ready: openai,
-      provider: `OpenAI ${visionModel} vision`,
-      cost: "typically under about $0.01 per keyframe, at most 4 keyframes",
-      note: openai ? "Key is set. Names can be wrong. Vision does not measure the room." : "Key missing. Objects are not invented.",
+      provider: `OpenAI ${mode} mode, triage ${triage}, confirmation ${inventory}, ${notes} keyframe notes`,
+      cost: `planning estimate about $${cascade.totalUsd.toFixed(2)}/min cascade, $${strong.totalUsd.toFixed(2)}/min strong, $${cheap.totalUsd.toFixed(2)}/min cheap, at 12 distinct frames`,
+      note: openai ? `Key is set. This process is in ${mode} mode. Names can be wrong. Vision does not measure the room.` : "Key missing. Objects are not invented.",
     },
     {
       stage: "Replacement prices",

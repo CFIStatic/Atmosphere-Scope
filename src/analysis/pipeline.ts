@@ -3,12 +3,14 @@ import { DEMO_PRICE_BOOK, emptyPriceBook } from "@/domain/price-book";
 import { buildQuestions } from "@/domain/questions";
 import { createEstimateVersion } from "@/domain/review";
 import { buildScope } from "@/domain/scope";
-import type { Finding, FrameObservation, Job, MediaAsset, PriceBook, ProcessingStage, ProcessingState, Room, TranscriptSegment } from "@/domain/types";
+import type { AnalysisCostLog, Finding, FrameObservation, Job, MediaAsset, PriceBook, ProcessingStage, ProcessingState, Room, TranscriptSegment } from "@/domain/types";
 import { SKETCH_DISCLAIMER } from "@/domain/types";
 import { applyEvaluation, boundsOf, emptySnapshot } from "@/domain/geometry";
+import { STARTER_CATALOG } from "@/domain/catalog";
 import { analyzeEvidence, materializeFindings } from "./analyze";
 import { layoutFromMentions, mentionRooms } from "./layout";
 import { screenText } from "./guard";
+import { analyzeObjects, questionsFromObjects, scopeFromObjects, type RawDetection, type RoomMeasure } from "./objects/run";
 
 export const STAGE_ORDER: ProcessingStage[] = ["ingest", "transcribe", "frames", "analyze", "layout", "questions", "scope", "estimate"];
 
@@ -60,6 +62,8 @@ export function createEmptyJob(input: {
     transcripts: [],
     frames: [],
     findings: [],
+    objects: [],
+    analysisCost: null,
     sketch: applyEvaluation({
       id: createId("sketch"),
       units: "ft",
@@ -90,6 +94,10 @@ export type PipelineInput = {
   failStage?: ProcessingStage;
   priceBook?: PriceBook | null;
   usePriceBook: boolean;
+  /** Per-frame inventory. Absent means keep objects already stored on the job. */
+  detections?: RawDetection[];
+  measures?: RoomMeasure[];
+  analysisCost?: AnalysisCostLog | null;
 };
 
 export function runPipeline(job: Job, input: PipelineInput): Job {
@@ -121,6 +129,17 @@ export function runPipeline(job: Job, input: PipelineInput): Job {
       return { ...next, floors, rooms, findings, coverageNotes: draft.coverageNotes };
     }, "Findings drafted. Human corrections kept.");
     if (input.failStage === "analyze") throw new Error("Analysis failed.");
+    if (input.detections?.length) {
+      const analyzed = analyzeObjects({
+        detections: input.detections,
+        transcripts: next.transcripts,
+        rooms: next.rooms,
+        measures: input.measures,
+        catalog: STARTER_CATALOG,
+      });
+      next = { ...next, objects: analyzed.objects };
+    }
+    if ("analysisCost" in input) next = { ...next, analysisCost: input.analysisCost ?? null };
     next = stage(next, "layout", () => layoutStage(next), "Schematic layout proposed. Narrated sizes are not locked measurements.");
     if (input.failStage === "layout") throw new Error("Layout interrupted.");
     const book = input.usePriceBook ? input.priceBook ?? DEMO_PRICE_BOOK : emptyPriceBook();
@@ -131,10 +150,11 @@ export function runPipeline(job: Job, input: PipelineInput): Job {
         surfaces: next.surfaces,
         affectedByRoom: Object.fromEntries(next.rooms.map((room) => [room.id, { sqft: null, status: "unresolved" as const, note: "Affected area not measured during analysis." }])),
       });
-      return { ...next, scopeItems: mergeScope(next.scopeItems, generated) };
+      const objectLines = scopeFromObjects(next.objects ?? [], STARTER_CATALOG);
+      return { ...next, scopeItems: mergeScope(next.scopeItems, [...generated, ...objectLines]) };
     }, "Scope separated into supported, conditional, optional, and excluded work.");
     if (input.failStage === "scope") throw new Error("Scope generation failed.");
-    next = stage(next, "questions", () => ({ ...next, questions: mergeQuestions(next.questions, buildQuestions({ findings: next.findings, scopeItems: next.scopeItems, sketch: next.sketch })) }), "Follow-up questions listed.");
+    next = stage(next, "questions", () => ({ ...next, questions: mergeQuestions(next.questions, [...buildQuestions({ findings: next.findings, scopeItems: next.scopeItems, sketch: next.sketch }), ...questionsFromObjects(next.objects ?? [])]) }), "Follow-up questions listed.");
     const locked = next.estimates.find((version) => version.status === "estimator_approved" || version.status === "customer_authorized");
     next = stage(next, "estimate", () => {
       if (locked) {

@@ -254,6 +254,12 @@ export type ScopeItem = {
   humanEdited: boolean;
   origin: "ai" | "human";
   fingerprint: string;
+  /** Inventoried object this line was scoped from, when the line came from object analysis. */
+  objectId?: string | null;
+  /** High-confidence lines are proposed. Low-confidence lines are suggested and need acceptance. */
+  proposal?: "proposed" | "suggested";
+  /** Model confidence for this line, 0–1. Not a measurement-accuracy claim. */
+  confidence?: number | null;
 };
 
 export type PriceComponent = {
@@ -368,6 +374,121 @@ export type FollowUpQuestion = {
   answeredAt: string | null;
 };
 
+export type ObjectCategory =
+  | "drywall"
+  | "ceiling"
+  | "baseboard"
+  | "trim"
+  | "casing"
+  | "door"
+  | "window"
+  | "flooring"
+  | "cabinet"
+  | "countertop"
+  | "fixture"
+  | "outlet"
+  | "switch"
+  | "vent"
+  | "light"
+  | "hvac"
+  | "plumbing"
+  | "appliance"
+  | "contents"
+  | "furniture"
+  | "other";
+
+export type ObjectCondition = "ok" | "damaged" | "unclear";
+
+export type DamageType =
+  | "water_staining"
+  | "swelling"
+  | "delamination"
+  | "mold"
+  | "cracking"
+  | "burn"
+  | "smoke"
+  | "missing"
+  | "wet";
+
+export type DamageSeverity = "none" | "minor" | "moderate" | "severe";
+
+/** Normalized to the full frame. Origin is the top left. Values are 0–1. */
+export type BoundingBox = { x: number; y: number; width: number; height: number };
+
+export type ObjectSighting = {
+  mediaId: string;
+  frameId: string;
+  timeMs: number;
+  box: BoundingBox;
+  /** Null on the full frame. Set when the sighting came from a crop. */
+  tile: string | null;
+};
+
+export type ObjectExtent = {
+  value: number | null;
+  unit: "sqft" | "lf" | "each" | "ft" | null;
+  note: string;
+  /** Spoken wet height, when the narrator gave one. */
+  heightFt?: number | null;
+  /** Spoken run length, when the narrator gave one. */
+  lengthFt?: number | null;
+};
+
+export type DamageAssessment = {
+  condition: ObjectCondition;
+  damageTypes: DamageType[];
+  severity: DamageSeverity | null;
+  extent: ObjectExtent;
+  transcriptQuote: string | null;
+  transcriptStartMs: number | null;
+  confidence: number;
+  rationale: string;
+};
+
+export type RoomObject = {
+  id: string;
+  roomId: string | null;
+  roomName: string;
+  category: ObjectCategory;
+  label: string;
+  material: string | null;
+  condition: ObjectCondition;
+  quantity: { value: number | null; unit: "sqft" | "lf" | "each"; source: "geometry" | "narration" | "count" | "unmeasured"; note: string };
+  confidence: number;
+  sightings: ObjectSighting[];
+  assessment: DamageAssessment;
+  /** Model id that assessed this object. Older jobs omit it. */
+  assessedBy?: string | null;
+};
+
+export type AnalysisEscalationCounts = {
+  mode: "cascade" | "strong" | "cheap";
+  triaged: number;
+  escalated: number;
+  narration: number;
+  audit: number;
+  keptOk: number;
+};
+
+export type AnalysisStageCost = {
+  stage: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+  estimatedUsd: number;
+};
+
+export type AnalysisCostLog = {
+  walkthroughMediaId: string | null;
+  durationSeconds: number | null;
+  stages: AnalysisStageCost[];
+  totalEstimatedUsd: number;
+  note: string;
+  /** How many objects stayed on triage and how many went to the strong model. */
+  escalation?: AnalysisEscalationCounts | null;
+};
+
 export type AuditEvent = {
   id: string;
   at: string;
@@ -427,6 +548,8 @@ export type Job = {
   transcripts: TranscriptSegment[];
   frames: FrameObservation[];
   findings: Finding[];
+  objects: RoomObject[];
+  analysisCost: AnalysisCostLog | null;
   sketch: SketchDocument;
   questions: FollowUpQuestion[];
   scopeItems: ScopeItem[];

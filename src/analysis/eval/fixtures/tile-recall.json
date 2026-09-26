@@ -1,0 +1,9 @@
+{
+  "slug": "tile-recall",
+  "notes": "The outlet is absent from the wide frame and present only in the lower-left crop.",
+  "expectedLabels": ["Drywall", "Duplex outlet"],
+  "observations": [
+    { "label": "Drywall", "category": "drywall", "condition": "ok", "confidence": 0.8 },
+    { "label": "Duplex outlet", "category": "outlet", "condition": "unclear", "confidence": 0.55 }
+  ]
+}

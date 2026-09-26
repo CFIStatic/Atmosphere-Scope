@@ -115,6 +115,10 @@ export function defaultsSummary(defaults: EstimateDefaults | null): string {
 const LIST_PRICE_PER_TOKEN: Record<string, { input: number; output: number }> = {
   "gpt-4o-mini": { input: 0.15 / 1_000_000, output: 0.6 / 1_000_000 },
   "gpt-4o": { input: 2.5 / 1_000_000, output: 10 / 1_000_000 },
+  // developers.openai.com/api/docs/models/gpt-6-astra — $10 / $50 per 1M text tokens.
+  "gpt-6-astra": { input: 10 / 1_000_000, output: 50 / 1_000_000 },
+  "gpt-6-sol": { input: 2 / 1_000_000, output: 10 / 1_000_000 },
+  "gpt-6-luna": { input: 0.1 / 1_000_000, output: 0.5 / 1_000_000 },
 };
 
 export function listCostUsd(model: string, inputTokens: number | null, outputTokens: number | null): number | null {
