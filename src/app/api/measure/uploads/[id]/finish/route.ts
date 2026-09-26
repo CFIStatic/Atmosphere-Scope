@@ -17,7 +17,8 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   try {
     const meta = await store.assemble(id, path.join(directory, "walkthrough.mp4"));
     const videoPath = path.join(directory, "walkthrough.mp4");
-    const measured = await measureVideoFile(videoPath, { name: meta.filename, type: meta.mime });
+    const jobId = new URL(_request.url).searchParams.get("jobId");
+    const measured = await measureVideoFile(videoPath, { name: meta.filename, type: meta.mime }, jobId);
     if (!measured.ok) return NextResponse.json(measured.body, { status: measured.status });
     const bytes = await readFile(videoPath);
     const media: MediaAsset = {

@@ -194,6 +194,7 @@ export async function saveOrg(userId: string, email: string, role: AccountRole, 
   const name = input.name.trim();
   if (name.length < 2) throw new Error("Enter the company name.");
   const existing = await membershipFor(userId);
+  if (existing && existing.member.role !== "admin") throw new Error("An admin has to update the company.");
   if (remote()) {
     const client = admin();
     if (existing) {
@@ -423,10 +424,9 @@ export async function addUsage(row: Omit<UsageRow, "id" | "createdAt">): Promise
 
 export async function usageSince(userId: string, sinceIso: string): Promise<UsageRow[]> {
   const member = await membershipFor(userId);
+  if (!member) return [];
   if (remote()) {
-    let query = admin().from("api_usage").select("*").gte("created_at", sinceIso).order("created_at", { ascending: true });
-    if (member) query = query.eq("org_id", member.org.id);
-    const { data, error } = await query;
+    const { data, error } = await admin().from("api_usage").select("*").eq("org_id", member.org.id).gte("created_at", sinceIso).order("created_at", { ascending: true });
     fail(error);
     return (data ?? []).map((row) => ({
       id: row.id,
@@ -440,7 +440,7 @@ export async function usageSince(userId: string, sinceIso: string): Promise<Usag
       createdAt: row.created_at,
     }));
   }
-  return mutate((book) => book.usage.filter((item) => item.createdAt >= sinceIso && (!member || item.orgId === member.org.id || item.orgId == null)));
+  return mutate((book) => book.usage.filter((item) => item.createdAt >= sinceIso && item.orgId === member.org.id));
 }
 
 export async function findCredential(email: string): Promise<LocalCredential | null> {

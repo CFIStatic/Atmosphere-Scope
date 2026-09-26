@@ -58,7 +58,7 @@ export function parseOfferJson(text: string): { title: string | null; retailer: 
 
 export async function priceWithOpenAI(
   query: string,
-  options: { apiKey: string; fetchImpl: typeof fetch; now: Date; env?: Env; page?: FetchPageOptions },
+  options: { apiKey: string; fetchImpl: typeof fetch; now: Date; env?: Env; page?: FetchPageOptions; jobId?: string | null },
 ): Promise<ReplacementOffer> {
   const env = options.env ?? process.env;
   const retrievedAt = options.now.toISOString();
@@ -82,7 +82,7 @@ export async function priceWithOpenAI(
       }),
     });
     const payload = await response.json().catch(() => null);
-    noteModelUse(payload, pricingModel(env));
+    await noteModelUse(payload, pricingModel(env), options.jobId);
     if (!response.ok) {
       return blankOffer(query, `OpenAI pricing failed (${response.status}). No price was invented.`);
     }

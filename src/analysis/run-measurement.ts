@@ -8,7 +8,7 @@ import { enrichMeasuredWalkthrough } from "@/analysis/walkthrough";
 
 const SOLVER_FRAMES = 16;
 
-export async function measureVideoFile(filePath: string, file: { name: string; type: string }): Promise<{ ok: true; body: unknown } | { ok: false; status: number; body: unknown }> {
+export async function measureVideoFile(filePath: string, file: { name: string; type: string }, jobId?: string | null): Promise<{ ok: true; body: unknown } | { ok: false; status: number; body: unknown }> {
   const framesDir = path.join(path.dirname(filePath), "frames");
   await mkdir(framesDir, { recursive: true });
   const result = await runSolver(filePath, framesDir);
@@ -17,26 +17,26 @@ export async function measureVideoFile(filePath: string, file: { name: string; t
   }
   try {
     const measurement = JSON.parse(result.stdout) as Record<string, unknown>;
-    const ai = await safeEnrich(filePath, framesDir, file);
+    const ai = await safeEnrich(filePath, framesDir, file, jobId);
     return { ok: true, body: { ...measurement, ai } };
   } catch {
     return { ok: false, status: 500, body: { error: "Measurement output could not be read." } };
   }
 }
 
-export async function measureVideoBytes(bytes: Uint8Array, file: { name: string; type: string }) {
+export async function measureVideoBytes(bytes: Uint8Array, file: { name: string; type: string }, jobId?: string | null) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "scope-video-"));
   const filePath = path.join(directory, "walkthrough.mp4");
   try {
     const { writeFile } = await import("node:fs/promises");
     await writeFile(filePath, bytes);
-    return await measureVideoFile(filePath, file);
+    return await measureVideoFile(filePath, file, jobId);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
 }
 
-async function safeEnrich(filePath: string, framesDir: string, file: { name: string; type: string }) {
+async function safeEnrich(filePath: string, framesDir: string, file: { name: string; type: string }, jobId?: string | null) {
   try {
     const names = (await readdir(framesDir)).filter((name) => /\.jpe?g$/i.test(name)).sort().slice(0, SOLVER_FRAMES);
     const frames = await Promise.all(names.map(async (name) => ({
@@ -48,6 +48,7 @@ async function safeEnrich(filePath: string, framesDir: string, file: { name: str
     return await enrichMeasuredWalkthrough({
       video: { filename: file.name || "walkthrough.mp4", bytes: video, mimeType: file.type || "video/mp4" },
       frames,
+      jobId,
     });
   } catch {
     return {

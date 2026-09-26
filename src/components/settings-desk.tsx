@@ -224,7 +224,7 @@ function TeamSection({ role, onError }: { role: string; onError: (value: string 
     <section className="panel grid">
       <h2>Team</h2>
       <p className="meta">Invite an estimator or a customer. Roles stay in the account record. An admin cannot be chosen here.</p>
-      <form className="grid" onSubmit={async (event) => {
+      {role === "admin" && <form className="grid" onSubmit={async (event) => {
           event.preventDefault();
           onError(null);
           const response = await fetch("/api/account/team", {
@@ -251,7 +251,7 @@ function TeamSection({ role, onError }: { role: string; onError: (value: string 
             </select>
           </label>
           <button className="btn" type="submit">Invite</button>
-        </form>
+        </form>}
       <p className="meta">Only an admin can send the invite. Estimators and customers can see the team.</p>
       {note && <p className="meta" role="status">{note}</p>}
       <ul className="list">

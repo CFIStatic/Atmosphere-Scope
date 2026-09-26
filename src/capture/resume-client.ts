@@ -5,6 +5,7 @@ export async function resumeCapture(record: CaptureRecord, options: {
   online: boolean;
   fetchImpl?: typeof fetch;
   onStatus: (text: string) => void;
+  jobId?: string | null;
   readChunk?: (captureId: string, index: number) => Promise<Blob | null>;
   putCapture?: (record: CaptureRecord) => Promise<void>;
 }): Promise<unknown | null> {
@@ -43,7 +44,10 @@ export async function resumeCapture(record: CaptureRecord, options: {
   options.onStatus(captureStatusLabel({ online: true, phase: "processing", sent: current.totalChunks, total: current.totalChunks }));
   current = { ...current, status: "processing" };
   await putCapture(current);
-  const finished = await fetchImpl(`/api/measure/uploads/${current.uploadId}/finish`, { method: "POST" });
+  const finishUrl = options.jobId
+    ? `/api/measure/uploads/${current.uploadId}/finish?jobId=${encodeURIComponent(options.jobId)}`
+    : `/api/measure/uploads/${current.uploadId}/finish`;
+  const finished = await fetchImpl(finishUrl, { method: "POST" });
   const body = await finished.json().catch(() => null);
   if (!finished.ok) throw new Error(body && typeof body === "object" && "error" in body ? String(body.error) : "Server processing failed.");
   await putCapture({ ...current, status: "done", error: null });

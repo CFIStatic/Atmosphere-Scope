@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   }
 
   const local = interpretUtterance(prompt, snapshot);
-  const model = await proposeCommand(prompt, jobContext(snapshot));
+  const model = await proposeCommand(prompt, jobContext(snapshot), { jobId: snapshot.jobId ?? null });
   const proposal = model.proposal ?? (local.matched ? local.proposal : null);
   if (!proposal) return NextResponse.json({ ready: model.ready, proposal: null, diffs: [], notice: admin && !model.ready ? "Ask Atmosphere is off." : null });
   return NextResponse.json({ ready: model.ready, proposal, diffs: diffProposal(snapshot, proposal), notice: null });
