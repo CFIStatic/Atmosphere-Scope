@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ThemeToggle } from "@/components/theme-toggle";
-
 type PublicSession = { email: string; name: string; role: "admin" | "estimator" | "customer" };
 
 export function AccountMenu() {
@@ -60,7 +58,6 @@ export function AccountMenu() {
             {session?.email && <p>{session.email}</p>}
             {session?.role && <p>{roleWord(session.role)}</p>}
           </div>
-          <ThemeToggle id="theme-toggle" labeled />
           <Link role="menuitem" href="/settings" onClick={() => setOpen(false)}>Settings</Link>
           {session?.role === "admin" && <Link role="menuitem" href="/admin/users" onClick={() => setOpen(false)}>Users</Link>}
           {session ? (

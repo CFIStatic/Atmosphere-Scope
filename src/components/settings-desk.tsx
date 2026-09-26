@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AccountForm } from "@/components/account-form";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { EstimateDefaults, LaborRate, Member, NotificationPref, Org, Profile } from "@/domain/workspace";
@@ -101,29 +101,22 @@ function ProfileSection({ desk, notice, onError, onDesk }: { desk: Desk | null; 
     <div className="grid">
       <section className="panel grid">
         <h2>Profile</h2>
-        <div className="row">
-          {desk?.profile.avatarUrl ? <img className="avatar-preview" src={desk.profile.avatarUrl} alt="" /> : <span className="who-avatar" aria-hidden="true">{(name || desk?.profile.email || "—").slice(0, 1).toUpperCase()}</span>}
-          <label className="field">Photo
-            <input type="file" accept="image/*" onChange={async (event) => {
-              const file = event.target.files?.[0];
-              if (!file) return;
-              const dataUrl = await readImage(file);
-              if (!dataUrl) {
-                onError("Use an image under 120 KB.");
-                return;
-              }
-              const response = await fetch("/api/account/avatar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dataUrl }) });
-              const body = await response.json();
-              if (!response.ok) {
-                onError(body.error ?? "The photo was not saved.");
-                return;
-              }
-              if (desk) onDesk({ ...desk, profile: body.profile });
-              onError(null);
-              setSaved("Photo saved.");
-            }} />
-          </label>
-        </div>
+        <UploadControl
+          label="Upload photo"
+          preview={desk?.profile.avatarUrl ? <img className="avatar-preview" src={desk.profile.avatarUrl} alt="" /> : <span className="who-avatar" aria-hidden="true">{(name || desk?.profile.email || "—").slice(0, 1).toUpperCase()}</span>}
+          onFile={async (dataUrl) => {
+            const response = await fetch("/api/account/avatar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ dataUrl }) });
+            const body = await response.json();
+            if (!response.ok) {
+              onError(body.error ?? "The photo was not saved.");
+              return;
+            }
+            if (desk) onDesk({ ...desk, profile: body.profile });
+            onError(null);
+            setSaved("Photo saved.");
+          }}
+          onReject={() => onError("Use an image under 120 KB.")}
+        />
         <form className="grid" onSubmit={async (event) => {
           event.preventDefault();
           onError(null);
@@ -168,7 +161,7 @@ function CompanySection({ desk, onError, onDesk }: { desk: Desk | null; onError:
       const response = await fetch("/api/account/company", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, address, licenseNumbers: license }),
+        body: JSON.stringify({ name, address, licenseNumbers: license, logoUrl: desk?.org?.logoUrl ?? "" }),
       });
       const body = await response.json();
       if (!response.ok) {
@@ -180,6 +173,26 @@ function CompanySection({ desk, onError, onDesk }: { desk: Desk | null; onError:
     }}>
       <h2>Company</h2>
       <p className="meta">Name, address, and license numbers. Empty fields stay empty.</p>
+      <UploadControl
+        label="Upload logo"
+        preview={desk?.org?.logoUrl ? <img className="logo-preview" src={desk.org.logoUrl} alt="" /> : <span className="logo-preview" aria-hidden="true" />}
+        onFile={async (dataUrl) => {
+          const response = await fetch("/api/account/company", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ name: name || desk?.org?.name || "", address, licenseNumbers: license, logoUrl: dataUrl }),
+          });
+          const body = await response.json();
+          if (!response.ok) {
+            onError(body.error ?? "The logo was not saved.");
+            return;
+          }
+          if (desk) onDesk({ ...desk, org: body.org });
+          onError(null);
+          setSaved("Logo saved.");
+        }}
+        onReject={() => onError("Use an image under 120 KB.")}
+      />
       <label className="field">Company name
         <input value={name} onChange={(event) => setName(event.target.value)} required minLength={2} />
       </label>
@@ -433,6 +446,45 @@ function BillingSection() {
       <h3>Invoices</h3>
       <p className="meta">No invoices.</p>
     </section>
+  );
+}
+
+function UploadControl({
+  label,
+  preview,
+  onFile,
+  onReject,
+}: {
+  label: string;
+  preview: ReactNode;
+  onFile: (dataUrl: string) => Promise<void>;
+  onReject: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className="upload-row">
+      {preview}
+      <button className="btn secondary" type="button" onClick={() => inputRef.current?.click()}>{label}</button>
+      <input
+        ref={inputRef}
+        className="file-input"
+        type="file"
+        accept="image/*"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={async (event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (!file) return;
+          const dataUrl = await readImage(file);
+          if (!dataUrl) {
+            onReject();
+            return;
+          }
+          await onFile(dataUrl);
+        }}
+      />
+    </div>
   );
 }
 

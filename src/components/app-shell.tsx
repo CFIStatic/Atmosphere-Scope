@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AccountMenu } from "@/components/account-menu";
 import { BrandLockup } from "@/components/brand-lockup";
 import { LibraryQueryContext } from "@/components/library-query";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function AppShell({
   variant = "page",
@@ -58,7 +59,10 @@ export function AppShell({
             />
           </label>
         )}
-        <AccountMenu />
+        <div className="header-tools">
+          <ThemeToggle id="theme-toggle" />
+          <AccountMenu />
+        </div>
       </header>
       <div className={variant === "library" ? "lib-main" : "ops-main"}>
         {variant === "library" ? <LibraryQueryContext.Provider value={query}>{children}</LibraryQueryContext.Provider> : children}
