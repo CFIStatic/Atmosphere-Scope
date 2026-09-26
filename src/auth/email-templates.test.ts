@@ -17,14 +17,15 @@ describe("auth email templates", () => {
     for (const [file, spec] of Object.entries(expected)) {
       const html = readFileSync(path.join(dir, file), "utf8");
       expect(html, file).toContain(`Subject: ${spec.subject}`);
-      expect(html, file).toContain("{{ .SiteURL }}/brand/lockup-on-light.png");
+      expect(html, file).toContain("{{ .SiteURL }}/brand/email-lockup.png");
       expect(html, file).toContain("#f5c518");
       expect(html, file).toContain("{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}");
       expect(html, file).toContain(spec.type);
       expect(html, file).toContain(spec.next);
-      expect(html, file).toContain("Atmosphere Scope</td>");
+      expect(html, file).toContain("Property damage assessment and estimating.</td>");
       expect(html, file).not.toMatch(/background:\s*#18191b/i);
-      expect(html, file).toContain("max-width:560px");
+      expect(html, file).not.toContain("copy this link");
+      expect(html, file).toContain("max-width:520px");
     }
     expect(readdirSync(dir).filter((name) => name.endsWith(".html")).sort()).toEqual(Object.keys(expected).sort());
     expect(readFileSync(path.join(dir, "README.md"), "utf8")).toContain("Confirm your Atmosphere Scope account");
