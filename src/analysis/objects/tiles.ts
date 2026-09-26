@@ -34,6 +34,15 @@ export function cropFilter(box: BoundingBox, width: number, height: number): str
   return `crop=${cropW}:${cropH}:${x}:${y}`;
 }
 
+/** Expand a full-frame box so the crop includes a little context, then clamp it to the frame. */
+export function paddedFrameBox(box: BoundingBox, pad = 0.08): BoundingBox {
+  const x = Math.max(0, box.x - pad);
+  const y = Math.max(0, box.y - pad);
+  const right = Math.min(1, box.x + box.width + pad);
+  const bottom = Math.min(1, box.y + box.height + pad);
+  return { x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y) };
+}
+
 export function tileBox(tile: TileRef): BoundingBox {
   return {
     x: tile.col / tile.cols,

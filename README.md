@@ -38,7 +38,7 @@ The minimum setup for the full walkthrough is one key: `OPENAI_API_KEY`. Copy `.
 | --- | --- | --- | --- |
 | Measurement, calibration PDF, plane fit | none | Local OpenCV (`measure/requirements.txt`) and ffmpeg | $0 |
 | Transcription | `OPENAI_API_KEY` | `gpt-4o-mini-transcribe` (override with `OPENAI_TRANSCRIBE_MODEL`; `whisper-1` is about $0.006/min) | a few tenths of a cent per minute |
-| Object identification | `OPENAI_API_KEY` | Inventory and damage assessment default to `gpt-6-astra` (`OPENAI_VISION_MODEL` overrides it). The older notes path uses `gpt-4o-mini` and at most 4 keyframes. The exhaustive inventory reads distinct frames and 2×2 crops, with a safety ceiling of 120 frames. The Node server polls the leased queue | about $1.54 per walkthrough minute at ~12 distinct frames ($10 / $50 per 1M tokens). A busy camera near 60 frames is closer to $7.70 of vision plus $0.003 transcription |
+| Object identification | `OPENAI_API_KEY` | `ANALYSIS_MODE` defaults to `cascade`. `gpt-4o-mini` (`OPENAI_TRIAGE_MODEL`) inventories every frame and 2×2 tile. `gpt-6-astra` (`OPENAI_VISION_MODEL`) confirms only possibly damaged, unclear, low-confidence, narrated, and a 10% audit sample, using object crops. `strong` sends every frame to the strong model. `cheap` stays on triage. Keyframe notes stay on `gpt-4o-mini`. The Node server polls the leased queue | Planning estimates, not invoices, at ~12 distinct frames: cascade about $0.28/min, strong about $1.54/min, cheap about $0.02/min, plus $0.003 transcription |
 | Replacement price | `OPENAI_API_KEY` | Responses API `web_search`, then a server fetch of the product page | billed per search, often cents per item plus tokens |
 | Storage | none | JSON and files in `data/` | $0 |
 

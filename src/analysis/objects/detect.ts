@@ -3,6 +3,9 @@ import type { BoundingBox, DamageSeverity, DamageType, ObjectCategory, ObjectCon
 /** Crop address. Row 0 is the top. Coordinates inside a detection are relative to this crop. */
 export type TileRef = { row: number; col: number; rows: number; cols: number };
 
+/** Triage call before a strong model confirms it. `possibly_damaged` is not a line by itself. */
+export type PreliminaryCondition = "ok" | "possibly_damaged" | "unclear";
+
 /**
  * One model sighting, before cross-frame dedupe.
  * Adapted from Atmosphere's frame observation regions
@@ -23,6 +26,12 @@ export type RawDetection = {
   damageTypes: DamageType[];
   severity: DamageSeverity | null;
   rationale: string | null;
+  /** Set on the triage pass. Absent when the strong model inventoried the frame itself. */
+  preliminary?: PreliminaryCondition | null;
+  /** Model id that last assessed this sighting. */
+  assessedBy?: string | null;
+  /** True when a strong-model confirmation should drive condition, not the triage guess. */
+  confirmed?: boolean;
 };
 
 export const OBJECT_CATEGORIES: ObjectCategory[] = [

@@ -158,13 +158,45 @@ export function visionModel(_env: Env = process.env): string {
 }
 
 /**
- * Inventory and damage assessment.
+ * Strong model for damage confirmation, and for every frame when ANALYSIS_MODE=strong.
  * `OPENAI_VISION_MODEL` overrides this. Unset uses gpt-6-astra, which accepts
  * images on Chat Completions (developers.openai.com/api/docs/models/gpt-6-astra).
- * The keyframe notes path stays on gpt-4o-mini unless that override is set.
+ * The keyframe notes path stays on gpt-4o-mini.
  */
 export function inventoryVisionModel(env: Env = process.env): string {
   return trimmed(env, "OPENAI_VISION_MODEL") || "gpt-6-astra";
+}
+
+/** Cheap model for the exhaustive first pass. `OPENAI_TRIAGE_MODEL` overrides it. */
+export function triageVisionModel(env: Env = process.env): string {
+  return trimmed(env, "OPENAI_TRIAGE_MODEL") || "gpt-4o-mini";
+}
+
+export type AnalysisMode = "cascade" | "strong" | "cheap";
+
+/** cascade triages then escalates. strong skips triage. cheap never calls the strong model. */
+export function analysisMode(env: Env = process.env): AnalysisMode {
+  const value = trimmed(env, "ANALYSIS_MODE").toLowerCase();
+  if (value === "strong" || value === "cheap" || value === "cascade") return value;
+  return "cascade";
+}
+
+/** Objects below this confidence are escalated even when triage says ok. */
+export function escalateBelow(env: Env = process.env): number {
+  return unitRate(env, "ANALYSIS_ESCALATE_BELOW", 0.75);
+}
+
+/** Share of confident-ok objects sent to the strong model so misses can be measured. */
+export function auditRate(env: Env = process.env): number {
+  return unitRate(env, "ANALYSIS_AUDIT_RATE", 0.1);
+}
+
+function unitRate(env: Env, name: string, fallback: number): number {
+  const raw = trimmed(env, name);
+  if (!raw) return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0 || value > 1) return fallback;
+  return value;
 }
 
 export function pricingModel(env: Env = process.env): string {

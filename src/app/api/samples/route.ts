@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createEmptyJob, runPipeline } from "@/analysis/pipeline";
-import { costLog, expectedWalkthroughMinuteUsd } from "@/analysis/video/cost";
+import { triageVisionModel, inventoryVisionModel } from "@/analysis/config";
+import { dedupeDetections } from "@/analysis/objects/dedupe";
+import { assignAssessedBy, escalationSummary, planEscalation } from "@/analysis/objects/escalate";
+import { narrationCues } from "@/analysis/objects/narration";
+import { costLog, expectedModeMinuteUsd, PLANNING_CROP_INPUT, PLANNING_CROP_OUTPUT, PLANNING_ESCALATED_CROPS, PLANNING_FRAMES, PLANNING_INPUT_PER_FRAME, PLANNING_OUTPUT_PER_FRAME, tokensToUsd, TRIAGE_MODEL, INVENTORY_MODEL } from "@/analysis/video/cost";
 import { getScenario, scenarioBundle } from "@/samples/scenarios";
 import { saveJob } from "@/storage/job-store";
 import { assignJobOrg } from "@/storage/job-org";
@@ -13,13 +17,37 @@ export async function POST(request: Request) {
   const scenario = getScenario(String(body.scenarioId ?? ""));
   if (!scenario) return NextResponse.json({ error: "Unknown sample." }, { status: 404 });
   const bundle = scenarioBundle(scenario);
-  const minute = expectedWalkthroughMinuteUsd();
+  const cascade = expectedModeMinuteUsd("cascade");
+  let escalation = null;
+  if (bundle.detections?.length) {
+    const clusters = dedupeDetections(bundle.detections);
+    const plan = planEscalation({
+      clusters,
+      cues: narrationCues(bundle.transcripts),
+      mode: "cascade",
+      threshold: 0.75,
+      auditRate: 0,
+    });
+    const triage = triageVisionModel();
+    const strong = inventoryVisionModel();
+    for (const decision of plan.decisions) {
+      const cluster = clusters.find((item) => item.id === decision.id);
+      if (cluster) assignAssessedBy(cluster, decision.escalate ? strong : triage, decision.escalate);
+    }
+    escalation = plan.counts;
+  }
+  const triageTokens = { input: PLANNING_FRAMES * PLANNING_INPUT_PER_FRAME, output: PLANNING_FRAMES * PLANNING_OUTPUT_PER_FRAME };
+  const cropTokens = { input: PLANNING_ESCALATED_CROPS * PLANNING_CROP_INPUT, output: PLANNING_ESCALATED_CROPS * PLANNING_CROP_OUTPUT };
   const analysisCost = bundle.detections?.length
     ? costLog({
       mediaId: bundle.media[0]?.id ?? null,
       durationSeconds: 45,
-      stages: [{ stage: "inventory", model: minute.model, inputTokens: minute.distinctFrames * 4800, outputTokens: minute.distinctFrames * 1600, latencyMs: 0, estimatedUsd: minute.visionUsd }],
-      note: "Planning estimate for about one minute at gpt-6-astra list rates (12 distinct frames, full frame plus a 2×2 crop grid). Not an invoice and not a live call. The sample objects were scored from the fixture.",
+      escalation,
+      stages: [
+        { stage: "triage", model: TRIAGE_MODEL, inputTokens: triageTokens.input, outputTokens: triageTokens.output, latencyMs: 0, estimatedUsd: tokensToUsd(triageTokens.input, triageTokens.output, TRIAGE_MODEL) },
+        { stage: "escalation", model: INVENTORY_MODEL, inputTokens: cropTokens.input, outputTokens: cropTokens.output, latencyMs: 0, estimatedUsd: tokensToUsd(cropTokens.input, cropTokens.output, INVENTORY_MODEL) },
+      ],
+      note: `Planning estimate for cascade mode, about $${cascade.totalUsd.toFixed(2)} per walkthrough minute (${PLANNING_FRAMES} distinct frames on ${TRIAGE_MODEL}, plus ${PLANNING_ESCALATED_CROPS} ${INVENTORY_MODEL} object crops). Not an invoice and not a live call. The sample objects were scored from the fixture. ${escalation ? escalationSummary(escalation) : ""}`.trim(),
     })
     : undefined;
   const created = createEmptyJob({

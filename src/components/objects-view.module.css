@@ -17,6 +17,7 @@
 .main { min-width: 0; }
 .main strong, .detail h2 { color: var(--ink); }
 .meta { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.checked { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
 .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .badge {
   border: 1px solid var(--line);

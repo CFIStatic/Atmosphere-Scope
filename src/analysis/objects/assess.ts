@@ -23,11 +23,14 @@ export function assessClusters(clusters: DetectionCluster[], transcripts: Transc
     const quote = related.find((cue) => cue.damageTypes.length || cue.heightFt != null || cue.lengthFt != null || cue.unclear) ?? related[0] ?? null;
     const narratedDamage = [...new Set(related.flatMap((cue) => cue.damageTypes))];
     const visual = visualCondition(cluster);
+    const confirmed = cluster.sightings.some((sighting) => sighting.confirmed);
     const unclearNarration = related.some((cue) => cue.unclear && cueMatches(cue, cluster.roomName, cluster.category, cluster.label) && (cue.categories.includes(cluster.category) || cue.quote.toLowerCase().includes(cluster.label.toLowerCase())));
     let condition: ObjectCondition = visual.condition;
-    if (unclearNarration && visual.condition !== "damaged") condition = "unclear";
-    if (narratedDamage.length && condition !== "unclear") condition = "damaged";
-    if (visual.condition === "damaged") condition = "damaged";
+    if (!confirmed) {
+      if (unclearNarration && visual.condition !== "damaged") condition = "unclear";
+      if (narratedDamage.length && condition !== "unclear") condition = "damaged";
+      if (visual.condition === "damaged") condition = "damaged";
+    }
     const damageTypes = [...new Set<DamageType>([...visual.damageTypes, ...narratedDamage])];
     if (condition !== "damaged") damageTypes.splice(0, damageTypes.length);
     const height = related.find((cue) => cue.heightFt != null)?.heightFt ?? null;
@@ -36,7 +39,8 @@ export function assessClusters(clusters: DetectionCluster[], transcripts: Transc
     const measure = measures.find((item) => item.roomName.toLowerCase() === cluster.roomName.toLowerCase());
     const quantity = quantityFor(cluster, condition, height, length, measure);
     const extent = extentFor(condition, height, length, quantity, quote?.quote ?? null);
-    const rationale = oneSentence(cluster, condition, damageTypes, quote?.quote ?? null, extent);
+    const modelRationale = confirmed ? rankedRationale(cluster) : null;
+    const rationale = modelRationale ?? oneSentence(cluster, condition, damageTypes, quote?.quote ?? null, extent);
     const assessment: DamageAssessment = {
       condition,
       damageTypes,
@@ -66,8 +70,20 @@ export function assessClusters(clusters: DetectionCluster[], transcripts: Transc
       confidence,
       sightings,
       assessment,
+      assessedBy: assessedByOf(cluster),
     };
   });
+}
+
+function assessedByOf(cluster: DetectionCluster): string | null {
+  const ranked = [...cluster.sightings].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+  return ranked.find((sighting) => sighting.assessedBy)?.assessedBy ?? null;
+}
+
+function rankedRationale(cluster: DetectionCluster): string | null {
+  const ranked = [...cluster.sightings].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+  const text = ranked.find((sighting) => sighting.rationale?.trim())?.rationale?.trim();
+  return text || null;
 }
 
 function visualCondition(cluster: DetectionCluster): { condition: ObjectCondition; damageTypes: DamageType[]; severity: DamageAssessment["severity"] } {

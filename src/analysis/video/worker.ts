@@ -9,13 +9,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { hostname } from "node:os";
 import { createId } from "@/domain/ids";
-import type { Job, TranscriptSegment } from "@/domain/types";
+import type { AnalysisEscalationCounts, AnalysisStageCost, Job, TranscriptSegment } from "@/domain/types";
+import { analysisMode, auditRate, escalateBelow, inventoryVisionModel, triageVisionModel } from "@/analysis/config";
 import { runPipeline } from "@/analysis/pipeline";
-import { inventoryFrame } from "@/analysis/openai/inventory";
+import { confirmObject, inventoryFrame } from "@/analysis/openai/inventory";
 import { transcribeWithOpenAI } from "@/analysis/openai/transcribe";
-import { roomAt } from "@/analysis/objects/narration";
+import { narrationCues, roomAt } from "@/analysis/objects/narration";
 import { cropFilter, planTiles, tileBox } from "@/analysis/objects/tiles";
 import type { RawDetection } from "@/analysis/objects/detect";
+import { dedupeDetections, type DetectionCluster } from "@/analysis/objects/dedupe";
+import { applyCheapReading, applyConfirmation, applyTriageKept, applyTriageUnconfirmed, escalationSummary, framesToConfirm, mergeConfirmations, planEscalation, type ObjectConfirmation } from "@/analysis/objects/escalate";
 import { parseVerbatimTranscript } from "./verbatim-transcript";
 import { defaultRunner, extractFrames, probeMetadata, type CommandRunner } from "./extract";
 import { prepareFrames } from "./intelligence";
@@ -161,6 +164,7 @@ export async function analyzeVideoBytes(input: {
   attribution?: UsageAttribution;
   onStage?: (stage: "extracting" | "inventorying" | "assessing" | "pricing") => Promise<void>;
   keepAlive?: () => Promise<void>;
+  random?: () => number;
 }): Promise<Job> {
   const dir = await mkdtemp(join(tmpdir(), "scope-walk-"));
   try {
@@ -183,15 +187,18 @@ export async function analyzeVideoBytes(input: {
     );
     const transcripts = speech.text ? segmentsFromTranscript(input.mediaId, speech.text) : input.job.transcripts;
     const heard = transcripts.length ? transcripts : input.job.transcripts;
+    const mode = analysisMode(input.env);
+    const triageModel = triageVisionModel(input.env);
+    const strongModel = inventoryVisionModel(input.env);
     const detections: RawDetection[] = [];
-    const stages = [];
+    const stages: AnalysisStageCost[] = [];
     await input.onStage?.("inventorying");
+    const runner = input.runner ?? defaultRunner;
     for (const frame of diverse) {
       if (input.keepAlive) await input.keepAlive();
       const source = loaded.find((item) => item.atSeconds === frame.atSeconds);
       if (!source) continue;
       const crops = [];
-      const runner = input.runner ?? defaultRunner;
       if (meta.width && meta.height) {
         for (const tile of planTiles()) {
           const out = join(dir, `crop-${source.sequence}-${tile.row}-${tile.col}.jpg`);
@@ -213,17 +220,62 @@ export async function analyzeVideoBytes(input: {
         fetchImpl: input.fetchImpl,
         jobId: input.job.id,
         attribution: input.attribution,
+        model: mode === "strong" ? strongModel : triageModel,
+        pass: mode === "strong" ? "inventory" : "triage",
       });
+      if (mode === "strong") {
+        for (const detection of inventory.detections) detection.assessedBy = strongModel;
+      }
       detections.push(...inventory.detections);
       stages.push(inventory.stage);
     }
+    const clusters = dedupeDetections(detections);
+    const plan = planEscalation({
+      clusters,
+      cues: narrationCues(heard),
+      mode,
+      threshold: escalateBelow(input.env),
+      auditRate: auditRate(input.env),
+      random: input.random,
+    });
+    if (mode === "cheap") {
+      for (const cluster of clusters) applyCheapReading(cluster, triageModel);
+    } else if (mode === "cascade") {
+      for (const decision of plan.decisions) {
+        const cluster = clusters.find((item) => item.id === decision.id);
+        if (!cluster) continue;
+        if (!decision.escalate) {
+          applyTriageKept(cluster, triageModel);
+          continue;
+        }
+        if (input.keepAlive) await input.keepAlive();
+        const confirmation = await confirmCluster({
+          cluster,
+          loaded,
+          width: meta.width,
+          height: meta.height,
+          dir,
+          runner,
+          env: input.env,
+          fetchImpl: input.fetchImpl,
+          jobId: input.job.id,
+          attribution: input.attribution,
+          model: strongModel,
+          stages,
+        });
+        if (confirmation) applyConfirmation(cluster, confirmation, strongModel);
+        else applyTriageUnconfirmed(cluster, triageModel);
+      }
+    }
+    const escalation: AnalysisEscalationCounts = plan.counts;
     const log = costLog({
       mediaId: input.mediaId,
       durationSeconds: meta.durationSeconds,
       stages,
-      note: speech.status === "missing_key"
+      escalation,
+      note: `${speech.status === "missing_key"
         ? "OPENAI_API_KEY is not set. Objects and narration were not invented. Transcription cost is a planning rate for the duration only."
-        : "Token cost uses the usage the provider returned and published list rates. It is not an invoice.",
+        : "Token cost uses the usage the provider returned and published list rates. It is not an invoice."} ${escalationSummary(escalation)}`,
     });
     await input.onStage?.("assessing");
     await input.onStage?.("pricing");
@@ -238,6 +290,49 @@ export async function analyzeVideoBytes(input: {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+async function confirmCluster(input: {
+  cluster: DetectionCluster;
+  loaded: { sequence: number; localPath: string }[];
+  width: number | null;
+  height: number | null;
+  dir: string;
+  runner: CommandRunner;
+  env?: Record<string, string | undefined>;
+  fetchImpl?: typeof fetch;
+  jobId: string;
+  attribution?: UsageAttribution;
+  model: string;
+  stages: AnalysisStageCost[];
+}): Promise<ObjectConfirmation | null> {
+  if (!input.width || !input.height) return null;
+  const confirmations: ObjectConfirmation[] = [];
+  let index = 0;
+  for (const frame of framesToConfirm(input.cluster)) {
+    const sequence = Number(/^frm_(\d+)$/.exec(frame.frameId)?.[1]);
+    const source = input.loaded.find((item) => item.sequence === sequence);
+    if (!source || !Number.isFinite(sequence)) continue;
+    const out = join(input.dir, `obj-${input.cluster.id}-${index}.jpg`);
+    index += 1;
+    const result = await input.runner("ffmpeg", ["-y", "-i", source.localPath, "-vf", cropFilter(frame.box, input.width, input.height), out]);
+    if (result.code !== 0) continue;
+    const confirmed = await confirmObject({
+      bytes: new Uint8Array(await readFile(out)),
+      mimeType: "image/jpeg",
+      label: input.cluster.label,
+      category: input.cluster.category,
+      roomHint: input.cluster.roomName,
+      env: input.env,
+      fetchImpl: input.fetchImpl,
+      jobId: input.jobId,
+      attribution: input.attribution,
+      model: input.model,
+    });
+    input.stages.push(confirmed.stage);
+    if (confirmed.confirmation) confirmations.push(confirmed.confirmation);
+  }
+  return mergeConfirmations(confirmations);
 }
 
 function segmentsFromTranscript(mediaId: string, text: string): TranscriptSegment[] {

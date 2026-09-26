@@ -457,6 +457,17 @@ export type RoomObject = {
   confidence: number;
   sightings: ObjectSighting[];
   assessment: DamageAssessment;
+  /** Model id that assessed this object. Older jobs omit it. */
+  assessedBy?: string | null;
+};
+
+export type AnalysisEscalationCounts = {
+  mode: "cascade" | "strong" | "cheap";
+  triaged: number;
+  escalated: number;
+  narration: number;
+  audit: number;
+  keptOk: number;
 };
 
 export type AnalysisStageCost = {
@@ -474,6 +485,8 @@ export type AnalysisCostLog = {
   stages: AnalysisStageCost[];
   totalEstimatedUsd: number;
   note: string;
+  /** How many objects stayed on triage and how many went to the strong model. */
+  escalation?: AnalysisEscalationCounts | null;
 };
 
 export type AuditEvent = {

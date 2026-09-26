@@ -25,6 +25,7 @@ export function ObjectsView({ job, objectId, onSelect }: { job: Job; objectId: s
                   <span className={styles.badge}>{quantityText(object)}</span>
                   <span className={styles.badge}>{Math.round(object.confidence * 100)}% confidence</span>
                 </span>
+                {object.assessedBy && <span className={styles.checked} data-testid="checked-by">Checked by {object.assessedBy}</span>}
                 {lines.length > 0 && <span className={styles.meta}>{lines.map((item) => item.code).join(", ")}</span>}
               </span>
             </button>
@@ -42,6 +43,7 @@ function ObjectDetail({ job, object }: { job: Job; object: RoomObject }) {
   return (
     <article className={styles.detail} data-testid="object-detail">
       <h2>{object.label}</h2>
+      {object.assessedBy && <p className={styles.checked} data-testid="checked-by-detail">Checked by {object.assessedBy}</p>}
       <p className={styles.meta}>{object.roomName} · {object.assessment.rationale}</p>
       {object.assessment.transcriptQuote && <p>“{object.assessment.transcriptQuote}”</p>}
       <p className={styles.meta}>{object.assessment.extent.note}</p>
@@ -76,6 +78,11 @@ function CostLog({ job }: { job: Job }) {
   return (
     <section className={styles.cost} aria-label="Analysis cost">
       <p className={styles.meta}>{log.note}</p>
+      {log.escalation && (
+        <p className={styles.meta} data-testid="escalation-counts">
+          {log.escalation.mode}: {log.escalation.triaged} triaged, {log.escalation.escalated} escalated ({log.escalation.narration} narration, {log.escalation.audit} audit), {log.escalation.keptOk} kept ok
+        </p>
+      )}
       <ul>
         {log.stages.map((stage) => (
           <li key={stage.stage}>

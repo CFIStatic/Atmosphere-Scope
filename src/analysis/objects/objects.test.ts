@@ -142,6 +142,8 @@ describe("object inventory", () => {
     expect(result.missed).toEqual([]);
     expect(scoreRecall(["Drywall"], tileRecall.expectedLabels).missed).toContain("Duplex outlet");
     expect(JSON.stringify(inventorySchema())).not.toContain("maxItems");
+    expect(JSON.stringify(inventorySchema())).not.toContain("possibly_damaged");
+    expect(JSON.stringify(inventorySchema("triage"))).toContain("possibly_damaged");
     const raw = readFileSync(path.join(process.cwd(), "src/analysis/eval/fixtures/tile-recall.json"), "utf8");
     expect(raw).toContain("tile-recall");
   });

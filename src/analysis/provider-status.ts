@@ -1,4 +1,5 @@
-import { inventoryVisionModel, selectMeasurementBackend, selectPricingProvider, selectStorage, visionModel, type Env } from "@/analysis/config";
+import { analysisMode, inventoryVisionModel, selectMeasurementBackend, selectPricingProvider, selectStorage, triageVisionModel, visionModel, type Env } from "@/analysis/config";
+import { expectedModeMinuteUsd } from "@/analysis/video/cost";
 
 export type ProviderRow = {
   stage: string;
@@ -15,8 +16,13 @@ export function providerStatus(env: Env = process.env): ProviderRow[] {
   const measurement = selectMeasurementBackend(env);
   const storage = selectStorage(env);
   const transcribeModel = env.OPENAI_TRANSCRIBE_MODEL?.trim() || "gpt-4o-mini-transcribe";
-  const triage = visionModel(env);
+  const triage = triageVisionModel(env);
   const inventory = inventoryVisionModel(env);
+  const mode = analysisMode(env);
+  const cheap = expectedModeMinuteUsd("cheap");
+  const cascade = expectedModeMinuteUsd("cascade");
+  const strong = expectedModeMinuteUsd("strong");
+  const notes = visionModel(env);
   return [
     {
       stage: "Room measurement",
@@ -38,9 +44,9 @@ export function providerStatus(env: Env = process.env): ProviderRow[] {
       stage: "Object identification",
       env: "OPENAI_API_KEY",
       ready: openai,
-      provider: `OpenAI ${inventory} inventory, ${triage} keyframe notes`,
-      cost: "about $1.54 per walkthrough minute at 12 distinct frames on gpt-6-astra; keyframe notes stay near $0.01 each on gpt-4o-mini",
-      note: openai ? "Key is set. Names can be wrong. Vision does not measure the room. OPENAI_VISION_MODEL overrides the inventory model." : "Key missing. Objects are not invented.",
+      provider: `OpenAI ${mode} mode, triage ${triage}, confirmation ${inventory}, ${notes} keyframe notes`,
+      cost: `planning estimate about $${cascade.totalUsd.toFixed(2)}/min cascade, $${strong.totalUsd.toFixed(2)}/min strong, $${cheap.totalUsd.toFixed(2)}/min cheap, at 12 distinct frames`,
+      note: openai ? `Key is set. This process is in ${mode} mode. Names can be wrong. Vision does not measure the room.` : "Key missing. Objects are not invented.",
     },
     {
       stage: "Replacement prices",
