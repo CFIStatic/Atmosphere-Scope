@@ -1,13 +1,13 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { authMode, localSession, publicSession, sessionFromSupabaseUser } from "@/auth/access";
+import { accountSession, authMode, publicSession, sessionFromSupabaseUser } from "@/auth/access";
 import { passwordProblem, roleFromAppMetadata, SIGN_IN_ERROR } from "@/auth/gate";
 import { localPasswordMatches } from "@/auth/passwords";
 import { clientKey, rateLimit } from "@/auth/rate-limit";
 import { rateLimitMessage } from "@/auth/http";
 import { getRequestSession } from "@/auth/request-session";
 import { serializeSessionCookie } from "@/auth/signed-cookie";
-import { findCredential } from "@/storage/workspace-book";
+import { findCredential, getProfile, membershipFor } from "@/storage/workspace-book";
 import { createSupabaseServer } from "@/auth/supabase-server";
 
 const COOKIE = "scope_session";
@@ -31,7 +31,10 @@ export async function POST(request: Request) {
     if (!email || !password || passwordProblem(password) || !(await localPasswordMatches(email, password))) {
       return NextResponse.json({ error: SIGN_IN_ERROR }, { status: 400 });
     }
-    const session = localSession({ name: email, email, role: "estimator" });
+    const key = email.trim().toLowerCase();
+    const membership = await membershipFor(key);
+    const profile = await getProfile(key, key);
+    const session = accountSession({ name: profile.fullName || key, email: key, role: membership?.member.role ?? "estimator" });
     const jar = await cookies();
     jar.set(COOKIE, serializeSessionCookie(session), { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 12 });
     return NextResponse.json({ mode: authMode(), session: publicSession(session) });

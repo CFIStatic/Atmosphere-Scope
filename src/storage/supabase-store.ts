@@ -5,20 +5,28 @@ const BUCKET = "media";
 
 type Deps = { env: Env; fetchImpl: typeof fetch };
 
+type JobRow = { document: Job; org_id?: string | null };
+
+function jobFromRow(row: JobRow): Job {
+  const orgId = row.document.orgId ?? row.org_id ?? null;
+  if (!orgId) return row.document;
+  return { ...row.document, orgId };
+}
+
 export async function listSupabaseJobs(env: Env, fetchImpl: typeof fetch): Promise<Job[]> {
   const { url, key } = required(env);
-  const response = await fetchImpl(`${url}/rest/v1/jobs?select=document&order=updated_at.desc`, { headers: restHeaders(key) });
+  const response = await fetchImpl(`${url}/rest/v1/jobs?select=document,org_id&order=updated_at.desc`, { headers: restHeaders(key) });
   if (!response.ok) throw new Error(`Supabase jobs list failed (${response.status}).`);
-  const rows = (await response.json()) as { document: Job }[];
-  return rows.map((row) => row.document);
+  const rows = (await response.json()) as JobRow[];
+  return rows.map(jobFromRow);
 }
 
 export async function getSupabaseJob(id: string, env: Env, fetchImpl: typeof fetch): Promise<Job | null> {
   const { url, key } = required(env);
-  const response = await fetchImpl(`${url}/rest/v1/jobs?id=eq.${encodeURIComponent(id)}&select=document`, { headers: restHeaders(key) });
+  const response = await fetchImpl(`${url}/rest/v1/jobs?id=eq.${encodeURIComponent(id)}&select=document,org_id`, { headers: restHeaders(key) });
   if (!response.ok) throw new Error(`Supabase job read failed (${response.status}).`);
-  const rows = (await response.json()) as { document: Job }[];
-  return rows[0]?.document ?? null;
+  const rows = (await response.json()) as JobRow[];
+  return rows[0] ? jobFromRow(rows[0]) : null;
 }
 
 export async function saveSupabaseJob(job: Job, env: Env, fetchImpl: typeof fetch): Promise<Job> {
@@ -27,7 +35,7 @@ export async function saveSupabaseJob(job: Job, env: Env, fetchImpl: typeof fetc
   const response = await fetchImpl(`${url}/rest/v1/jobs`, {
     method: "POST",
     headers: restHeaders(key, { Prefer: "resolution=merge-duplicates,return=minimal" }),
-    body: JSON.stringify({ id: next.id, document: next, updated_at: next.updatedAt }),
+    body: JSON.stringify({ id: next.id, document: next, org_id: next.orgId ?? null, updated_at: next.updatedAt }),
   });
   if (!response.ok) throw new Error(`Supabase job save failed (${response.status}).`);
   return next;

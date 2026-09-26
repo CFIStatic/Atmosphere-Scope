@@ -5,6 +5,7 @@ import {
   canSeeJob,
   decideRequest,
   devSignInAllowed,
+  passwordHint,
   passwordProblem,
   roleFromAppMetadata,
   safeNext,
@@ -74,6 +75,10 @@ describe("auth gate", () => {
     expect(canSeeJob({ openCatalog: false, role: "customer", email: "pat@example.com", jobId: "job-1", shares })).toBe(true);
     expect(canSeeJob({ openCatalog: false, role: "customer", email: "pat@example.com", jobId: "job-2", shares })).toBe(false);
     expect(canSeeJob({ openCatalog: false, role: "estimator", email: "e@example.com", jobId: "job-2", shares })).toBe(true);
+    expect(canSeeJob({ openCatalog: false, role: "admin", email: "a@example.com", jobId: "job-b", jobOrgId: "org-b", viewerOrgId: "org-a", shares: [] })).toBe(false);
+    expect(canSeeJob({ openCatalog: false, role: "admin", email: "a@example.com", jobId: "job-a", jobOrgId: "org-a", viewerOrgId: "org-a", shares: [] })).toBe(true);
+    expect(canSeeJob({ openCatalog: false, role: "estimator", email: "a@example.com", jobId: "legacy", jobOrgId: null, viewerOrgId: "org-a", shares: [] })).toBe(false);
+    expect(canSeeJob({ openCatalog: false, role: "estimator", email: "e@example.com", jobId: "job-b", jobOrgId: "org-b", viewerOrgId: null, shares: [] })).toBe(false);
     expect(canSeeJob({ openCatalog: true, role: "customer", email: "pat@example.com", jobId: "job-2", shares })).toBe(true);
     expect(canSeeJob({ openCatalog: false, role: null, email: "", jobId: "job-2", shares })).toBe(false);
     expect(canMutateJobs({ openCatalog: false, role: "customer" })).toBe(false);
@@ -81,6 +86,9 @@ describe("auth gate", () => {
     expect(canMutateJobs({ openCatalog: true, role: null })).toBe(true);
     expect(passwordProblem("short")).toMatch(/8/);
     expect(passwordProblem("long-enough")).toBeNull();
+    expect(passwordHint("")).toMatch(/8/);
+    expect(passwordHint("abcdefgh")).toMatch(/Weak/);
+    expect(passwordHint("Long-Enough-1")).toMatch(/Strong/);
     expect(safeNext("https://evil.example")).toBe("/");
     expect(safeNext("//evil.example")).toBe("/");
     expect(safeNext("/%2F%2Fevil.example")).toBe("/");

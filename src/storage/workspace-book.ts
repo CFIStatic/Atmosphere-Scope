@@ -190,9 +190,16 @@ export async function membershipFor(userId: string): Promise<{ org: Org; member:
   });
 }
 
-export async function saveOrg(userId: string, email: string, role: AccountRole, input: { name: string; address: string; licenseNumbers: string; logoUrl?: string }): Promise<Org> {
+export async function saveOrg(
+  userId: string,
+  email: string,
+  role: AccountRole,
+  input: { name: string; address: string; licenseNumbers: string; logoUrl?: string },
+  options?: { onboardingComplete?: boolean },
+): Promise<Org> {
   const name = input.name.trim();
   if (name.length < 2) throw new Error("Enter the company name.");
+  const onboardingComplete = options?.onboardingComplete !== false;
   const existing = await membershipFor(userId);
   if (existing && existing.member.role !== "admin") throw new Error("An admin has to update the company.");
   if (remote()) {
@@ -206,7 +213,7 @@ export async function saveOrg(userId: string, email: string, role: AccountRole, 
         updated_at: new Date().toISOString(),
       }).eq("id", existing.org.id);
       fail(error);
-      await saveProfile(userId, email, { onboardingComplete: true });
+      await saveProfile(userId, email, { onboardingComplete });
       return { ...existing.org, name, address: input.address.trim(), licenseNumbers: input.licenseNumbers.trim(), logoUrl: input.logoUrl ?? existing.org.logoUrl };
     }
     const id = crypto.randomUUID();
@@ -220,7 +227,16 @@ export async function saveOrg(userId: string, email: string, role: AccountRole, 
       role,
     });
     fail(member.error);
-    await saveProfile(userId, email, { onboardingComplete: true });
+    const defaults = await client.from("org_estimate_defaults").upsert({
+      org_id: id,
+      tax_rate: "",
+      overhead_pct: "",
+      profit_pct: "",
+      price_list_region: "",
+      labor_rates: [],
+    });
+    fail(defaults.error);
+    await saveProfile(userId, email, { onboardingComplete });
     return { id, name, address: input.address.trim(), logoUrl: input.logoUrl ?? "", licenseNumbers: input.licenseNumbers.trim() };
   }
   return mutate((book) => {
@@ -232,7 +248,7 @@ export async function saveOrg(userId: string, email: string, role: AccountRole, 
       org.licenseNumbers = input.licenseNumbers.trim();
       if (input.logoUrl != null) org.logoUrl = input.logoUrl;
       const profile = book.profiles.find((item) => item.userId === userId);
-      if (profile) profile.onboardingComplete = true;
+      if (profile) profile.onboardingComplete = onboardingComplete;
       return org;
     }
     const org: Org = { id: crypto.randomUUID(), name, address: input.address.trim(), logoUrl: input.logoUrl ?? "", licenseNumbers: input.licenseNumbers.trim() };
@@ -240,9 +256,62 @@ export async function saveOrg(userId: string, email: string, role: AccountRole, 
     book.members.push({ orgId: org.id, userId, email, fullName: "", role, revokedAt: null });
     book.defaults.push(blankDefaults(org.id));
     const profile = book.profiles.find((item) => item.userId === userId);
-    if (profile) profile.onboardingComplete = true;
-    else book.profiles.push({ userId, email, fullName: "", avatarUrl: "", onboardingComplete: true });
+    if (profile) profile.onboardingComplete = onboardingComplete;
+    else book.profiles.push({ userId, email, fullName: "", avatarUrl: "", onboardingComplete });
     return org;
+  });
+}
+
+export async function membershipByEmail(email: string): Promise<Member | null> {
+  const target = email.trim().toLowerCase();
+  if (!target) return null;
+  if (remote()) {
+    const { data, error } = await admin().from("org_members").select("*").eq("email", target).is("revoked_at", null).limit(1);
+    fail(error);
+    const row = data?.[0];
+    if (!row) return null;
+    return {
+      orgId: row.org_id,
+      userId: row.user_id,
+      email: row.email,
+      fullName: row.full_name ?? "",
+      role: row.role,
+      revokedAt: row.revoked_at,
+    };
+  }
+  return mutate((book) => book.members.find((item) => item.email === target && !item.revokedAt) ?? null);
+}
+
+/** Point an invite row at the auth user. Does not open a second company. */
+export async function claimMembership(email: string, userId: string, fullName: string): Promise<Member | null> {
+  const existing = await membershipByEmail(email);
+  if (!existing || existing.revokedAt) return null;
+  const next: Member = { ...existing, userId, email: email.trim().toLowerCase(), fullName: fullName.trim() || existing.fullName };
+  if (remote()) {
+    const client = admin();
+    if (existing.userId !== userId) {
+      const removed = await client.from("org_members").delete().eq("org_id", existing.orgId).eq("user_id", existing.userId);
+      fail(removed.error);
+      const inserted = await client.from("org_members").insert({
+        org_id: next.orgId,
+        user_id: userId,
+        email: next.email,
+        full_name: next.fullName,
+        role: next.role,
+      });
+      fail(inserted.error);
+    } else if (next.fullName) {
+      const updated = await client.from("org_members").update({ full_name: next.fullName }).eq("org_id", existing.orgId).eq("user_id", userId);
+      fail(updated.error);
+    }
+    return next;
+  }
+  return mutate((book) => {
+    const member = book.members.find((item) => item.orgId === existing.orgId && item.email === next.email && !item.revokedAt);
+    if (!member) return null;
+    member.userId = userId;
+    if (next.fullName) member.fullName = next.fullName;
+    return member;
   });
 }
 

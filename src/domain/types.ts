@@ -408,6 +408,7 @@ export type PendingQuantityChange = {
 
 export type Job = {
   id: string;
+  orgId?: string | null;
   createdAt: string;
   updatedAt: string;
   property: {

@@ -450,13 +450,13 @@ describe("supabase adapter", () => {
     const jobs = await listSupabaseJobs(
       { SUPABASE_URL: "https://abc.supabase.co/", SUPABASE_SERVICE_ROLE_KEY: "service-role" },
       (async (input: RequestInfo | URL, init?: RequestInit) => {
-        expect(String(input)).toBe("https://abc.supabase.co/rest/v1/jobs?select=document&order=updated_at.desc");
+        expect(String(input)).toBe("https://abc.supabase.co/rest/v1/jobs?select=document,org_id&order=updated_at.desc");
         const headers = init?.headers as Record<string, string>;
         expect(headers.Authorization).toBe("Bearer service-role");
         expect(headers.apikey).toBe("service-role");
-        return jsonResponse([{ document: { id: "job_1" } }]);
+        return jsonResponse([{ document: { id: "job_1" }, org_id: "org-a" }]);
       }) as typeof fetch,
     );
-    expect(jobs).toEqual([{ id: "job_1" }]);
+    expect(jobs).toEqual([{ id: "job_1", orgId: "org-a" }]);
   });
 });

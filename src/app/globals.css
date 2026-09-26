@@ -85,7 +85,7 @@ html[data-theme="light"] .brand-lockup-dark { display: none; }
 html[data-theme="light"] .brand-lockup-light { display: block; }
 .brand-lockup-link { display: block; max-width: 100%; line-height: 0; }
 .sidebar .brand-lockup-pair, .rail-head .brand-lockup-pair { width: 100%; }
-.auth-chrome .brand-lockup-pair { width: min(280px, 100%); }
+.auth-chrome .brand-lockup-pair { width: min(220px, calc(100% - 56px)); }
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 .grid { display: grid; gap: 14px; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
@@ -269,8 +269,8 @@ label.btn input { display: none; }
 .job-file-dialog { position: fixed; inset: 0; z-index: 60; background: rgba(28,25,23,.4); display: grid; place-items: center; padding: 16px; }
 .job-file-dialog .panel { width: min(28rem, 100%); }
 
-.auth-shell { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; padding: calc(22px + env(safe-area-inset-top)) 20px calc(36px + env(safe-area-inset-bottom)); background: var(--bg); }
-.auth-chrome { width: min(1080px, 100%); display: flex; align-items: center; justify-content: space-between; margin-bottom: 36px; }
+.auth-shell { position: relative; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; padding: calc(108px + env(safe-area-inset-top)) 20px calc(36px + env(safe-area-inset-bottom)); background: var(--bg); }
+.auth-chrome { position: absolute; top: max(28px, env(safe-area-inset-top)); left: 28px; right: 28px; width: auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0; }
 .auth-card { width: min(420px, 100%); background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 18px; padding: 28px 28px 22px; box-shadow: 0 1px 2px rgba(0,0,0,.35); }
 .auth-kicker { margin: 0 0 10px; font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
 .auth-card h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.03em; color: var(--ink); }
@@ -286,6 +286,7 @@ label.btn input { display: none; }
 .password-row { position: relative; display: block; }
 .password-row input { padding-right: 44px; }
 .password-eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; min-height: 36px; border: 0; background: transparent; color: var(--muted); display: grid; place-items: center; padding: 0; }
+.password-hint { font-weight: 450; }
 .signin-btn { width: 100%; min-height: 48px; margin-top: 8px; background: var(--accent); color: var(--on-accent); border: 0; font-size: 16px; font-weight: 600; }
 .signin-btn:hover { background: var(--gold); }
 .ops-main .shell, .lib-main .shell { max-width: none; }

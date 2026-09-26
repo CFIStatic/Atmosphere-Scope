@@ -26,6 +26,15 @@ export function localSession(input: { name?: string; email?: string; role?: stri
   return { name, email, role: input.role };
 }
 
+/** A real account cookie. The dev-only panel still uses localSession and cannot mint admin. */
+export function accountSession(input: { name?: string; email?: string; role?: string }): StoredSession {
+  const name = input.name?.trim() ?? "";
+  const email = input.email?.trim().toLowerCase() ?? "";
+  if (!name || !email) throw new Error("Name and email are required.");
+  if (input.role !== "admin" && input.role !== "estimator" && input.role !== "customer") throw new Error("Choose admin, estimator, or customer.");
+  return { name, email, role: input.role };
+}
+
 export function sessionFromSupabaseUser(
   user: { email?: string | null; app_metadata?: object; user_metadata?: object },
   accessToken: string,
