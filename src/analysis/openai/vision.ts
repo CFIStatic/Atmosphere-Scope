@@ -1,3 +1,4 @@
+import { noteModelUse } from "@/analysis/usage-log";
 import { openaiKey, redact, visionModel, type Env } from "@/analysis/config";
 import { frameTimeMs, selectKeyframes, type EvidenceLink, type IdentifiedObject } from "@/analysis/frames";
 import { screenText } from "@/analysis/guard";
@@ -129,6 +130,7 @@ export async function identifyObjects(
       }),
     });
     const payload = await response.json().catch(() => null);
+    noteModelUse(payload, visionModel(env));
     if (!response.ok) return { objects: [], note: `Object identification failed (${response.status}). Objects were not invented.` };
     const text = extractChatContent(payload);
     if (!text) return { objects: [], note: "Object identification returned no list. Objects were not invented." };

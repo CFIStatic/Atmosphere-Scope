@@ -30,6 +30,10 @@ describe("auth gate", () => {
     });
     expect(decideRequest({ ...base, pathname: "/api/jobs" })).toEqual({ type: "unauthorized" });
     expect(decideRequest({ ...base, pathname: "/login" })).toEqual({ type: "allow" });
+    expect(decideRequest({ ...base, pathname: "/signup" })).toEqual({ type: "allow" });
+    expect(decideRequest({ ...base, pathname: "/onboarding" })).toEqual({ type: "allow" });
+    expect(decideRequest({ ...base, pathname: "/api/health" })).toEqual({ type: "allow" });
+    expect(decideRequest({ ...base, pathname: "/api/auth/signup", method: "POST" })).toEqual({ type: "allow" });
     expect(decideRequest({ ...base, pathname: "/forgot" })).toEqual({ type: "allow" });
     expect(decideRequest({ ...base, pathname: "/auth/reset" })).toEqual({ type: "allow" });
     expect(decideRequest({ ...base, pathname: "/auth/callback" })).toEqual({ type: "allow" });
@@ -61,6 +65,7 @@ describe("auth gate", () => {
       pathname: "/account",
       search: "?error=role",
     });
+    expect(decideRequest({ ...base, pathname: "/settings", signedIn: true, role: null })).toEqual({ type: "allow" });
     expect(decideRequest({ ...base, mode: "local", pathname: "/admin/users" })).toEqual({ type: "allow" });
   });
 

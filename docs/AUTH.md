@@ -12,7 +12,7 @@ Roles live only in `app_metadata.role`: `admin`, `estimator`, or `customer`. `us
 - `/forgot` asks for a reset link. The reply is always "If an account exists for that email, a reset link is on its way." unless Supabase returns a rate limit.
 - `/auth/callback` exchanges a PKCE `code` or a `token_hash` from the email templates, then continues to `next`.
 - `/auth/reset` sets a new password of at least 8 characters. An expired or invalid link stays on this page with a link to request another.
-- `/account` changes the password and signs out. The header shows the signed-in name and role.
+- `/settings` is the account. Profile, company, team, appearance, estimate defaults, the calibration sheet, notifications, usage, and billing live there. `/account` opens settings. Billing shows no plan and does not call Stripe. Hosted signup stays invite-only.
 - `/admin/users` is only for `admin`. Invite, change a role, or deactivate. Deactivate uses a long Supabase ban. An existing access token can keep working until it expires or the user signs out.
 - An estimator or admin shares a job by customer email. A customer sees only those jobs and the estimates inside them. The same rule is in `supabase/migrations/20260925160000_jobs_shares_rls.sql`. Approval stays on the estimator. Authorization stays on the customer. An admin does not do either.
 
@@ -68,6 +68,15 @@ SITE_URL=https://your-domain.example
 `SUPABASE_SECRET_KEY` may replace `SUPABASE_SERVICE_ROLE_KEY`. `SITE_URL` is the origin used in reset and invite links. If it is unset, the app uses the request origin.
 
 Apply `supabase/migrations/20260925160000_jobs_shares_rls.sql` before sharing a job. A share against a missing `job_shares` table fails with a message to run that migration.
+
+Apply `supabase/migrations/20260926160000_account_settings.sql` for companies, profiles, team membership, estimate defaults, job events, and OpenAI usage. Those tables have row level security. The server writes them with the service role key.
+
+Optional, server only. When both are set, invite, password reset, and share-with-customer mail go out through Resend instead of Supabase's mailer. Leave them unset to keep the Supabase SMTP path above.
+
+```
+RESEND_API_KEY=
+RESEND_FROM=Atmosphere Scope <estimates@your-domain.example>
+```
 
 ## First admin
 

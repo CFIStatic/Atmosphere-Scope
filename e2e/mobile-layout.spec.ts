@@ -65,7 +65,7 @@ test("record is the shutter only and the sheet is on account", async ({ page }) 
   await expect(page.getByText("Attach to existing job")).toHaveCount(0);
   await expect(page.locator(".frame-guide")).toHaveCount(0);
 
-  await page.goto("/account");
+  await page.goto("/settings?section=calibration");
   await expect(page.getByRole("heading", { name: "Calibration sheet" })).toBeVisible();
   await expect(page.getByText("Place the sheet flat on the floor, in view of the camera, then record.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Download sheet PDF" })).toHaveAttribute("href", "/api/calibration-target");

@@ -76,7 +76,7 @@ function Rail({ onNavigate }: { onNavigate: () => void }) {
     { href: "/results", label: "Results", icon: <ResultsIcon />, current: path === "/results" || path.startsWith("/results/") },
     { href: "/estimate", label: "Estimate", icon: <EstimateIcon />, current: path === "/estimate" || path.startsWith("/estimate/") },
   ];
-  const account = path === "/account" || path.startsWith("/account/");
+  const account = path === "/account" || path.startsWith("/account/") || path === "/settings" || path.startsWith("/settings");
   return (
     <>
       <div className="rail-body">
@@ -90,7 +90,7 @@ function Rail({ onNavigate }: { onNavigate: () => void }) {
         </div>
       </div>
       <div className="rail-footer">
-        <Link className="navitem" href="/account" aria-current={account ? "page" : undefined} onClick={onNavigate}>
+        <Link className="navitem" href="/settings" aria-current={account ? "page" : undefined} onClick={onNavigate}>
           <GearIcon />
           <span>Account</span>
         </Link>

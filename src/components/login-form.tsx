@@ -9,8 +9,6 @@ import { applyStartScreenForEmail } from "@/auth/start-screen";
 export function LoginForm({ nextPath, notice }: { nextPath: string; notice: string | null }) {
   const [error, setError] = useState<string | null>(notice);
   const [pending, setPending] = useState(false);
-  const [invite, setInvite] = useState(false);
-
   return (
     <div className="grid">
       <form className="grid" onSubmit={async (event) => {
@@ -52,8 +50,7 @@ export function LoginForm({ nextPath, notice }: { nextPath: string; notice: stri
         <button className="btn signin-btn" type="submit" disabled={pending}>Sign in</button>
       </form>
       <hr className="auth-rule" />
-      <p className="auth-switch">Don&apos;t have an account? <button type="button" className="text-link" onClick={() => setInvite(true)}>Create an account</button></p>
-      {invite && <p className="meta">Accounts are invite-only. Ask an admin for an invite.</p>}
+      <p className="auth-switch">Don&apos;t have an account? <Link href="/signup">Create an account</Link></p>
     </div>
   );
 }

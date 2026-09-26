@@ -1,3 +1,4 @@
+import { noteModelUse } from "@/analysis/usage-log";
 import { pricingModel, redact, webSearchTool, type Env } from "@/analysis/config";
 import { blankOffer, fetchPublicPage, judgeOffer, type FetchPageOptions, type ReplacementOffer } from "@/analysis/pricing-check";
 
@@ -81,6 +82,7 @@ export async function priceWithOpenAI(
       }),
     });
     const payload = await response.json().catch(() => null);
+    noteModelUse(payload, pricingModel(env));
     if (!response.ok) {
       return blankOffer(query, `OpenAI pricing failed (${response.status}). No price was invented.`);
     }

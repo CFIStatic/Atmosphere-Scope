@@ -340,11 +340,23 @@ function localDateKey(value: string | Date): string {
 function TodayStrip({ job }: { job: Job }) {
   const today = localDateKey(new Date());
   const real = job.media.filter((item) => localDateKey(item.createdAt) === today && item.note?.trim() !== SAMPLE_MEDIA_NOTE).length;
-  if (!real) return null;
+  const [events, setEvents] = useState<string[]>([]);
+  useEffect(() => {
+    void fetch(`/api/jobs/${job.id}/events`).then(async (response) => {
+      if (!response.ok) return;
+      const body = await response.json();
+      setEvents(Array.isArray(body.today) ? body.today.filter((item: unknown) => typeof item === "string" && item.trim()) : []);
+    }).catch(() => undefined);
+  }, [job.id, job.updatedAt]);
+  if (!real && events.length === 0) return null;
+  const bits = [
+    real ? `${real} new ${real === 1 ? "clip" : "clips"}` : "",
+    ...events,
+  ].filter(Boolean);
   return (
     <p className="job-file-today" data-testid="job-file-today">
       <strong>What changed today</strong>
-      <span className="meta">{real} new {real === 1 ? "clip" : "clips"}</span>
+      <span className="meta">{bits.join(" · ")}</span>
     </p>
   );
 }
