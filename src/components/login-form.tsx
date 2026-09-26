@@ -55,12 +55,12 @@ export function LoginForm({ nextPath, notice }: { nextPath: string; notice: stri
   );
 }
 
-export function LoginExtras({ devFallback, nextPath }: { devFallback: boolean; nextPath: string }) {
+export function LoginExtras({ devFallback, nextPath, resendOpen = false }: { devFallback: boolean; nextPath: string; resendOpen?: boolean }) {
   const [confirmNote, setConfirmNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   return (
     <div className="auth-extra">
-      <details className="quiet">
+      <details className="quiet" {...(resendOpen ? { open: true } : {})}>
         <summary>Resend confirmation</summary>
         <form className="grid" onSubmit={async (event) => {
           event.preventDefault();
@@ -69,7 +69,7 @@ export function LoginExtras({ devFallback, nextPath }: { devFallback: boolean; n
           const response = await fetch("/api/auth/resend", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ email }),
+            body: JSON.stringify({ email, next: "/onboarding" }),
           });
           const body = await response.json();
           setConfirmNote(body.error ?? body.message ?? CONFIRM_SENT);

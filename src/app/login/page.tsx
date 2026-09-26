@@ -9,14 +9,16 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const params = await searchParams;
   const notice = params.error === "config"
     ? "Sign-in is not available until Supabase is configured."
-    : params.error === "link"
-      ? "This link is expired or invalid. Request another reset email."
-      : null;
+    : params.error === "confirm"
+      ? "This confirmation link is invalid or expired."
+      : params.error === "link"
+        ? "This link is expired or invalid. Request another reset email."
+        : null;
   return (
     <AuthCard
       title="Welcome back"
       lede="Sign in to your Atmosphere workspace."
-      after={<LoginExtras devFallback={authMode() !== "supabase"} nextPath={safeNext(params.next)} />}
+      after={<LoginExtras devFallback={authMode() !== "supabase"} nextPath={safeNext(params.next)} resendOpen={params.error === "confirm"} />}
     >
       <LoginForm nextPath={safeNext(params.next)} notice={notice} />
     </AuthCard>

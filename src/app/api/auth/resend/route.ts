@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   if (!limited.ok) return NextResponse.json({ error: RATE_LIMITED }, { status: 429 });
   const body = (await request.json()) as { email?: string; next?: string };
   const email = body.email?.trim() ?? "";
-  const next = body.next === "/onboarding" || body.next === "/record" ? body.next : "/account";
+  const next = body.next === "/record" ? "/record" : "/onboarding";
   if (!email || authMode() !== "supabase") return NextResponse.json({ message: CONFIRM_SENT });
   const supabase = await createSupabaseServer();
   if (!supabase) return NextResponse.json({ message: CONFIRM_SENT });

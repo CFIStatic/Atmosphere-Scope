@@ -10,7 +10,7 @@ Roles live only in `app_metadata.role`: `admin`, `estimator`, or `customer`. `us
 
 - `/login` signs in. A wrong password, a missing account, and an unconfirmed email all return "Email or password is incorrect." Confirmation can be resent from the same page, and that reply does not say whether the email is waiting.
 - `/forgot` asks for a reset link. The reply is always "If an account exists for that email, a reset link is on its way." unless Supabase returns a rate limit.
-- `/auth/callback` exchanges a PKCE `code` or a `token_hash` from the email templates, then continues to `next`.
+- `/auth/callback` exchanges a PKCE `code` or a `token_hash` from the email templates. Redirects use `SITE_URL`, then `x-forwarded-proto` and `x-forwarded-host`, then the request origin, so a Railway bind address such as `http://0.0.0.0:8080` is not sent to the browser. A confirmed signup or invite continues to `/onboarding`. A failed signup confirmation returns to `/login` with "This confirmation link is invalid or expired." and the resend form open. Password recovery continues to `/auth/reset`.
 - `/auth/reset` sets a new password of at least 8 characters. An expired or invalid link stays on this page with a link to request another.
 - `/signup` is open. The fields are full name, company name, email, and a password of at least 8 characters. The password field has a strength hint and a show/hide control. Signing up creates a Supabase user, a new company, an `org_members` row with role `admin`, a profile, and empty estimate defaults. `app_metadata.role` is set to `admin` with the service role key. The browser cannot set its own role. After sign-up the person finishes company address and license on `/onboarding`, then lands on Record.
 - If the project requires email confirmation, sign-up returns no session and `/signup` shows **Check your email** with a resend button. If confirmation is off, Supabase returns a session and the app signs them in. Both paths set the role and the company before the response.
@@ -68,7 +68,7 @@ SUPABASE_SERVICE_ROLE_KEY=
 SITE_URL=https://your-domain.example
 ```
 
-`SUPABASE_SECRET_KEY` may replace `SUPABASE_SERVICE_ROLE_KEY`. `SITE_URL` is the origin used in reset and invite links. If it is unset, the app uses the request origin.
+`SUPABASE_SECRET_KEY` may replace `SUPABASE_SERVICE_ROLE_KEY`. `SITE_URL` is the public origin used in redirects and in reset and invite links. On Railway set it to the public URL, for example `https://atmosphere-scope-production.up.railway.app`. If it is unset, the app uses `x-forwarded-proto` and `x-forwarded-host`, and only then the request origin.
 
 Apply these in order:
 

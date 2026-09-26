@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invite an email as an estimator or a customer." }, { status: 400 });
   }
   const invited = await gate.admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: callbackUrl(siteOrigin(request), "/auth/reset"),
+    redirectTo: callbackUrl(siteOrigin(request), "/onboarding"),
   });
   if (invited.error || !invited.data.user) return NextResponse.json({ error: "The invite was not sent." }, { status: 400 });
   const roleSet = await gate.admin.auth.admin.updateUserById(invited.data.user.id, {

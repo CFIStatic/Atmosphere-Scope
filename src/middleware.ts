@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { authMode } from "@/auth/access";
 import { decideRequest, roleFromAppMetadata } from "@/auth/gate";
+import { absoluteUrl, siteOrigin } from "@/auth/http";
 
 export async function middleware(request: NextRequest) {
   const mode = authMode();
@@ -45,8 +46,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   }
   if (decision.type === "redirect") {
-    const destination = request.nextUrl.clone();
-    destination.pathname = decision.pathname;
+    const destination = new URL(absoluteUrl(siteOrigin(request), decision.pathname));
     destination.search = decision.search;
     return NextResponse.redirect(destination);
   }
